@@ -15946,22 +15946,26 @@ function _djLimparNumero(numero){
   return (numero||'').replace(/[^0-9]/g,'');
 }
 
-// Consultar movimentações de um processo
+// Consultar movimentações de um processo (via CORS proxy que repassa headers)
 function djConsultar(numero, callback){
   var trib = _djDetectarTribunal(numero);
-  var url = DATAJUD_URL + '/api_publica_' + trib + '/_search';
+  var apiUrl = DATAJUD_URL + '/api_publica_' + trib + '/_search';
   var numLimpo = _djLimparNumero(numero);
+  var bodyStr = JSON.stringify({
+    query: { match: { numeroProcesso: numLimpo } },
+    size: 1
+  });
 
-  fetch(url, {
+  // corsproxy.io repassa headers incluindo Authorization
+  var proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(apiUrl);
+
+  fetch(proxyUrl, {
     method: 'POST',
     headers: {
       'Authorization': 'APIKey ' + DATAJUD_KEY,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      query: { match: { numeroProcesso: numLimpo } },
-      size: 1
-    })
+    body: bodyStr
   })
   .then(function(r){
     if(!r.ok) throw new Error('DataJud HTTP ' + r.status);
