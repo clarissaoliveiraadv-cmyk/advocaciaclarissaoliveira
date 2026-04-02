@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#510f10">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Phase 4: CSS extraído para arquivo separado -->
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <style>
 /* CSS principal movido para styles.css — este bloco mantido vazio para eventuais overrides inline */
 </style>
@@ -69,110 +69,99 @@
 </div>
 <div style="margin-left:56px">
 
-<!-- VIEW HOME — DASHBOARD -->
-<div class="view on" id="vc" style="flex-direction:row">
+<!-- VIEW HOME — DASHBOARD ESTILO PROJURIS -->
+<div class="view on" id="vc" style="flex-direction:column">
+  <div class="dsh-scroll">
 
-
-  <!-- CONTEÚDO DO DASHBOARD -->
-  <div style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
-
-    <!-- 3 STAT CARDS — sem repetição -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-      <div onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()"
-           style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer"
-           onmouseover="this.style.borderColor='#D4AF37'" onmouseout="this.style.borderColor='#2a2a2a'">
-        <div style="width:36px;height:36px;border-radius:8px;background:rgba(107,20,22,.25);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">⚖️</div>
-        <div><div id="dsc-ativos" style="font-size:22px;font-weight:700;color:#E0E0E0;font-family:'Inter','DM Sans',sans-serif;line-height:1.1">—</div><div style="font-size:10px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-family:'Inter','DM Sans',sans-serif">Processos ativos</div></div>
-      </div>
-      <div onclick="goView('va',document.getElementById('nav-agenda'))"
-           style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer"
-           onmouseover="this.style.borderColor='#D4AF37'" onmouseout="this.style.borderColor='#2a2a2a'">
-        <div style="width:36px;height:36px;border-radius:8px;background:rgba(201,72,74,.18);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">⚠️</div>
-        <div><div id="dsc-vencidos" style="font-size:22px;font-weight:700;color:#c9484a;font-family:'Inter','DM Sans',sans-serif;line-height:1.1">—</div><div style="font-size:10px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-family:'Inter','DM Sans',sans-serif">Prazos vencidos</div></div>
-      </div>
-      <div onclick="goView('vf',document.getElementById('nav-fin'));vfRender()"
-           style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer"
-           onmouseover="this.style.borderColor='#D4AF37'" onmouseout="this.style.borderColor='#2a2a2a'">
-        <div style="width:36px;height:36px;border-radius:8px;background:rgba(76,175,125,.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">💰</div>
-        <div><div id="dsc-fin" style="font-size:22px;font-weight:700;color:#4caf7d;font-family:'Inter','DM Sans',sans-serif;line-height:1.1">—</div><div style="font-size:10px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-family:'Inter','DM Sans',sans-serif">A receber este mês</div></div>
-      </div>
-    </div>
-
+    <!-- ALERTAS -->
     <div id="home-alerts"></div>
 
-    <!-- MAIN GRID: left(tarefas+atalhos) | right(agenda) -->
-    <div style="display:grid;grid-template-columns:55fr 45fr;gap:12px;align-items:start">
+    <!-- 3 COLUNAS PRINCIPAIS -->
+    <div class="dsh-grid3">
 
-      <!-- LEFT: tarefas + atalhos empilhados -->
-      <div style="display:flex;flex-direction:column;gap:12px">
-
-        <!-- TAREFAS DO DIA -->
-        <div id="home-checklist" style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden">
-        <div style="background:#202020;border-bottom:1px solid #2a2a2a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Tarefas do dia</span>
-            <div style="display:flex;gap:2px;background:#181818;border-radius:6px;padding:2px">
-              <button onclick="hcSetTab('tarefas',this)" id="hctab-tarefas" style="font-family:'Inter','DM Sans',sans-serif;font-size:10px;font-weight:700;padding:4px 9px;border-radius:4px;border:none;background:#2a2a2a;color:#E0E0E0;cursor:pointer">Tarefas <span id="hctab-tarefas-n" style="font-size:9px"></span></button>
-              <button onclick="hcSetTab('sistema',this)" id="hctab-sistema" style="font-family:'Inter','DM Sans',sans-serif;font-size:10px;font-weight:700;padding:4px 9px;border-radius:4px;border:none;background:transparent;color:#9E9E9E;cursor:pointer">Admin</button>
+      <!-- COLUNA 1: TAREFAS DO DIA -->
+      <div class="dsh-col">
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <div class="dsh-card-title">
+              <span>Tarefas do Dia</span>
+              <div class="dsh-tabs-mini">
+                <button onclick="hcSetTab('tarefas',this)" id="hctab-tarefas" class="dsh-tab-btn on">Tarefas <span id="hctab-tarefas-n"></span></button>
+                <button onclick="hcSetTab('sistema',this)" id="hctab-sistema" class="dsh-tab-btn">Admin</button>
+              </div>
+            </div>
+            <div class="dsh-card-actions">
+              <button onclick="novoTarefaDia()" class="dsh-btn">＋ Nova</button>
+              <button onclick="gerarResumoWpp()" class="dsh-btn dsh-btn-wpp">📲 WPP</button>
+              <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
             </div>
           </div>
-          <div style="display:flex;gap:6px">
-            <button onclick="novoTarefaDia()" style="font-family:'Inter','DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:#2a2a2a;border:1px solid #3a3a3a;color:#E0E0E0;cursor:pointer">＋ Nova</button>
-            <button onclick="gerarResumoWpp()" style="font-family:'Inter','DM Sans',sans-serif;font-size:10px;font-weight:600;padding:4px 9px;border-radius:5px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">📲 WPP</button>
-            <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" style="font-family:'Inter','DM Sans',sans-serif;font-size:10px;font-weight:500;padding:4px 9px;border-radius:5px;background:transparent;border:1px solid #2a2a2a;color:#9E9E9E;cursor:pointer">Kanban →</button>
+          <div class="dsh-card-body" style="max-height:500px;overflow-y:auto">
+            <div id="hc-list"></div>
+            <div id="hc-empty" class="hc-empty" style="display:none;padding:20px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
           </div>
         </div>
-        <div id="hc-list"></div>
-        <div id="hc-empty" class="hc-empty" style="display:none;padding:20px;text-align:center;font-size:12px;color:#9E9E9E">Nenhuma tarefa para hoje</div>
       </div>
 
-        <!-- ATALHOS -->
-        <div style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden">
-      <div style="background:#202020;border-bottom:1px solid #2a2a2a;padding:10px 14px">
-        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">⚡ Atalhos</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
-        <div onclick="novoProcesso()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-right:1px solid #2a2a2a;border-bottom:1px solid #2a2a2a;transition:background .15s" onmouseover="this.style.background='#202020'" onmouseout="this.style.background='transparent'">
-          <div style="width:32px;height:32px;border-radius:7px;background:rgba(107,20,22,.25);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">⚖️</div>
-          <div><div style="font-size:12px;font-weight:600;color:#E0E0E0;font-family:'Inter','DM Sans',sans-serif">Novo processo</div><div style="font-size:10px;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Cadastrar pasta</div></div>
-        </div>
-        <div onclick="novoTarefaDia()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #2a2a2a;transition:background .15s" onmouseover="this.style.background='#202020'" onmouseout="this.style.background='transparent'">
-          <div style="width:32px;height:32px;border-radius:7px;background:rgba(212,175,55,.12);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">📋</div>
-          <div><div style="font-size:12px;font-weight:600;color:#E0E0E0;font-family:'Inter','DM Sans',sans-serif">Nova tarefa</div><div style="font-size:10px;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Adicionar ao kanban</div></div>
-        </div>
-        <div onclick="novoCompromisso()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-right:1px solid #2a2a2a;transition:background .15s" onmouseover="this.style.background='#202020'" onmouseout="this.style.background='transparent'">
-          <div style="width:32px;height:32px;border-radius:7px;background:rgba(96,165,250,.12);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">📅</div>
-          <div><div style="font-size:12px;font-weight:600;color:#E0E0E0;font-family:'Inter','DM Sans',sans-serif">Novo compromisso</div><div style="font-size:10px;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Agenda e prazos</div></div>
-        </div>
-        <div onclick="novoLancamento()" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#202020'" onmouseout="this.style.background='transparent'">
-          <div style="width:32px;height:32px;border-radius:7px;background:rgba(76,175,125,.12);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">💰</div>
-          <div><div style="font-size:12px;font-weight:600;color:#E0E0E0;font-family:'Inter','DM Sans',sans-serif">Lançamento financeiro</div><div style="font-size:10px;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Honorários e despesas</div></div>
+      <!-- COLUNA 2: COMPROMISSOS + CALENDÁRIO -->
+      <div class="dsh-col">
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span class="dsh-card-title">Compromissos</span>
+            <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
+          </div>
+          <div class="dsh-card-body">
+            <div id="home-week"></div>
+          </div>
         </div>
       </div>
+
+      <!-- COLUNA 3: ATALHOS + FINANCEIRO DO DIA -->
+      <div class="dsh-col">
+        <!-- Atalhos -->
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span class="dsh-card-title">⚡ Atalhos</span>
+          </div>
+          <div class="dsh-card-body dsh-atalhos">
+            <div class="dsh-atalho" onclick="novoProcesso()"><span class="dsh-at-ico" style="background:rgba(107,20,22,.25)">⚖️</span><span>Novo processo</span></div>
+            <div class="dsh-atalho" onclick="novoTarefaDia()"><span class="dsh-at-ico" style="background:rgba(212,175,55,.12)">📋</span><span>Nova tarefa</span></div>
+            <div class="dsh-atalho" onclick="novoCompromisso()"><span class="dsh-at-ico" style="background:rgba(96,165,250,.12)">📅</span><span>Compromisso</span></div>
+            <div class="dsh-atalho" onclick="novoLancamento()"><span class="dsh-at-ico" style="background:rgba(76,175,125,.12)">💰</span><span>Lançamento</span></div>
+            <div class="dsh-atalho" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span><span>Atendimento</span></div>
+            <div class="dsh-atalho" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span><span>Contato</span></div>
+          </div>
+        </div>
+
+        <!-- Financeiro do dia -->
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
+            <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
+          </div>
+          <div class="dsh-card-body">
+            <div id="home-fin-dash"></div>
+          </div>
+        </div>
+
+        <!-- Stats compactos -->
+        <div class="dsh-stats-row">
+          <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
+            <div id="dsc-ativos" class="dsh-stat-val">—</div>
+            <div class="dsh-stat-lbl">Processos</div>
+          </div>
+          <div class="dsh-stat" onclick="goView('va',document.getElementById('nav-agenda'))">
+            <div id="dsc-vencidos" class="dsh-stat-val" style="color:#c9484a">—</div>
+            <div class="dsh-stat-lbl">Prazos vencidos</div>
+          </div>
+          <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
+            <div id="dsc-fin" class="dsh-stat-val" style="color:#4caf7d">—</div>
+            <div class="dsh-stat-lbl">A receber</div>
+          </div>
+        </div>
+      </div>
+
     </div>
-
-      </div>
-
-      <!-- RIGHT: AGENDA DE HOJE (mais larga) -->
-      <div style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden">
-        <div style="background:#202020;border-bottom:1px solid #2a2a2a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
-          <span id="hw-date-lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Hoje</span>
-          <button onclick="goView('va',document.getElementById('nav-agenda'))" style="font-family:'Inter','DM Sans',sans-serif;font-size:9px;font-weight:500;padding:3px 7px;border-radius:4px;background:transparent;border:1px solid #2a2a2a;color:#9E9E9E;cursor:pointer">Agenda →</button>
-        </div>
-        <div id="home-week"></div>
-      </div>
-
-    </div>
-
-    <!-- FINANCEIRO COMPACTO -->
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden">
-      <div style="background:#202020;border-bottom:1px solid #2a2a2a;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
-        <span id="fin-mes-lbl" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9E9E9E;font-family:'Inter','DM Sans',sans-serif">Financeiro</span>
-        <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" style="font-family:'Inter','DM Sans',sans-serif;font-size:9px;font-weight:500;padding:3px 7px;border-radius:4px;background:transparent;border:1px solid #2a2a2a;color:#9E9E9E;cursor:pointer">Ver tudo →</button>
-      </div>
-      <div id="home-fin-dash"></div>
-    </div>
-
   </div>
 </div>
 
@@ -424,7 +413,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
