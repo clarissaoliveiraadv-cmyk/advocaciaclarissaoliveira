@@ -14336,7 +14336,7 @@ function renderFicha(c, grp=null){
           ${c.valor_causa?`<div class="finfo-chip"><span class="finfo-lbl">Valor da causa</span><span class="finfo-val">${c.valor_causa}</span></div>`:''}
           ${c.instancia?`<div class="finfo-chip"><span class="finfo-lbl">Instância</span><span class="finfo-val">${c.instancia}</span></div>`:''}
         </div>
-        ${!encInfo?`<button class="btn-enc" onclick="encerrarProcesso(${c.id})">🗂 Encerrar processo</button><button class="btn-del" onclick="excluirProcesso(${c.id})">🗑 Excluir</button><button class="btn-enc" style="border-color:var(--ouro);color:var(--ouro)" onclick="editarDadosProcesso(${c.id})">✏ Editar dados</button>`:''}
+        ${!encInfo?`<button class="btn-enc" onclick="encerrarProcesso(${c.id})">🗂 Encerrar processo</button><button class="btn-del" onclick="excluirProcesso(${c.id})">🗑 Excluir</button><button class="btn-enc" style="border-color:var(--ouro);color:var(--ouro)" onclick="editarDadosProcesso(${c.id})">✏ Editar dados</button>${c.numero?`<button class="btn-enc" style="border-color:#4ade80;color:#4ade80" onclick="djSincronizar(${c.id})">🔄 Atualizar DataJud</button>`:''}`:''}
         <button class="dp-popover-btn" onclick="toggleDpPopover(${c.id})" title="Dados bancários e acessos sensíveis" id="dp-btn-${c.id}">👁 Dados sensíveis</button>
       </div>
       <div class="fctatos">${contato}</div>
@@ -15794,5 +15794,319 @@ if(_origOpenC){
     _origOpenC(...args);
     _mobileAbrirFicha();
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ══ NOTIFICAÇÕES PUSH + WORKFLOWS AUTOMATIZADOS ══
+// ═══════════════════════════════════════════════════════════════
+
+var _notifPermitido = false;
+function notifPedirPermissao(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'granted'){ _notifPermitido = true; return; }
+  if(Notification.permission !== 'denied'){
+    Notification.requestPermission().then(function(p){ _notifPermitido = (p === 'granted'); });
+  }
+}
+
+function notifEnviar(titulo, corpo, tag, onclick){
+  if(!_notifPermitido || !('Notification' in window)) return;
+  var n = new Notification(titulo, {
+    body: corpo,
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="%23510f10" stroke="%23D4AF37" stroke-width="3"/><text x="50" y="58" text-anchor="middle" font-family="serif" font-size="36" font-weight="700" fill="%23D4AF37">CO</text></svg>',
+    tag: tag || 'co-notif-' + Date.now(),
+    requireInteraction: false
+  });
+  if(onclick) n.onclick = function(){ window.focus(); onclick(); n.close(); };
+  setTimeout(function(){ n.close(); }, 15000);
+}
+
+// ── Workflows automatizados — verificação periódica ──
+var _wfLastRun = '';
+
+function wfRodar(){
+  var hoje = new Date().toISOString().slice(0,10);
+  if(_wfLastRun === hoje) return;
+  _wfLastRun = hoje;
+
+  var alertas = [];
+
+  // 1. Prazos fatais de hoje e próximos 3 dias
+  if(typeof prazos !== 'undefined' && prazos){
+    Object.entries(prazos).forEach(function(e){
+      var cid = e[0], lista = e[1] || [];
+      lista.forEach(function(p){
+        if(p.cumprido) return;
+        var dias = Math.ceil((new Date(p.data) - new Date(hoje)) / 86400000);
+        if(dias === 0){
+          alertas.push({tipo:'fatal', titulo:'⚠️ PRAZO FATAL HOJE', corpo:p.titulo+' — '+_clienteNome(cid), tag:'prazo-'+p.id,
+            onclick: function(){ openC(Number(cid)); }});
+        } else if(dias === 1){
+          alertas.push({tipo:'prazo', titulo:'📅 Prazo amanhã', corpo:p.titulo+' — '+_clienteNome(cid), tag:'prazo-'+p.id});
+        } else if(dias > 0 && dias <= 3){
+          alertas.push({tipo:'prazo', titulo:'📅 Prazo em '+dias+' dias', corpo:p.titulo+' — '+_clienteNome(cid), tag:'prazo-'+p.id});
+        }
+      });
+    });
+  }
+
+  // 2. Compromissos/audiências de hoje
+  (typeof localAg !== 'undefined' ? localAg : []).forEach(function(ag){
+    if(ag.cumprido === 'Sim') return;
+    var dt = (ag.data || ag.dt_raw || ag.inicio || '').slice(0,10);
+    if(dt === hoje){
+      alertas.push({tipo:'agenda', titulo:'📋 Compromisso hoje', corpo:(ag.titulo||'Evento')+(ag.obs?' — '+ag.obs:''), tag:'ag-'+ag.id});
+    }
+  });
+
+  // 3. Honorários vencidos
+  var honVenc = 0, honTot = 0;
+  (localLanc||[]).forEach(function(l){
+    if(l.pago || l.status === 'pago') return;
+    if(l.tipo === 'repasse' || l.tipo === 'despesa' || l.tipo === 'despint') return;
+    var venc = l.venc || l.data;
+    if(venc && venc < hoje){ honVenc++; honTot += parseFloat(l.valor) || 0; }
+  });
+  if(honVenc > 0){
+    var fV2 = function(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+    alertas.push({tipo:'fin', titulo:'💰 '+honVenc+' honorário'+(honVenc>1?'s':'')+' vencido'+(honVenc>1?'s':''),
+      corpo:'Total: '+fV2(honTot), tag:'hon-vencidos',
+      onclick: function(){ goFin(); vfSetTab('receber'); }});
+  }
+
+  // 4. Repasses pendentes urgentes (vencendo em 3 dias ou vencidos)
+  var repUrg = (localLanc||[]).filter(function(l){
+    if(l.pago || l.status === 'pago') return false;
+    if(l.tipo !== 'repasse' && !l._repasse_alvara && !l._repasse_acordo) return false;
+    var venc = l.venc || l.data;
+    return venc && Math.ceil((new Date(venc) - new Date(hoje)) / 86400000) <= 3;
+  });
+  if(repUrg.length){
+    alertas.push({tipo:'repasse', titulo:'📤 '+repUrg.length+' repasse'+(repUrg.length>1?'s':'')+' urgente'+(repUrg.length>1?'s':''),
+      corpo:'Vencem em breve ou já venceram', tag:'rep-urg',
+      onclick: function(){ goFin(); vfSetTab('repasses'); }});
+  }
+
+  // Disparar (máx 5, priorizados)
+  var prio = ['fatal','repasse','fin','prazo','agenda'];
+  alertas.sort(function(a,b){ return prio.indexOf(a.tipo) - prio.indexOf(b.tipo); });
+  alertas.slice(0, 5).forEach(function(a, i){
+    setTimeout(function(){ notifEnviar(a.titulo, a.corpo, a.tag, a.onclick); }, i * 2000);
+  });
+  if(alertas.length) console.log('[CO Workflows] '+alertas.length+' alertas');
+}
+
+function _clienteNome(cid){
+  var c = (CLIENTS||[]).find(function(x){ return String(x.id)===String(cid); });
+  return c ? c.cliente : 'Processo';
+}
+
+// ── Inicializar ──
+function _initNotifWorkflows(){
+  notifPedirPermissao();
+  setTimeout(wfRodar, 5000);
+  setInterval(wfRodar, 30 * 60 * 1000); // re-verificar a cada 30min
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initNotifWorkflows);
+else setTimeout(_initNotifWorkflows, 1000);
+
+// ═══════════════════════════════════════════════════════════════
+// ══ INTEGRAÇÃO DATAJUD (CNJ) — TRT 3ª REGIÃO ══
+// ═══════════════════════════════════════════════════════════════
+
+var DATAJUD_URL = 'https://api-publica.datajud.cnj.jus.br';
+var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDR4ZnY3Nkk6dGdqNXlW_SRnMC1yYXRKbnRnMWZvZw==';
+
+// Mapa de tribunal por código do número unificado (dígitos 14-16)
+var _djTribunais = {
+  '5.01':'trt1','5.02':'trt2','5.03':'trt3','5.04':'trt4','5.05':'trt5',
+  '5.06':'trt6','5.07':'trt7','5.08':'trt8','5.09':'trt9','5.10':'trt10',
+  '5.11':'trt11','5.12':'trt12','5.13':'trt13','5.14':'trt14','5.15':'trt15',
+  '5.16':'trt16','5.17':'trt17','5.18':'trt18','5.19':'trt19','5.20':'trt20',
+  '5.21':'trt21','5.22':'trt22','5.23':'trt23','5.24':'trt24',
+  '8.03':'tjmg','8.13':'tjmg','8.26':'tjsp','8.19':'tjrj',
+  '4.01':'trf1','4.02':'trf2','4.03':'trf3','4.04':'trf4','4.05':'trf5','4.06':'trf6'
+};
+
+function _djDetectarTribunal(numero){
+  // Número unificado CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO
+  var limpo = (numero||'').replace(/[^0-9.]/g,'');
+  // Tentar extrair justiça.tribunal (posições após ano)
+  var m = (numero||'').match(/\d{7}-?\d{2}\.?\d{4}\.(\d)\.(\d{2})\./);
+  if(m){
+    var chave = m[1]+'.'+m[2].replace(/^0/,'');
+    if(_djTribunais[chave]) return _djTribunais[chave];
+    var chave2 = m[1]+'.'+m[2];
+    if(_djTribunais[chave2]) return _djTribunais[chave2];
+  }
+  return 'trt3'; // default para TRT3 (MG)
+}
+
+function _djLimparNumero(numero){
+  return (numero||'').replace(/[^0-9]/g,'');
+}
+
+// Consultar movimentações de um processo
+function djConsultar(numero, callback){
+  var trib = _djDetectarTribunal(numero);
+  var url = DATAJUD_URL + '/api_publica_' + trib + '/_search';
+  var numLimpo = _djLimparNumero(numero);
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'APIKey ' + DATAJUD_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: { match: { numeroProcesso: numLimpo } },
+      size: 1
+    })
+  })
+  .then(function(r){
+    if(!r.ok) throw new Error('DataJud HTTP ' + r.status);
+    return r.json();
+  })
+  .then(function(data){
+    var hits = data.hits && data.hits.hits;
+    if(!hits || !hits.length){
+      callback(null, 'Processo não encontrado no DataJud');
+      return;
+    }
+    var proc = hits[0]._source;
+    callback(proc, null);
+  })
+  .catch(function(err){
+    callback(null, err.message || 'Erro ao consultar DataJud');
+  });
+}
+
+// Sincronizar movimentações de um processo com o app
+function djSincronizar(cid){
+  var c = CLIENTS.find(function(x){ return x.id === cid; });
+  if(!c || !c.numero){ showToast('Processo sem número cadastrado'); return; }
+
+  showToast('🔍 Consultando DataJud...');
+
+  djConsultar(c.numero, function(proc, erro){
+    if(erro){ showToast('❌ ' + erro); return; }
+
+    var movs = proc.movimentos || [];
+    if(!movs.length){ showToast('Nenhuma movimentação encontrada'); return; }
+
+    // Movimentações existentes no app
+    var existentes = (c.movimentacoes || []).map(function(m){
+      return (m.data_movimentacao || m.data || '') + '|' + (m.movimentacao || m.desc || '');
+    });
+    var existSet = new Set(existentes);
+
+    // Filtrar novas movimentações
+    var novas = [];
+    movs.forEach(function(m){
+      var dt = (m.dataHora || '').slice(0, 10);
+      var desc = m.nome || 'Movimentação';
+      var comp = m.complementosTabelados || [];
+      if(comp.length) desc += ' — ' + comp.map(function(c){ return c.descricao || c.nome; }).join(', ');
+      var chave = dt + '|' + desc;
+      if(!existSet.has(chave)){
+        novas.push({
+          data_movimentacao: dt,
+          movimentacao: desc,
+          tipo_movimentacao: 'DataJud',
+          _datajud: true,
+          _cod: m.codigo
+        });
+      }
+    });
+
+    if(!novas.length){
+      showToast('✓ Movimentações já estão atualizadas');
+      return;
+    }
+
+    // Adicionar ao processo
+    if(!c.movimentacoes) c.movimentacoes = [];
+    novas.forEach(function(n){ c.movimentacoes.unshift(n); });
+
+    // Atualizar data da última movimentação
+    var ultDt = movs.reduce(function(max, m){
+      var d = (m.dataHora||'').slice(0,10);
+      return d > max ? d : max;
+    }, '');
+    if(ultDt){
+      c.ultima_mov = ultDt;
+      var hoje = new Date().toISOString().slice(0,10);
+      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDt)) / 86400000);
+    }
+
+    // Atualizar dados do processo vindos do DataJud
+    if(proc.classe && proc.classe.nome && !c.natureza){
+      c.natureza = proc.classe.nome;
+    }
+    if(proc.orgaoJulgador && proc.orgaoJulgador.nome){
+      c._vara_datajud = proc.orgaoJulgador.nome;
+    }
+    if(proc.assuntos && proc.assuntos.length){
+      c._assuntos_datajud = proc.assuntos.map(function(a){ return a.nome; });
+    }
+
+    sbSalvarClientes();
+    marcarAlterado();
+
+    // Re-render se estiver na ficha
+    if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
+
+    showToast('✓ ' + novas.length + ' nova' + (novas.length > 1 ? 's' : '') + ' movimentação' + (novas.length > 1 ? 'ões' : '') + ' importada' + (novas.length > 1 ? 's' : ''));
+    audit('datajud_sync', 'processo', c.cliente + ' — ' + novas.length + ' movs');
+  });
+}
+
+// Sincronizar TODOS os processos ativos com número
+function djSincronizarTodos(){
+  var ativos = (CLIENTS||[]).filter(function(c){
+    return c.numero && !(encerrados[c.id] || encerrados[String(c.id)]);
+  });
+
+  if(!ativos.length){ showToast('Nenhum processo com número cadastrado'); return; }
+
+  showToast('🔄 Sincronizando ' + ativos.length + ' processos...');
+  var idx = 0, total = 0;
+
+  function proximo(){
+    if(idx >= ativos.length){
+      showToast('✓ Sincronização concluída — ' + total + ' novas movimentações');
+      return;
+    }
+    var c = ativos[idx];
+    idx++;
+    djConsultar(c.numero, function(proc, erro){
+      if(!erro && proc){
+        var movs = proc.movimentos || [];
+        var existSet = new Set((c.movimentacoes||[]).map(function(m){
+          return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');
+        }));
+        var novas = [];
+        movs.forEach(function(m){
+          var dt = (m.dataHora||'').slice(0,10);
+          var desc = m.nome || 'Movimentação';
+          var comp = m.complementosTabelados || [];
+          if(comp.length) desc += ' — ' + comp.map(function(x){ return x.descricao||x.nome; }).join(', ');
+          if(!existSet.has(dt+'|'+desc)){
+            novas.push({data_movimentacao:dt, movimentacao:desc, tipo_movimentacao:'DataJud', _datajud:true, _cod:m.codigo});
+          }
+        });
+        if(novas.length){
+          if(!c.movimentacoes) c.movimentacoes = [];
+          novas.forEach(function(n){ c.movimentacoes.unshift(n); });
+          total += novas.length;
+          var ultDt = movs.reduce(function(max,m){ var d=(m.dataHora||'').slice(0,10); return d>max?d:max; },'');
+          if(ultDt){ c.ultima_mov=ultDt; c.ultima_mov_dias=Math.ceil((new Date()-new Date(ultDt))/86400000); }
+        }
+      }
+      // Esperar 250ms entre requisições (respeitar rate limit)
+      setTimeout(proximo, 250);
+    });
+  }
+  proximo();
 }
 
