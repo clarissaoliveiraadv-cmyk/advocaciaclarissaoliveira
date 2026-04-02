@@ -8605,11 +8605,43 @@ function gerarResumoWpp(){
     return titulo+cli+range;
   });
 
+  // 4. FINANCEIRO — recebimentos vencendo hoje + cobranças (2 dias antes)
+  var fV4=function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var em2d=new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
+  var recebHoje=[], cobrar=[];
+  (localLanc||[]).forEach(function(l){
+    if(l.pago||l.status==='pago') return;
+    if(l.tipo==='repasse'||l.tipo==='despesa'||l.tipo==='despint') return;
+    var venc=(l.venc||l.data||'').slice(0,10);
+    if(!venc) return;
+    var cNome=l.cliente||'';
+    var desc=l.desc||'Honorários';
+    if(venc===hoje){
+      recebHoje.push(cNome+' - '+desc+' — '+fV4(l.valor));
+    } else if(venc>hoje&&venc<=em2d){
+      cobrar.push(cNome+' - '+desc+' — '+fV4(l.valor)+' (vence '+fDt(venc)+')');
+    }
+  });
+
+  // 5. PAGAMENTOS do dia (despesas/repasses vencendo hoje)
+  var pagHoje=[];
+  (localLanc||[]).forEach(function(l){
+    if(l.pago||l.status==='pago') return;
+    if(l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.direcao!=='pagar') return;
+    var venc=(l.venc||l.data||'').slice(0,10);
+    if(venc===hoje){
+      pagHoje.push((l.cliente||'Escritório')+' - '+(l.desc||'Pagamento')+' — '+fV4(l.valor));
+    }
+  });
+
   var txt='*Prazos/Tarefas de hoje — '+dataFmt+'*'+NL+NL;
   if(fatais.length){txt+='🔴 *Fatais*'+NL;fatais.forEach(function(f){txt+='- '+f+NL;});txt+=NL;}
   if(tarefasHj.length){txt+='📌 *Tarefas*'+NL;tarefasHj.forEach(function(t){txt+='- '+t+NL;});txt+=NL;}
   if(compHj.length){txt+='📅 *Compromissos*'+NL;compHj.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
-  if(!fatais.length&&!tarefasHj.length&&!compHj.length){txt+='✅ _Nenhuma tarefa para hoje._'+NL;}
+  if(recebHoje.length){txt+='💰 *Recebimentos de hoje*'+NL;recebHoje.forEach(function(r){txt+='- '+r+NL;});txt+=NL;}
+  if(pagHoje.length){txt+='💸 *Pagamentos de hoje*'+NL;pagHoje.forEach(function(r){txt+='- '+r+NL;});txt+=NL;}
+  if(cobrar.length){txt+='📣 *Cobrar (vencem em 2 dias)*'+NL;cobrar.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
+  if(!fatais.length&&!tarefasHj.length&&!compHj.length&&!recebHoje.length&&!pagHoje.length&&!cobrar.length){txt+='✅ _Nenhuma pendência para hoje._'+NL;}
   txt+=NL+'_CO Advocacia App_';
   if(navigator&&navigator.clipboard){
     navigator.clipboard.writeText(txt).then(function(){showToast('✓ Resumo copiado! Cole no WhatsApp.');}).catch(function(){mostrarTxtModal(txt);});
@@ -16172,8 +16204,24 @@ function wfRodar(){
       onclick: function(){ goFin(); vfSetTab('repasses'); }});
   }
 
+  // 5. Cobranças — recebimentos vencendo em 2 dias
+  var em2d2 = new Date(new Date(hoje).getTime()+2*86400000).toISOString().slice(0,10);
+  var cobrar2 = (localLanc||[]).filter(function(l){
+    if(l.pago || l.status === 'pago') return false;
+    if(l.tipo === 'repasse' || l.tipo === 'despesa' || l.tipo === 'despint') return false;
+    var venc = (l.venc||l.data||'').slice(0,10);
+    return venc > hoje && venc <= em2d2;
+  });
+  if(cobrar2.length){
+    var fV5=function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+    var totCob=cobrar2.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+    alertas.push({tipo:'cobrar', titulo:'📣 '+cobrar2.length+' cobrança'+(cobrar2.length>1?'s':'')+' para fazer',
+      corpo:fV5(totCob)+' vencem nos próximos 2 dias', tag:'cobrar',
+      onclick: function(){ goFin(); vfSetTab('receber'); }});
+  }
+
   // Disparar (máx 5, priorizados)
-  var prio = ['fatal','repasse','fin','prazo','agenda'];
+  var prio = ['fatal','repasse','cobrar','fin','prazo','agenda'];
   alertas.sort(function(a,b){ return prio.indexOf(a.tipo) - prio.indexOf(b.tipo); });
   alertas.slice(0, 5).forEach(function(a, i){
     setTimeout(function(){ notifEnviar(a.titulo, a.corpo, a.tag, a.onclick); }, i * 2000);
