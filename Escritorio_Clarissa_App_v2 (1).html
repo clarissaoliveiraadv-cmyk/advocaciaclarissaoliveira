@@ -4472,22 +4472,62 @@ function vfRender(){
   var e3=document.getElementById('vfkpi-custodia'); if(e3) e3.textContent=fK(custodia);
   var e4=document.getElementById('vfkpi-desp');     if(e4) e4.textContent=fK(despMes);
 
-  // ── Routing ── Phase 2: DocumentFragment — evita innerHTML direto
+  // ── Routing ── Phase 3: lazy-load com cache de abas pesadas
   var tab = _vfTab||'mes';
+  var cacheKey = tab + ':' + mesP + ':' + todos.length;
+  if(!vfRender._cache) vfRender._cache = {};
+  // Abas leves (dados mudam frequentemente) — sempre recalculam
+  var leve = {mes:1, receber:1, repasses:1, caixa:1, fixas:1};
   var htmlTab;
-  if(tab==='mes')              htmlTab = vfMes(todos, mesP);
-  else if(tab==='receber')     htmlTab = vfAReceber(todos);
-  else if(tab==='repasses')    htmlTab = vfRepasses();
-  else if(tab==='caixa')       htmlTab = vfCaixa();
-  else if(tab==='dre')         htmlTab = vfDRE(todos);
-  else if(tab==='fixas')       htmlTab = vfDespesasFixas();
-  else if(tab==='extrato')     htmlTab = vfExtrato();
-  else if(tab==='inadimplencia')htmlTab = vfInadimplencia(todos);
-  else if(tab==='fluxo')       htmlTab = vfFluxo(todos);
-  else                         htmlTab = vfMes(todos, mesP);
+  if(leve[tab] || !vfRender._cache[cacheKey]){
+    if(tab==='mes')              htmlTab = vfMes(todos, mesP);
+    else if(tab==='receber')     htmlTab = vfAReceber(todos);
+    else if(tab==='repasses')    htmlTab = vfRepasses();
+    else if(tab==='caixa')       htmlTab = vfCaixa();
+    else if(tab==='dre')         htmlTab = vfDRE(todos);
+    else if(tab==='fixas')       htmlTab = vfDespesasFixas();
+    else if(tab==='extrato')     htmlTab = vfExtrato();
+    else if(tab==='inadimplencia')htmlTab = vfInadimplencia(todos);
+    else if(tab==='fluxo')       htmlTab = vfFluxo(todos);
+    else                         htmlTab = vfMes(todos, mesP);
+    // Cache abas pesadas (dre, extrato, inadimplencia, fluxo)
+    if(!leve[tab]) vfRender._cache[cacheKey] = htmlTab;
+  } else {
+    htmlTab = vfRender._cache[cacheKey];
+  }
   el.textContent = '';
   el.appendChild(_fragFromHtml(htmlTab));
   _updateNavBtn();
+  // Phase 3: pré-cachear abas pesadas em tempo ocioso
+  _vfPrefetch();
+}
+// Invalida cache ao alterar dados financeiros
+function vfInvalidarCache(){ if(vfRender._cache) vfRender._cache={}; }
+
+// Phase 3: pré-cachear abas pesadas em tempo ocioso (requestIdleCallback)
+function _vfPrefetch(){
+  var ric = window.requestIdleCallback || function(cb){ setTimeout(cb, 200); };
+  var pesadas = ['dre','extrato','inadimplencia','fluxo'];
+  var idx = 0;
+  function step(deadline){
+    if(idx >= pesadas.length) return;
+    var todos = vfTodos();
+    var mesP = _vfMes || new Date(HOJE).toISOString().slice(0,7);
+    while(idx < pesadas.length && (deadline.timeRemaining() > 10 || !deadline.timeRemaining)){
+      var tab = pesadas[idx];
+      var key = tab + ':' + mesP + ':' + todos.length;
+      if(!vfRender._cache) vfRender._cache = {};
+      if(!vfRender._cache[key]){
+        if(tab==='dre')               vfRender._cache[key] = vfDRE(todos);
+        else if(tab==='extrato')      vfRender._cache[key] = vfExtrato();
+        else if(tab==='inadimplencia')vfRender._cache[key] = vfInadimplencia(todos);
+        else if(tab==='fluxo')        vfRender._cache[key] = vfFluxo(todos);
+      }
+      idx++;
+    }
+    if(idx < pesadas.length) ric(step);
+  }
+  ric(step);
 }
 
 function vfNavMes(delta){
@@ -12964,6 +13004,7 @@ let _unsaved = false;
 function marcarAlterado(){
   _unsaved = true;
   invalidarCacheVfTodos(); // PERF: invalidar cache de lançamentos
+  vfInvalidarCache();      // Phase 3: invalidar cache de abas pesadas
   const btn = document.getElementById('btn-salvar');
   if(btn && btn.textContent === '💾 Salvar') btn.textContent = '💾 Salvar *';
 }
