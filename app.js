@@ -1087,12 +1087,14 @@ function renderChecklist(){
     });
   }) : [];
 
-  // Tarefas do kanban para hoje + atrasadas pendentes de dias anteriores
+  // Tarefas do kanban para hoje + atrasadas pendentes + concluídas de hoje (ficam riscadas)
   const doKanban = vkTasks.filter(function(t){
-    if(t.status==='done' || t.status==='concluido') return false;
-    // Tarefa de hoje
+    var isDone = t.status==='done' || t.status==='concluido';
+    // Concluídas de hoje: mostrar riscadas
+    if(isDone && (t.prazo===hoje || t.paraHoje===hoje)) return true;
+    // Pendentes
+    if(isDone) return false;
     if(t.prazo===hoje || t.paraHoje===hoje) return true;
-    // Tarefa de dia anterior não concluída — aparece até ser feita
     if(t.prazo && t.prazo < hoje) return true;
     return false;
   });
@@ -1143,11 +1145,11 @@ function renderChecklist(){
   }
   if(empty) empty.style.display='none';
 
-  const pendentes  = todas.filter(function(t){return t.status!=='concluido';});
-  const concluidas = todas.filter(function(t){return t.status==='concluido';});
+  const pendentes  = todas.filter(function(t){return t.status!=='concluido'&&t.status!=='done';});
+  const concluidas = todas.filter(function(t){return t.status==='concluido'||t.status==='done';});
 
   const renderItem = t => {
-    const done = t.status==='concluido';
+    const done = t.status==='concluido'||t.status==='done';
     const tipoCls = 'tipo-'+(t.tipo||'tarefa');
     const tipoLabel = (TIPO_LABEL?.[t.tipo]) || '📋';
     // Fatal prazo item: different concluir action
