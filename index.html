@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#510f10">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Phase 4: CSS extraído para arquivo separado -->
-<link rel="stylesheet" href="styles.css?v=22">
+<link rel="stylesheet" href="styles.css?v=23">
 <style>
 /* CSS principal movido para styles.css — este bloco mantido vazio para eventuais overrides inline */
 </style>
@@ -73,8 +73,24 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- ALERTAS -->
-    <div id="home-alerts"></div>
+    <!-- STATS + ALERTAS em linha -->
+    <div class="dsh-top-row">
+      <div class="dsh-stats-row">
+        <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
+          <div id="dsc-ativos" class="dsh-stat-val">—</div>
+          <div class="dsh-stat-lbl">Processos</div>
+        </div>
+        <div class="dsh-stat" onclick="goView('va',document.getElementById('nav-agenda'))">
+          <div id="dsc-vencidos" class="dsh-stat-val" style="color:#c9484a">—</div>
+          <div class="dsh-stat-lbl">Prazos vencidos</div>
+        </div>
+        <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
+          <div id="dsc-fin" class="dsh-stat-val" style="color:#4caf7d">—</div>
+          <div class="dsh-stat-lbl">A receber</div>
+        </div>
+      </div>
+      <div id="home-alerts" class="dsh-alerts-compact"></div>
+    </div>
 
     <!-- 3 COLUNAS PRINCIPAIS -->
     <div class="dsh-grid3">
@@ -98,12 +114,12 @@
           </div>
           <div class="dsh-card-body" style="max-height:500px;overflow-y:auto">
             <div id="hc-list"></div>
-            <div id="hc-empty" class="hc-empty" style="display:none;padding:20px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
+            <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
           </div>
         </div>
       </div>
 
-      <!-- COLUNA 2: COMPROMISSOS + CALENDÁRIO -->
+      <!-- COLUNA 2: COMPROMISSOS + FINANCEIRO -->
       <div class="dsh-col">
         <div class="dsh-card">
           <div class="dsh-card-head">
@@ -114,11 +130,20 @@
             <div id="home-week"></div>
           </div>
         </div>
+        <!-- Financeiro do dia -->
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
+            <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
+          </div>
+          <div class="dsh-card-body">
+            <div id="home-fin-dash"></div>
+          </div>
+        </div>
       </div>
 
-      <!-- COLUNA 3: ATALHOS + FINANCEIRO DO DIA -->
+      <!-- COLUNA 3: ATALHOS -->
       <div class="dsh-col">
-        <!-- Atalhos -->
         <div class="dsh-card">
           <div class="dsh-card-head">
             <span class="dsh-card-title">⚡ Atalhos</span>
@@ -130,33 +155,6 @@
             <div class="dsh-atalho" onclick="novoLancamento()"><span class="dsh-at-ico" style="background:rgba(76,175,125,.12)">💰</span><span>Lançamento</span></div>
             <div class="dsh-atalho" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span><span>Atendimento</span></div>
             <div class="dsh-atalho" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span><span>Contato</span></div>
-          </div>
-        </div>
-
-        <!-- Financeiro do dia -->
-        <div class="dsh-card">
-          <div class="dsh-card-head">
-            <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
-            <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
-          </div>
-          <div class="dsh-card-body">
-            <div id="home-fin-dash"></div>
-          </div>
-        </div>
-
-        <!-- Stats compactos -->
-        <div class="dsh-stats-row">
-          <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
-            <div id="dsc-ativos" class="dsh-stat-val">—</div>
-            <div class="dsh-stat-lbl">Processos</div>
-          </div>
-          <div class="dsh-stat" onclick="goView('va',document.getElementById('nav-agenda'))">
-            <div id="dsc-vencidos" class="dsh-stat-val" style="color:#c9484a">—</div>
-            <div class="dsh-stat-lbl">Prazos vencidos</div>
-          </div>
-          <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
-            <div id="dsc-fin" class="dsh-stat-val" style="color:#4caf7d">—</div>
-            <div class="dsh-stat-lbl">A receber</div>
           </div>
         </div>
       </div>
@@ -413,7 +411,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 <script>
 /* JS principal movido para app.js */
 </script>

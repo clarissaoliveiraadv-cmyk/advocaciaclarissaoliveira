@@ -1087,15 +1087,15 @@ function renderChecklist(){
     });
   }) : [];
 
-  // Tarefas do kanban para hoje + atrasadas pendentes + concluídas de hoje (ficam riscadas)
+  // Tarefas do kanban para hoje + atrasadas + concluídas de hoje (ficam riscadas)
   const doKanban = vkTasks.filter(function(t){
     var isDone = t.status==='done' || t.status==='concluido';
-    // Concluídas de hoje: mostrar riscadas
+    // Concluídas de hoje ou atrasadas concluídas hoje: mostrar riscadas
     if(isDone && (t.prazo===hoje || t.paraHoje===hoje)) return true;
-    // Pendentes
-    if(isDone) return false;
-    if(t.prazo===hoje || t.paraHoje===hoje) return true;
-    if(t.prazo && t.prazo < hoje) return true;
+    // Pendentes de hoje
+    if(!isDone && (t.prazo===hoje || t.paraHoje===hoje)) return true;
+    // Atrasadas pendentes (não concluídas)
+    if(!isDone && t.prazo && t.prazo < hoje) return true;
     return false;
   });
 
