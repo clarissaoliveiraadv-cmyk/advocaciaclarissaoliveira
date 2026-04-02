@@ -14365,63 +14365,101 @@ function renderFicha(c, grp=null){
     title="Editar contato">✏</button>`;
 
   f.innerHTML=`
-    ${encInfo?`
-    <div class="enc-banner">
-      <div>
-        <div class="enc-banner-txt">🗂 Processo encerrado em ${encInfo.data}</div>
-        ${encInfo.motivo?`<div class="enc-banner-data">${encInfo.motivo}</div>`:''}
-      </div>
-      <button class="btn-reativar" onclick="reativarProcesso(${c.id})">↩ Reativar</button>
-    </div>`:''}
-    ${!encInfo&&c.ultima_mov_dias>=1000?`
-    <div class="dorm-alert2">
-      <span class="dorm-alert2-icon">⚠️</span>
-      <div class="dorm-alert2-body">
-        <span class="dorm-alert2-titulo">Processo dormente</span>
-        <span class="dorm-alert2-sub">Sem movimentação há ${c.ultima_mov_dias===9999?'tempo indeterminado':`${c.ultima_mov_dias} dias`}${c.ultima_mov_data_real?` · Última: ${fmtDataBR(c.ultima_mov_data_real)}`:''}.</span>
-      </div>
-    </div>`:''}
-
-    ${(c.tipo==='consulta'||c.status_consulta==='consulta')&&!encInfo?`
-    <div class="atend-banner" id="atend-banner-${c.id}">
-      ${renderAtendBanner(c)}
-    </div>`:''}
-    <div class="fhead">
-      <div style="flex:1">
-        ${grp&&grp.processos&&grp.processos.length>1?`
-    <div class="proc-selector">
-      ${grp.processos.map(p=>`
-        <button class="proc-btn ${p.id===c.id?'on':''}" onclick="openC(${grp.id},${p.id})">
-          <span class="proc-btn-pasta">Pasta ${p.pasta}</span>
-          <span class="proc-btn-nat ${nc(p.natureza)}">${p.natureza}</span>
-          ${(encerrados[p.id]||encerrados[String(p.id)])?'<span class="proc-btn-enc">encerrado</span>':''}
-        </button>`).join('')}
-    </div>`:``}
-    <div class="fpasta">Pasta ${c.pasta} · ID ${c.id}</div>
-        <div class="fnome">${escapeHtml(c.cliente)||'(sem nome)'}</div>
-        <div class="ftags">
-          <span class="ftag ftn">${c.natureza}</span>
-          ${c.condicao?`<span class="ftag ftc">${c.condicao}</span>`:''}
-          ${c.instancia?`<span class="ftag fti">${c.instancia}</span>`:''}
-        </div>
-        <div class="finfo-strip">
-          <div class="finfo-chip finfo-num">
-            <span class="finfo-lbl">Nº do processo</span>
-            <span class="finfo-val mono">${c.numero||'<em style="color:var(--mu);font-style:italic;font-size:10px">não distribuído</em>'}</span>
+    <!-- HEADER ESTILO PROJURIS -->
+    <div class="pj-header">
+      <div class="pj-header-top">
+        <div class="pj-header-left">
+          <button class="pj-back" onclick="_finVoltarClientes()" title="Voltar">←</button>
+          <div class="pj-header-id">
+            <span class="pj-pasta">⚖ ${c.pasta||c.id}</span>
+            <span class="pj-nat-badge ${nc(c.natureza)}">${c.natureza||'—'}</span>
+            ${encInfo?'<span class="pj-enc-badge">Encerrado</span>':''}
           </div>
-          ${c.data_inicio?`<div class="finfo-chip"><span class="finfo-lbl">Distribuído em</span><span class="finfo-val">${fmtDataBR(c.data_inicio)}</span></div>`:''}
-          ${c.natureza?`<div class="finfo-chip"><span class="finfo-lbl">Natureza</span><span class="finfo-val">${c.natureza}</span></div>`:''}
-          ${c.comarca?`<div class="finfo-chip"><span class="finfo-lbl">Comarca / Vara</span><span class="finfo-val">${c.comarca}</span></div>`:''}
-          ${c.adverso?`<div class="finfo-chip finfo-chip-adv"><span class="finfo-lbl">⚔ Adverso</span><span class="finfo-val">${c.adverso}</span></div>`:''}
-          ${c.polo?`<div class="finfo-chip"><span class="finfo-lbl">Polo</span><span class="finfo-val">${c.polo}</span></div>`:''}
-          ${c.valor_causa?`<div class="finfo-chip"><span class="finfo-lbl">Valor da causa</span><span class="finfo-val">${c.valor_causa}</span></div>`:''}
-          ${c.instancia?`<div class="finfo-chip"><span class="finfo-lbl">Instância</span><span class="finfo-val">${c.instancia}</span></div>`:''}
         </div>
-        ${!encInfo?`<button class="btn-enc" onclick="encerrarProcesso(${c.id})">🗂 Encerrar processo</button><button class="btn-del" onclick="excluirProcesso(${c.id})">🗑 Excluir</button><button class="btn-enc" style="border-color:var(--ouro);color:var(--ouro)" onclick="editarDadosProcesso(${c.id})">✏ Editar dados</button>${c.numero?`<button class="btn-enc" style="border-color:#4ade80;color:#4ade80" onclick="djSincronizar(${c.id})">🔄 Verificar tribunal</button>`:''}`:''}
-        <button class="dp-popover-btn" onclick="toggleDpPopover(${c.id})" title="Dados bancários e acessos sensíveis" id="dp-btn-${c.id}">👁 Dados sensíveis</button>
+        <div class="pj-header-right">
+          <div class="pj-opcoes-wrap">
+            <button class="pj-opcoes-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">Opções ▾</button>
+            <div class="pj-opcoes-menu" style="display:none" onclick="this.style.display='none'">
+              <div class="pj-opcoes-group">Processo</div>
+              ${!encInfo?`
+              <div class="pj-opcoes-item" onclick="editarDadosProcesso(${c.id})">✏ Alterar Processo</div>
+              <div class="pj-opcoes-item" onclick="encerrarProcesso(${c.id})">🗂 Encerrar Processo</div>
+              `:`
+              <div class="pj-opcoes-item" onclick="reativarProcesso(${c.id})">↩ Reativar Processo</div>
+              `}
+              ${c.numero?`<div class="pj-opcoes-item" onclick="djSincronizar(${c.id})">🔄 Verificar Tribunal</div>`:''}
+              <div class="pj-opcoes-sep"></div>
+              <div class="pj-opcoes-group">Adicionar</div>
+              <div class="pj-opcoes-item" onclick="abrirModalMov(${c.id})">📋 Adicionar Movimentação</div>
+              <div class="pj-opcoes-item" onclick="abrirModalAgCliente(${c.id})">📅 Adicionar Compromisso</div>
+              <div class="pj-opcoes-item" onclick="abrirModalPrazo(${c.id})">⏰ Adicionar Prazo</div>
+              <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'receber')">💰 Adicionar Recebimento</div>
+              <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'pagar')">💸 Adicionar Pagamento</div>
+              <div class="pj-opcoes-sep"></div>
+              <div class="pj-opcoes-item" onclick="toggleDpPopover(${c.id})">👁 Dados Sensíveis</div>
+              <div class="pj-opcoes-item" style="color:#c9484a" onclick="excluirProcesso(${c.id})">🗑 Excluir Processo</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="fctatos">${contato}</div>
+
+      <div class="pj-header-body">
+        <div class="pj-header-info">
+          ${c.numero?`<span class="pj-numero">${c.numero}</span>`:'<span class="pj-numero pj-numero-nd">não distribuído</span>'}
+          ${c.data_inicio?` <span class="pj-data-dist">Em ${fmtDataBR(c.data_inicio)}</span>`:''}
+          <div class="pj-nome">${escapeHtml(c.cliente)||'(sem nome)'}</div>
+
+          ${!encInfo&&c.ultima_mov_dias>=30?`
+          <div class="pj-alerta-dorm">
+            ⚠ Este processo está sem movimentação há ${c.ultima_mov_dias===9999?'tempo indeterminado':c.ultima_mov_dias+' dias'}
+          </div>`:''}
+
+          ${(c.tipo==='consulta'||c.status_consulta==='consulta')&&!encInfo?`
+          <div class="atend-banner" id="atend-banner-${c.id}">${renderAtendBanner(c)}</div>`:''}
+
+          ${grp&&grp.processos&&grp.processos.length>1?`
+          <div class="proc-selector" style="margin-top:10px">
+            ${grp.processos.map(p=>`
+              <button class="proc-btn ${p.id===c.id?'on':''}" onclick="openC(${grp.id},${p.id})">
+                <span class="proc-btn-pasta">Pasta ${p.pasta}</span>
+                <span class="proc-btn-nat ${nc(p.natureza)}">${p.natureza}</span>
+                ${(encerrados[p.id]||encerrados[String(p.id)])?'<span class="proc-btn-enc">encerrado</span>':''}
+              </button>`).join('')}
+          </div>`:''}
+        </div>
+        <div class="pj-header-contato">${contato}</div>
+      </div>
+
+      <!-- Partes -->
+      <div class="pj-partes">
+        <span class="pj-partes-lbl">Partes</span>
+        <span class="pj-parte-badge pj-parte-cli">Cliente</span>
+        <span class="pj-parte-badge pj-parte-autor">${c.condicao||'Autor'}</span>
+        <span class="pj-parte-nome">${escapeHtml(c.cliente)||'—'}</span>
+        ${c.tel?`<span class="pj-wpp-ico" onclick="window.open('https://wa.me/55${c.tel.replace(/\\D/g,'')}','_blank')" title="WhatsApp">💬</span>`:''}
+        ${c.adverso?`
+        <div style="margin-top:6px">
+          <span class="pj-parte-badge" style="background:rgba(201,72,74,.12);color:#c9484a">Réu</span>
+          <span class="pj-parte-nome">${escapeHtml(c.adverso)}</span>
+        </div>`:''}
+      </div>
+
+      <!-- Judicial -->
+      <div class="pj-judicial">
+        <span class="pj-judicial-lbl">Judicial</span>
+        <div class="pj-judicial-grid">
+          ${c.numero?`<div><span class="pj-jud-k">Número</span><span class="pj-jud-v mono">${c.numero}</span></div>`:''}
+          ${c._vara_datajud||c.comarca?`<div><span class="pj-jud-k">Tribunal / Vara</span><span class="pj-jud-v">${c._vara_datajud||c.comarca}</span></div>`:''}
+          ${c.instancia?`<div><span class="pj-jud-k">Instância</span><span class="pj-jud-v">${c.instancia}</span></div>`:''}
+          ${c.polo?`<div><span class="pj-jud-k">Polo</span><span class="pj-jud-v">${c.polo}</span></div>`:''}
+          ${c.valor_causa?`<div><span class="pj-jud-k">Valor da Causa</span><span class="pj-jud-v">${c.valor_causa}</span></div>`:''}
+          ${c._assuntos_datajud?`<div><span class="pj-jud-k">Assuntos</span><span class="pj-jud-v">${c._assuntos_datajud.join(', ')}</span></div>`:''}
+        </div>
+      </div>
     </div>
+
+    <!-- POPOVER DADOS SENSÍVEIS (mantido) -->
+    <button class="dp-popover-btn" onclick="toggleDpPopover(${c.id})" title="Dados bancários e acessos sensíveis" id="dp-btn-${c.id}" style="display:none">👁</button>
     <!-- POPOVER DADOS SENSÍVEIS -->
     <div class="dp-popover" id="dp-pop-${c.id}" style="display:none">
       <div class="dp-pop-header">

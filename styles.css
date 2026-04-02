@@ -2269,3 +2269,67 @@ body.light .fin-lanc-row:hover { background:#F5F6F8; }
 body.light .vcl-table th { background:#F0F2F5; }
 body.light .vcl-table tbody tr:hover { background:#F5F6F8; }
 
+/* ══ FICHA HEADER ESTILO PROJURIS ══ */
+.pj-header { padding:16px 20px 0; }
+.pj-header-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pj-header-left { display:flex; align-items:center; gap:12px; }
+.pj-back { border:none; background:transparent; font-size:20px; color:var(--mu); cursor:pointer; padding:4px 8px; border-radius:6px; }
+.pj-back:hover { background:var(--sf3); color:var(--tx); }
+.pj-header-id { display:flex; align-items:center; gap:8px; }
+.pj-pasta { font-size:22px; font-weight:800; color:var(--tx); font-family:'Playfair Display',serif; }
+.pj-nat-badge { font-size:10px; font-weight:700; padding:3px 10px; border-radius:4px; text-transform:uppercase; letter-spacing:.04em; }
+.pj-enc-badge { font-size:9px; font-weight:700; padding:2px 8px; border-radius:4px; background:var(--sf3); color:var(--mu); }
+
+/* Opções dropdown */
+.pj-opcoes-wrap { position:relative; }
+.pj-opcoes-btn {
+  padding:8px 18px; border-radius:6px; border:none;
+  background:var(--sf3); color:var(--tx); font-size:12px;
+  font-weight:700; cursor:pointer; transition:background .15s;
+}
+.pj-opcoes-btn:hover { background:var(--bd); }
+.pj-opcoes-menu {
+  position:absolute; right:0; top:100%; margin-top:4px; z-index:100;
+  background:var(--sf2); border:1px solid var(--bd); border-radius:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,.3); min-width:220px; overflow:hidden;
+}
+.pj-opcoes-group { padding:8px 16px 4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); }
+.pj-opcoes-item { padding:9px 16px; font-size:12px; color:var(--tx); cursor:pointer; transition:background .1s; }
+.pj-opcoes-item:hover { background:var(--sf3); }
+.pj-opcoes-sep { height:1px; background:var(--bd); margin:4px 0; }
+
+/* Header body */
+.pj-header-body { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.pj-header-info { flex:1; }
+.pj-numero { font-family:'DM Sans',monospace; font-size:12px; font-weight:600; color:var(--ouro); background:rgba(212,175,55,.1); border:1px solid rgba(212,175,55,.3); border-radius:4px; padding:2px 10px; }
+.pj-numero-nd { color:var(--mu); background:var(--sf3); border-color:var(--bd); font-style:italic; }
+.pj-data-dist { font-size:11px; color:var(--mu); margin-left:8px; }
+.pj-nome { font-size:18px; font-weight:700; color:var(--tx); margin-top:6px; font-family:'Playfair Display',serif; }
+.pj-header-contato { flex-shrink:0; text-align:right; }
+.pj-alerta-dorm {
+  margin-top:8px; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600;
+  background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25); color:#f59e0b;
+}
+
+/* Partes */
+.pj-partes { padding:10px 20px; border-top:1px solid var(--bd); }
+.pj-partes-lbl { font-size:13px; font-weight:700; color:var(--tx); margin-right:12px; }
+.pj-parte-badge { font-size:9px; font-weight:700; padding:2px 8px; border-radius:3px; margin-right:4px; }
+.pj-parte-cli { background:rgba(76,175,125,.15); color:#4ade80; }
+.pj-parte-autor { background:rgba(76,175,125,.15); color:#4ade80; }
+.pj-parte-nome { font-size:12px; font-weight:600; color:var(--tx); }
+.pj-wpp-ico { cursor:pointer; font-size:14px; margin-left:4px; }
+
+/* Judicial */
+.pj-judicial { padding:10px 20px; border-top:1px solid var(--bd); }
+.pj-judicial-lbl { font-size:13px; font-weight:700; color:var(--tx); display:block; margin-bottom:8px; }
+.pj-judicial-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+.pj-jud-k { display:block; font-size:10px; color:var(--mu); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.pj-jud-v { display:block; font-size:12px; color:var(--tx); font-weight:500; }
+.pj-jud-v.mono { font-family:'DM Sans',monospace; }
+
+/* Light mode */
+body.light .pj-opcoes-menu { background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.12); }
+body.light .pj-opcoes-item:hover { background:#F0F2F5; }
+body.light .pj-opcoes-btn { background:#F0F2F5; }
+
