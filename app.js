@@ -14336,7 +14336,7 @@ function renderFicha(c, grp=null){
           ${c.valor_causa?`<div class="finfo-chip"><span class="finfo-lbl">Valor da causa</span><span class="finfo-val">${c.valor_causa}</span></div>`:''}
           ${c.instancia?`<div class="finfo-chip"><span class="finfo-lbl">Instância</span><span class="finfo-val">${c.instancia}</span></div>`:''}
         </div>
-        ${!encInfo?`<button class="btn-enc" onclick="encerrarProcesso(${c.id})">🗂 Encerrar processo</button><button class="btn-del" onclick="excluirProcesso(${c.id})">🗑 Excluir</button><button class="btn-enc" style="border-color:var(--ouro);color:var(--ouro)" onclick="editarDadosProcesso(${c.id})">✏ Editar dados</button>${c.numero?`<button class="btn-enc" style="border-color:#4ade80;color:#4ade80" onclick="djSincronizar(${c.id})">🔄 Atualizar DataJud</button>`:''}`:''}
+        ${!encInfo?`<button class="btn-enc" onclick="encerrarProcesso(${c.id})">🗂 Encerrar processo</button><button class="btn-del" onclick="excluirProcesso(${c.id})">🗑 Excluir</button><button class="btn-enc" style="border-color:var(--ouro);color:var(--ouro)" onclick="editarDadosProcesso(${c.id})">✏ Editar dados</button>${c.numero?`<button class="btn-enc" style="border-color:#4ade80;color:#4ade80" onclick="djSincronizar(${c.id})">🔄 Verificar tribunal</button>`:''}`:''}
         <button class="dp-popover-btn" onclick="toggleDpPopover(${c.id})" title="Dados bancários e acessos sensíveis" id="dp-btn-${c.id}">👁 Dados sensíveis</button>
       </div>
       <div class="fctatos">${contato}</div>
@@ -15996,105 +15996,33 @@ function djSincronizar(cid){
     if(erro){ showToast('❌ ' + erro); return; }
 
     var movs = proc.movimentos || [];
-    if(!movs.length){ showToast('Nenhuma movimentação encontrada'); return; }
+    if(!movs.length){ showToast('Nenhuma movimentação no tribunal'); return; }
 
-    // Movimentações irrelevantes (burocráticas do sistema) — ignorar
-    var _djIgnorar = new Set([
-      'conclusão','mero expediente','juntada','vista','remessa',
-      'distribuição','redistribuição','recebimento',
-      'desentranhamento','numeração','publicação',
-      'baixa definitiva','arquivamento','desarquivamento',
-      'certidão emitida','certidão','expedição de documento',
-      'decurso de prazo','outros','ato ordinatório',
-      'inclusão no juízo 100% digital'
-    ]);
-
-    // Filtrar movimentações relevantes (sentença, audiência, despacho com conteúdo, etc.)
-    var relevantes = movs.filter(function(m){
-      var nome = (m.nome||'').toLowerCase().trim();
-      // Ignorar se nome é genérico
-      if(_djIgnorar.has(nome)) return false;
-      // Ignorar "conclusão — tipo_de_conclusao" e variantes genéricas
-      if(nome.startsWith('conclus')) return false;
-      if(nome === 'juntada de documento' || nome === 'juntada de petição') return false;
-      return true;
-    });
-
-    // Ordenar por data desc e pegar a mais recente relevante
-    relevantes.sort(function(a,b){
-      return ((b.dataHora||'').localeCompare(a.dataHora||''));
-    });
-
-    // Atualizar data da última movimentação (sempre, usando TODAS as movs)
-    var ultDtGeral = movs.reduce(function(max,m){
+    // Atualizar data da última movimentação
+    var ultDt = movs.reduce(function(max,m){
       var d=(m.dataHora||'').slice(0,10); return d>max?d:max;
     },'');
     var hoje = new Date().toISOString().slice(0,10);
-    if(ultDtGeral){
-      c.ultima_mov = ultDtGeral;
-      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDtGeral)) / 86400000);
+    if(ultDt){
+      c.ultima_mov = ultDt;
+      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDt)) / 86400000);
     }
 
-    if(!relevantes.length){
-      showToast('✓ Processo ativo (última mov: ' + fDt(ultDtGeral) + ') — sem novidade relevante');
-      sbSalvarClientes(); marcarAlterado();
-      if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
-      return;
-    }
-
-    var ultima = relevantes[0];
-    var dt = (ultima.dataHora || '').slice(0, 10);
-    var desc = ultima.nome || 'Movimentação';
-    var comp = ultima.complementosTabelados || [];
-    if(comp.length){
-      var compDescs = comp.map(function(c){ return c.descricao || c.nome; }).filter(function(s){
-        // Filtrar complementos genéricos tipo "tipo_de_conclusao"
-        return s && !s.match(/^tipo_de_/i) && s.toLowerCase() !== 'outros';
-      });
-      if(compDescs.length) desc += ' — ' + compDescs.join(', ');
-    }
-
-    // Verificar se já existe
-    var existSet = new Set((c.movimentacoes || []).map(function(m){
-      return (m.data_movimentacao || m.data || '') + '|' + (m.movimentacao || m.desc || '');
-    }));
-    var jaExiste = existSet.has(dt + '|' + desc);
-
-    // Inserir só se não existir ainda
-    if(!jaExiste){
-      if(!c.movimentacoes) c.movimentacoes = [];
-      c.movimentacoes.unshift({
-        data_movimentacao: dt,
-        movimentacao: desc,
-        tipo_movimentacao: 'DataJud',
-        _datajud: true,
-        _cod: ultima.codigo
-      });
-    }
-
-    // Atualizar dados do processo vindos do DataJud
-    if(proc.classe && proc.classe.nome && !c.natureza){
-      c.natureza = proc.classe.nome;
-    }
-    if(proc.orgaoJulgador && proc.orgaoJulgador.nome){
-      c._vara_datajud = proc.orgaoJulgador.nome;
-    }
-    if(proc.assuntos && proc.assuntos.length){
-      c._assuntos_datajud = proc.assuntos.map(function(a){ return a.nome; });
-    }
+    // Enriquecer dados do processo
+    if(proc.classe && proc.classe.nome && !c.natureza) c.natureza = proc.classe.nome;
+    if(proc.orgaoJulgador && proc.orgaoJulgador.nome) c._vara_datajud = proc.orgaoJulgador.nome;
+    if(proc.assuntos && proc.assuntos.length) c._assuntos_datajud = proc.assuntos.map(function(a){ return a.nome; });
+    if(proc.dataAjuizamento && !c.data_inicio) c.data_inicio = proc.dataAjuizamento.slice(0,10);
 
     sbSalvarClientes();
     marcarAlterado();
-
-    // Re-render se estiver na ficha
     if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
 
-    if(jaExiste){
-      showToast('✓ Última mov: ' + desc + ' (' + fDt(dt) + ') — já registrada');
-    } else {
-      showToast('✓ Nova mov: ' + desc + ' (' + fDt(dt) + ')');
-    }
-    audit('datajud_sync', 'processo', c.cliente + ' — ' + desc);
+    // Toast informativo
+    var diasStr = c.ultima_mov_dias === 0 ? 'hoje' : c.ultima_mov_dias + ' dias atrás';
+    var vara = c._vara_datajud ? ' · ' + c._vara_datajud : '';
+    showToast('✓ Última mov: ' + fDt(ultDt) + ' (' + diasStr + ')' + vara);
+    audit('datajud_sync', 'processo', c.cliente + ' — ' + fDt(ultDt));
   });
 }
 
@@ -16103,45 +16031,28 @@ function djSincronizarTodos(){
   var ativos = (CLIENTS||[]).filter(function(c){
     return c.numero && !(encerrados[c.id] || encerrados[String(c.id)]);
   });
-
   if(!ativos.length){ showToast('Nenhum processo com número cadastrado'); return; }
 
-  showToast('🔄 Sincronizando ' + ativos.length + ' processos...');
-  var idx = 0, total = 0;
+  showToast('🔄 Atualizando ' + ativos.length + ' processos...');
+  var idx = 0, atualizados = 0;
 
   function proximo(){
     if(idx >= ativos.length){
-      showToast('✓ Sincronização concluída — ' + total + ' novas movimentações');
+      sbSalvarClientes(); marcarAlterado();
+      showToast('✓ ' + atualizados + '/' + ativos.length + ' processos atualizados');
       return;
     }
-    var c = ativos[idx];
-    idx++;
+    var c = ativos[idx]; idx++;
     djConsultar(c.numero, function(proc, erro){
       if(!erro && proc){
         var movs = proc.movimentos || [];
         if(movs.length){
-          // Atualizar ultima_mov com qualquer movimentação
-          var ultDt2=movs.reduce(function(max,m){var d=(m.dataHora||'').slice(0,10);return d>max?d:max;},'');
-          if(ultDt2){c.ultima_mov=ultDt2;c.ultima_mov_dias=Math.ceil((new Date()-new Date(ultDt2))/86400000);}
-          // Filtrar só relevantes
-          var rel2=movs.filter(function(m){
-            var n=(m.nome||'').toLowerCase().trim();
-            return !_djIgnorar.has(n)&&!n.startsWith('conclus')&&n!=='juntada de documento'&&n!=='juntada de petição';
-          }).sort(function(a,b){return (b.dataHora||'').localeCompare(a.dataHora||'');});
-          if(rel2.length){
-            var u2=rel2[0],dt2=(u2.dataHora||'').slice(0,10),desc2=u2.nome||'Movimentação';
-            var comp2=u2.complementosTabelados||[];
-            if(comp2.length){var cd=comp2.map(function(x){return x.descricao||x.nome;}).filter(function(s){return s&&!s.match(/^tipo_de_/i)&&s.toLowerCase()!=='outros';});if(cd.length)desc2+=' — '+cd.join(', ');}
-            var es2=new Set((c.movimentacoes||[]).map(function(m){return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');}));
-            if(!es2.has(dt2+'|'+desc2)){
-              if(!c.movimentacoes)c.movimentacoes=[];
-              c.movimentacoes.unshift({data_movimentacao:dt2,movimentacao:desc2,tipo_movimentacao:'DataJud',_datajud:true,_cod:u2.codigo});
-              total++;
-            }
-          }
+          var ultDt = movs.reduce(function(max,m){var d=(m.dataHora||'').slice(0,10);return d>max?d:max;},'');
+          if(ultDt){ c.ultima_mov=ultDt; c.ultima_mov_dias=Math.ceil((new Date()-new Date(ultDt))/86400000); atualizados++; }
         }
+        if(proc.classe && proc.classe.nome && !c.natureza) c.natureza = proc.classe.nome;
+        if(proc.orgaoJulgador && proc.orgaoJulgador.nome) c._vara_datajud = proc.orgaoJulgador.nome;
       }
-      // Esperar 250ms entre requisições (respeitar rate limit)
       setTimeout(proximo, 250);
     });
   }
