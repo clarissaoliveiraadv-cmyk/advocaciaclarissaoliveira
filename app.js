@@ -13888,6 +13888,20 @@ function abrirModalMov(cid){
 
 let mvWppCustom = '';
 
+function _mvEnviarWpp(cid, idx){
+  var c = CLIENTS.find(function(x){ return x.id === cid; });
+  if(!c){ showToast('Cliente não encontrado'); return; }
+  var movs = (localMov[cid]||[]).concat([...(c.movimentacoes||[]),...(MOV_INDEX[String(cid)]||[])]);
+  var m = movs[idx];
+  if(!m){ showToast('Movimentação não encontrada'); return; }
+  var txt = m.movimentacao || m.desc || m.descricao || '';
+  var msg = mvGerarMsg(c.cliente || 'cliente', txt);
+  var tel = (c.tel||'').replace(/\D/g,'');
+  if(!tel){ showToast('Cliente sem telefone cadastrado'); return; }
+  var url = 'https://wa.me/55' + tel + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+
 function mvGerarMsg(cliente, descricao){
   return '📍 Atualização Processual\n'
     + 'Prezado(a) ' + cliente.split(' ')[0] + ',\n\n'
@@ -14628,7 +14642,7 @@ function renderFicha(c, grp=null){
             return `<div class="pj-mov-item">
               <div class="pj-mov-ico-col">
                 <div class="pj-mov-plus" onclick="abrirModalMov(${c.id})" title="Adicionar">+</div>
-                ${tipoDisplay==='DataJud'?'':`<div class="pj-mov-env" onclick="mvGerarMsg(${c.id},${i})" title="Enviar ao cliente">✉</div>`}
+                ${tipoDisplay==='DataJud'?'':`<div class="pj-mov-env" onclick="_mvEnviarWpp(${c.id},${i})" title="Enviar ao cliente via WhatsApp">✉</div>`}
               </div>
               <div class="pj-mov-body">
                 <span class="pj-mov-date">${fmtDataBR(dtDisplay)}</span> — ${escapeHtml(txtDisplay)}
