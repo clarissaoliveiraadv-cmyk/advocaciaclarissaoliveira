@@ -5,7 +5,8 @@ const ASSETS = [
   './',
   './Escritorio_Clarissa_App_v2 (1).html',
   './styles.css',
-  './app.js'
+  './app.js',
+  './manifest.json'
 ];
 
 // Install: pre-cache assets

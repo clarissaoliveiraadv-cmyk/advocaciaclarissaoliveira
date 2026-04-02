@@ -1,3 +1,17 @@
+// ── Error handler global — captura erros silenciosos e exibe toast ──
+window.onerror = function(msg, src, line, col, err){
+  var txt = '⚠ Erro: ' + (msg||'desconhecido');
+  if(line) txt += ' (L'+line+')';
+  if(typeof showToast==='function') showToast(txt);
+  console.error('[CO]', msg, src, line, col, err);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e){
+  var msg = e.reason ? (e.reason.message||String(e.reason)) : 'Promise rejeitada';
+  if(typeof showToast==='function') showToast('⚠ ' + msg);
+  console.error('[CO] unhandledrejection:', e.reason);
+});
+
 // Utilitários globais (definidos antes de tudo para garantir disponibilidade)
 function fDt(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
 // ═══════════════════════════════════════════════════════

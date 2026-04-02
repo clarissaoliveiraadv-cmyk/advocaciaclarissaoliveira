@@ -1,0 +1,18 @@
+{
+  "name": "Clarissa Oliveira · Advocacia",
+  "short_name": "CO Advocacia",
+  "description": "Sistema de gestão jurídica — Clarissa Oliveira Advogada",
+  "start_url": "./Escritorio_Clarissa_App_v2 (1).html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#510f10",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23510f10' stroke='%23D4AF37' stroke-width='3'/><text x='50' y='58' text-anchor='middle' font-family='serif' font-size='36' font-weight='700' fill='%23D4AF37'>CO</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
