@@ -8515,8 +8515,8 @@ function renderHomeAlerts(){
   const em7str = em7.toISOString().slice(0,10);
   const todos = vfTodos();
 
-  const prazos    = allPend().filter(p=>{ const dt=(p.dt_raw||'').slice(0,10); return dt>=hoje&&dt<=em7str&&agTipo(p)==='prazo'; });
-  const audiencias= allPend().filter(p=>{ const dt=(p.dt_raw||'').slice(0,10); return dt>=hoje&&dt<=em7str&&agTipo(p)==='audiencia'; });
+  const prazos    = allPend().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='prazo'; });
+  const audiencias= allPend().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='audiencia'; });
   const dormentes = ativos.filter(c=>c.ultima_mov_dias>=365);
   const vencidos  = todos.filter(l=>l.tipo==='receber'&&l.status==='vencido');
   const totalVenc = vencidos.reduce((s,l)=>s+l.valor,0);
@@ -8562,20 +8562,57 @@ function renderHomeAlerts(){
 
 function gerarResumoWpp(){
   var hoje=getTodayKey(), NL='\n';
-  var fatais=(prazos?Object.values(prazos).flat():[]).filter(function(p){return !p.cumprido&&p.data===hoje;}).map(function(p){return p.titulo;});
-  var tarefasHj=vkTasks.filter(function(t){return (t.prazo===hoje||t.paraHoje===hoje)&&t.status!=='done';}).map(function(t){return t.titulo+(t.cliente&&t.cliente!=='-'?' ('+t.cliente+')':'');});
-  var compHj=allPend().filter(function(p){return p.dt_raw===hoje&&!p.realizado;}).map(function(p){return (p.titulo||p.tipo_compromisso||'Compromisso')+(p.cliente?' - '+p.cliente:'');});
   var MA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   var dObj=new Date(HOJE);
   var dataFmt=dObj.getDate()+' de '+MA[dObj.getMonth()]+' de '+dObj.getFullYear();
-  var txt='*Prazos/Tarefas de hoje - '+dataFmt+'*'+NL+NL;
-  if(fatais.length){txt+='*Fatais*'+NL;fatais.forEach(function(f){txt+='- '+f+NL;});txt+=NL;}
-  if(tarefasHj.length){txt+='*Tarefas*'+NL;tarefasHj.forEach(function(t){txt+='- '+t+NL;});txt+=NL;}
-  if(compHj.length){txt+='*Compromissos*'+NL;compHj.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
-  if(!fatais.length&&!tarefasHj.length&&!compHj.length){txt+='_Nenhuma tarefa para hoje._'+NL;}
-  txt+='_CO Advocacia App_';
+
+  // 1. FATAIS — prazos fatais de hoje + vencidos não cumpridos
+  var fatais=[];
+  if(typeof prazos!=='undefined'&&prazos){
+    Object.entries(prazos).forEach(function(e){
+      var cid=e[0], lista=e[1]||[];
+      lista.forEach(function(p){
+        if(p.cumprido) return;
+        if(p.data<=hoje){
+          var c=(CLIENTS||[]).find(function(x){return String(x.id)===String(cid);});
+          var nome=c?c.cliente:'';
+          var vencLabel=p.data<hoje?' - venceu '+fDt(p.data):'';
+          fatais.push(nome+' - '+p.titulo+vencLabel);
+        }
+      });
+    });
+  }
+
+  // 2. TAREFAS — kanban para hoje + atrasadas pendentes
+  var tarefasHj=vkTasks.filter(function(t){
+    if(t.status==='done'||t.status==='concluido') return false;
+    if(t.prazo===hoje||t.paraHoje===hoje) return true;
+    if(t.prazo&&t.prazo<hoje) return true;
+    return false;
+  }).map(function(t){
+    var cli=t.cliente&&t.cliente!=='-'?t.cliente+' - ':'';
+    return cli+t.titulo;
+  });
+
+  // 3. COMPROMISSOS — eventos de hoje incluindo ranges
+  var compHj=allPend().filter(function(p){
+    return !p.realizado&&eventoNoDia(p,hoje);
+  }).map(function(p){
+    var titulo=p.tipo_compromisso||p.titulo||'Compromisso';
+    var cli=p.cliente?' - '+p.cliente:'';
+    var dtIni=(p.dt_raw||'').slice(0,10), dtFim=(p.dt_fim||dtIni).slice(0,10);
+    var range=dtIni!==dtFim?' (de '+fDt(dtIni)+' a '+fDt(dtFim)+')':'';
+    return titulo+cli+range;
+  });
+
+  var txt='*Prazos/Tarefas de hoje — '+dataFmt+'*'+NL+NL;
+  if(fatais.length){txt+='🔴 *Fatais*'+NL;fatais.forEach(function(f){txt+='- '+f+NL;});txt+=NL;}
+  if(tarefasHj.length){txt+='📌 *Tarefas*'+NL;tarefasHj.forEach(function(t){txt+='- '+t+NL;});txt+=NL;}
+  if(compHj.length){txt+='📅 *Compromissos*'+NL;compHj.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
+  if(!fatais.length&&!tarefasHj.length&&!compHj.length){txt+='✅ _Nenhuma tarefa para hoje._'+NL;}
+  txt+=NL+'_CO Advocacia App_';
   if(navigator&&navigator.clipboard){
-    navigator.clipboard.writeText(txt).then(function(){showToast('Copiado! Cole no WhatsApp.');}).catch(function(){mostrarTxtModal(txt);});
+    navigator.clipboard.writeText(txt).then(function(){showToast('✓ Resumo copiado! Cole no WhatsApp.');}).catch(function(){mostrarTxtModal(txt);});
   } else { mostrarTxtModal(txt); }
 }
 function mostrarTxtModal(txt){
@@ -11287,9 +11324,11 @@ function renderAgendaProc(cid){
   const row=p=>{
     const item_real_data = p.realizado && p.dt_conclusao
       ? 'em '+fmtDataBR(p.dt_conclusao) : '';
-    const d=diasAte(p.dt_raw);
-    const pass=(p.dt_raw||'')<hoje&&!p.realizado, isDone=p.realizado;
-    const sLbl=isDone?'Concluido':pass?'Vencido':d===0?'Hoje':d===1?'Amanha':'Pendente';
+    const dtFim=(p.dt_fim||p.dt_raw||'').slice(0,10);
+    const d=diasAte(dtFim);
+    const pass=dtFim<hoje&&!p.realizado, isDone=p.realizado;
+    const emAndam=(p.dt_raw||'')<hoje&&dtFim>=hoje&&!p.realizado;
+    const sLbl=isDone?'Concluido':pass?'Vencido':emAndam?'Em andamento':d===0?'Hoje':d===1?'Amanha':'Pendente';
     const sCls=isDone?'comp-st-done':pass?'comp-st-venc':d<=1?'comp-st-hoje':'comp-st-pend';
     const dtP=(p.dt_raw||'').slice(0,10).split('-');
     const calCls=isDone?'comp-cal-done':pass?'comp-cal-venc':d<=1?'comp-cal-hoje':'';
@@ -13034,8 +13073,8 @@ function _filtrarEvt(todos){
   const hoje = getTodayKey();
   return todos.filter(p=>{
     if(_agFiltroTipo!=='todos' && agTipo(p)!==_agFiltroTipo) return false;
-    if(_agFiltroSit==='fut')  return (p.dt_raw||'')>=hoje && !p.realizado;
-    if(_agFiltroSit==='pend') return (p.dt_raw||'')<hoje  && !p.realizado;
+    if(_agFiltroSit==='fut')  return (p.dt_fim||p.dt_raw||'')>=hoje && !p.realizado;
+    if(_agFiltroSit==='pend') return (p.dt_fim||p.dt_raw||'')<hoje  && !p.realizado;
     if(_agFiltroSit==='real') return !!p.realizado;
     return true;
   });
@@ -13048,10 +13087,10 @@ function _atualizarStats(){
   const em7str = em7.toISOString().slice(0,10);
   const mesFim = hoje.slice(0,7)+'-31';
   const s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  s('as1', todos.filter(p=>!p.realizado&&p.dt_raw>=hoje&&p.dt_raw<=em7str).length);
-  s('as2', todos.filter(p=>!p.realizado&&p.dt_raw>=hoje&&p.dt_raw<=mesFim).length);
-  s('as3', todos.filter(p=>!p.realizado&&p.dt_raw>=hoje).length);
-  s('as4', todos.filter(p=>!p.realizado&&p.dt_raw<hoje).length);
+  s('as1', todos.filter(p=>!p.realizado&&eventoNoDia(p,hoje)||(!p.realizado&&p.dt_raw>=hoje&&p.dt_raw<=em7str)).length);
+  s('as2', todos.filter(p=>!p.realizado&&(p.dt_fim||p.dt_raw||'')>=hoje&&p.dt_raw<=mesFim).length);
+  s('as3', todos.filter(p=>!p.realizado&&(p.dt_fim||p.dt_raw||'')>=hoje).length);
+  s('as4', todos.filter(p=>!p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje).length);
 }
 
 function renderCal(){
@@ -13065,7 +13104,7 @@ function renderCal(){
   const _tagCls = (p) => {
     const t = agTipo(p);
     if(p.realizado) return 'ag2-tag ag2-tag-'+t+' ag2-tag-done';
-    if(!p.realizado&&(p.dt_raw||'')<hoje) return 'ag2-tag ag2-tag-'+t+' ag2-tag-pend';
+    if(!p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje) return 'ag2-tag ag2-tag-'+t+' ag2-tag-pend';
     return 'ag2-tag ag2-tag-'+t;
   };
 
@@ -13237,7 +13276,7 @@ function renderAgLista(){
   const row = p => {
     const t   = agTipo(p);
     const cor = COR[t]||COR.outro;
-    const venc= !p.realizado&&(p.dt_raw||'')<hoje;
+    const venc= !p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje;
     return `<div class="ag2-list-row${venc?' ag2-urg':''}" onclick="calEvtClick('${p.id||p.id_agenda||''}')">
       <div class="ag2-list-data">${fmtDt(p)}</div>
       <div class="ag2-list-titulo">${p.tipo_compromisso||p.titulo||'Compromisso'}</div>
