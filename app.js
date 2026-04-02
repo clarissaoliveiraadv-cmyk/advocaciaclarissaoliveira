@@ -13495,6 +13495,82 @@ function reativarProcesso(cid){
   showToast('Processo reativado!');
 }
 
+// ══ VIEW TOGGLE: cards / tabela ══
+var _vclView = localStorage.getItem('co_vclView') || 'cards';
+
+function _vclSetView(mode){
+  _vclView = mode;
+  localStorage.setItem('co_vclView', mode);
+  document.getElementById('vcl-vb-cards')?.classList.toggle('vcl-vb-on', mode==='cards');
+  document.getElementById('vcl-vb-table')?.classList.toggle('vcl-vb-on', mode==='table');
+  // Tabela precisa de largura total
+  var wrap = document.querySelector('.vcl-wrap');
+  if(wrap) wrap.classList.toggle('vcl-full', mode==='table');
+  doSearch();
+}
+
+function _natClass(nat){
+  var n = (nat||'').toLowerCase();
+  if(n.includes('trabalh')) return 'tbl-nat-trab';
+  if(n.includes('previd')) return 'tbl-nat-prev';
+  if(n.includes('cív') || n.includes('civel')) return 'tbl-nat-civ';
+  if(n.includes('famíl') || n.includes('familia')) return 'tbl-nat-fam';
+  return 'tbl-nat-out';
+}
+
+function renderListTable(lst, isEncView){
+  var el = document.getElementById('clist');
+  if(!el) return;
+  var encIds = new Set([...Object.keys(encerrados).map(Number),...Object.keys(encerrados)]);
+
+  var html = '<table class="vcl-table"><thead><tr>'
+    +'<th style="width:30px"></th>'
+    +'<th>Pasta</th>'
+    +'<th>Nº Processo</th>'
+    +'<th>Cliente</th>'
+    +'<th>Envolvido</th>'
+    +'<th>Natureza</th>'
+    +'<th>Última Mov.</th>'
+  +'</tr></thead><tbody>';
+
+  lst.forEach(function(grp){
+    var procs = grp.processos || [grp];
+    var encProcs = procs.filter(function(p){ return encIds.has(p.id)||encIds.has(String(p.id)); });
+    var allEnc = encProcs.length === procs.length;
+    var someEnc = encProcs.length > 0;
+    if(isEncView && !someEnc) return;
+    if(!isEncView && allEnc) return;
+
+    var ativosP = procs.filter(function(p){ return !encIds.has(p.id)&&!encIds.has(String(p.id)); });
+    var proc = ativosP[0] || procs[0];
+    var maxDorm = procs.reduce(function(m,p){ return Math.max(m, p.ultima_mov_dias||0); }, 0);
+    var statusCls = allEnc ? 'tbl-status-enc' : (maxDorm>=1000 ? 'tbl-status-dorm' : 'tbl-status-ativo');
+    var pasta = proc.pasta || grp.id || '—';
+    var numero = proc.numero || '';
+    var cliente = grp.nome || proc.cliente || '—';
+    var adverso = proc.adverso || '';
+    var nats = [...new Set(ativosP.map(function(p){ return p.natureza; }).filter(Boolean))];
+    var ultMov = proc.ultima_mov ? fDt(proc.ultima_mov) : '—';
+    var ultDias = proc.ultima_mov_dias;
+    var ultCor = !ultDias ? 'var(--mu)' : ultDias > 365 ? '#c9484a' : ultDias > 90 ? '#f59e0b' : 'var(--mu)';
+
+    html += '<tr onclick="openC('+proc.id+')">'
+      +'<td><span class="tbl-status '+statusCls+'"></span></td>'
+      +'<td class="tbl-pasta">'+pasta+'</td>'
+      +'<td class="tbl-num">'+escapeHtml(numero)+'</td>'
+      +'<td class="tbl-cli">'+escapeHtml(cliente)
+        +'<span class="tbl-badge-autor">Autor</span>'
+      +'</td>'
+      +'<td>'+escapeHtml(adverso)+'</td>'
+      +'<td>'+nats.map(function(n){ return '<span class="tbl-nat '+_natClass(n)+'">'+escapeHtml(n)+'</span>'; }).join(' ')+'</td>'
+      +'<td style="color:'+ultCor+'">'+ultMov+(ultDias?' <span style="font-size:9px;opacity:.7">('+ultDias+'d)</span>':'')+'</td>'
+    +'</tr>';
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
 // Phase 2: virtualização — altura fixa por item, renderiza só os visíveis
 var _rlData=[], _rlEnc=false, _rlItemH=68, _rlBuffer=5;
 
@@ -13561,12 +13637,17 @@ function renderList(lst, isEncView=false){
     if(p.id_processo&&p.id_processo!==0) cf[p.id_processo]=(cf[p.id_processo]||0)+1;
   });
   _rlCf=cf;
-  // Stats da lista atual
-  const sbStats = document.getElementById('sb-stats');
-  if(sbStats){
+  // Stats
+  const sbTxt = document.getElementById('sb-stats-txt');
+  if(sbTxt){
     const total = lst.length;
     const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPend().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
-    sbStats.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
+    sbTxt.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
+  }
+  // View tabela
+  if(_vclView === 'table'){
+    renderListTable(lst, isEncView);
+    return;
   }
   // Phase 2: virtualização — listas pequenas renderizam direto, grandes usam scroll virtual
   _rlData=lst; _rlEnc=isEncView;
@@ -13605,7 +13686,7 @@ function openC(id, procId=null){
   doSearch();
   // Esconder sidebar de clientes ao abrir qualquer cliente — tela toda pro cliente
   var vclWrap = document.querySelector('.vcl-wrap');
-  if(vclWrap) vclWrap.classList.add('fin-hidden');
+  if(vclWrap){ vclWrap.classList.add('fin-hidden'); vclWrap.classList.remove('vcl-full'); }
   // Limpar sidebar financeira se existir (será recriada se clicar em Financeiro)
   _finRemoverSidebar();
   var vclMain = document.querySelector('.vcl-main');
@@ -14573,13 +14654,14 @@ function _finRemoverSidebar(){
 }
 
 function _finVoltarClientes(){
-  // Restaurar sidebar de clientes
   var vclWrap = document.querySelector('.vcl-wrap');
-  if(vclWrap) vclWrap.classList.remove('fin-hidden');
+  if(vclWrap){
+    vclWrap.classList.remove('fin-hidden');
+    if(_vclView==='table') vclWrap.classList.add('vcl-full');
+  }
   _finRemoverSidebar();
   var vclMain = document.querySelector('.vcl-main');
   if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
-  // Fechar ficha e mostrar lista
   var emp2 = document.getElementById('emp2');
   if(emp2) emp2.style.display='';
   var ficha = document.getElementById('ficha-vcl');
@@ -15905,7 +15987,13 @@ function _clienteNome(cid){
 function _initNotifWorkflows(){
   notifPedirPermissao();
   setTimeout(wfRodar, 5000);
-  setInterval(wfRodar, 30 * 60 * 1000); // re-verificar a cada 30min
+  setInterval(wfRodar, 30 * 60 * 1000);
+  // Restaurar view toggle
+  if(_vclView==='table'){
+    document.getElementById('vcl-vb-cards')?.classList.remove('vcl-vb-on');
+    document.getElementById('vcl-vb-table')?.classList.add('vcl-vb-on');
+    document.querySelector('.vcl-wrap')?.classList.add('vcl-full');
+  }
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initNotifWorkflows);
 else setTimeout(_initNotifWorkflows, 1000);

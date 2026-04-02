@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#510f10">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Phase 4: CSS extraído para arquivo separado -->
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 <style>
 /* CSS principal movido para styles.css — este bloco mantido vazio para eventuais overrides inline */
 </style>
@@ -194,7 +194,13 @@
         <button class="fb" onclick="setFiltro(this,'consulta')" id="fb-atend" style="color:#2dd4bf;border-color:#2dd4bf22">💬 Atend.</button>
         <button class="fb enc" onclick="setFiltro(this,'encerrados')" id="fb-enc">🗂 Enc. <span id="enc-count"></span></button>
       </div>
-      <div id="sb-stats" class="sb-stats-row"></div>
+      <div id="sb-stats" class="sb-stats-row" style="display:flex;align-items:center;justify-content:space-between">
+        <span id="sb-stats-txt"></span>
+        <div style="display:flex;gap:4px">
+          <button class="vcl-view-btn vcl-vb-on" id="vcl-vb-cards" onclick="_vclSetView('cards')" title="Cards">☰</button>
+          <button class="vcl-view-btn" id="vcl-vb-table" onclick="_vclSetView('table')" title="Tabela">▦</button>
+        </div>
+      </div>
     </div>
     <div class="vcl-list" id="clist"></div>
   </div>
@@ -418,7 +424,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 <script>
 /* JS principal movido para app.js */
 </script>

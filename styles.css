@@ -1919,7 +1919,9 @@ body.light .proc-extra-toggle:hover { color:#7a5c1e; }
   background: var(--sf); border-right: 1px solid var(--bd);
   display: flex; flex-direction: column; height: 100%;
   overflow: hidden;
+  transition: width .2s ease, min-width .2s ease;
 }
+.vcl-wrap.vcl-full { width:100%; min-width:100%; border-right:none; }
 .vcl-toolbar {
   padding: 10px 10px 0; flex-shrink: 0;
 }
@@ -2215,4 +2217,55 @@ body.light .audit-row:hover{background:#f8f9fb}
 body.light .fin-sidebar { background:#FFFFFF; border-color:#D8DDE6; }
 body.light .fin-sb-card { background:#F8F9FA; border-color:#E0E0E0; }
 body.light .fin-lanc-row:hover { background:#F5F6F8; }
+
+/* ══ VIEW TOGGLE (cards/tabela) ══ */
+.vcl-view-btn {
+  width:28px; height:28px; border-radius:5px; border:1px solid var(--bd);
+  background:transparent; color:var(--mu); font-size:14px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:all .15s;
+}
+.vcl-view-btn:hover { border-color:var(--ouro); color:var(--ouro); }
+.vcl-vb-on { background:var(--sf3); color:var(--ouro); border-color:var(--ouro); }
+
+/* ══ TABELA DE CASOS ESTILO PROJURIS ══ */
+.vcl-table { width:100%; border-collapse:collapse; }
+.vcl-table thead { position:sticky; top:0; z-index:2; }
+.vcl-table th {
+  padding:8px 12px; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--mu); text-align:left; background:var(--sf3);
+  border-bottom:2px solid var(--bd); white-space:nowrap; cursor:pointer;
+  user-select:none;
+}
+.vcl-table th:hover { color:var(--ouro); }
+.vcl-table td {
+  padding:10px 12px; font-size:12px; color:var(--tx); border-bottom:1px solid var(--bd);
+  vertical-align:middle;
+}
+.vcl-table tr { cursor:pointer; transition:background .1s; }
+.vcl-table tbody tr:hover { background:var(--sf3); }
+.vcl-table .tbl-pasta { font-weight:700; color:var(--ouro); min-width:60px; }
+.vcl-table .tbl-num { font-family:'DM Sans',monospace; font-size:11px; color:var(--mu); min-width:180px; }
+.vcl-table .tbl-cli { font-weight:600; min-width:160px; }
+.vcl-table .tbl-adv { font-size:11px; color:var(--mu); }
+.vcl-table .tbl-nat {
+  display:inline-block; font-size:9px; font-weight:700; padding:2px 8px;
+  border-radius:4px; text-transform:uppercase; letter-spacing:.04em;
+}
+.vcl-table .tbl-nat-trab { background:rgba(76,175,125,.12); color:#4ade80; }
+.vcl-table .tbl-nat-prev { background:rgba(96,165,250,.12); color:#60a5fa; }
+.vcl-table .tbl-nat-civ { background:rgba(251,191,36,.12); color:#fbbf24; }
+.vcl-table .tbl-nat-fam { background:rgba(244,114,182,.12); color:#f472b6; }
+.vcl-table .tbl-nat-out { background:var(--sf3); color:var(--mu); }
+.vcl-table .tbl-status {
+  display:inline-block; width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
+.vcl-table .tbl-status-ativo { background:#4ade80; }
+.vcl-table .tbl-status-dorm { background:#f59e0b; }
+.vcl-table .tbl-status-enc { background:var(--mu); }
+.vcl-table .tbl-badge-autor {
+  font-size:9px; font-weight:700; padding:1px 6px; border-radius:3px;
+  background:rgba(76,175,125,.15); color:#4ade80; margin-left:6px;
+}
+body.light .vcl-table th { background:#F0F2F5; }
+body.light .vcl-table tbody tr:hover { background:#F5F6F8; }
 
