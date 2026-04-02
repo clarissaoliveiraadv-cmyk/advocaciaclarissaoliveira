@@ -1150,27 +1150,14 @@ function renderChecklist(){
 
   const renderItem = t => {
     const done = t.status==='concluido'||t.status==='done';
-    const tipoCls = 'tipo-'+(t.tipo||'tarefa');
-    const tipoLabel = (TIPO_LABEL?.[t.tipo]) || '📋';
-    // Fatal prazo item: different concluir action
-    const chkOnchange = t._isFatal
-      ? `prazosConcluirComDesfecho(${t._cid},'${t._pid}')`
-      : `hcToggle('${t.id}','${t.origem||'kanban'}',${t._tdIdx??-1},'${hoje}')`;
-    return `<div class="hc-item" id="hci-${t.id}">
-      <input type="checkbox" ${done?'checked':''}
-        onchange="${chkOnchange}">
+    const atrasada = t.prazo && t.prazo < hoje && !done;
+    return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" style="cursor:pointer">
       <div class="hc-item-corpo">
         <div class="hc-item-txt${done?' done':''}">${t.titulo}</div>
         <div class="hc-item-meta">
-          ${t.prazo && t.prazo < hoje && !done ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(201,72,74,.15);color:#c9484a">ATRASADA</span>` : ''}
+          ${atrasada ? `<span class="hc-badge-atrasada">ATRASADA</span>` : ''}
           ${t.cliente?`<span class="hc-item-cli">📁 ${t.cliente}</span>`:''}
-          <span class="hc-badge-tipo ${tipoCls}">${tipoLabel}</span>
-          ${t.responsavel&&t.responsavel!=='Clarissa'?`<span class="hc-badge-resp">👤 ${t.responsavel}</span>`:''}
         </div>
-      </div>
-      <div class="hc-item-acoes">
-        ${t.origem!=='kanban'?`<button class="hc-enviar-kb" onclick="hcEnviarKanban('${t.id}','${t.titulo}','${t.cliente||''}','${hoje}')" title="Promover ao Kanban">🗂</button>`:''}
-        <button class="hc-del" onclick="hcRemover('${t.id}','${t.origem||'kanban'}',${t._tdIdx??-1},'${hoje}')" title="Remover">✕</button>
       </div>
     </div>`;
   };
@@ -1420,40 +1407,39 @@ function vkRenderLista(tasks){
     return (a.prazo||'9999').localeCompare(b.prazo||'9999');
   });
 
-  var html = '<table class="vk-lista-table"><thead><tr>'
-    +'<th style="width:30px"></th>'
+  var html = '<div style="overflow-x:auto"><table class="vk-lista-table"><thead><tr>'
     +'<th>Título</th>'
     +'<th>Pasta</th>'
-    +'<th>Prioridade</th>'
     +'<th>Etapa</th>'
-    +'<th>Status</th>'
-    +'<th>Data entrega</th>'
+    +'<th>Prazo</th>'
     +'<th>Ações</th>'
   +'</tr></thead><tbody>';
 
   sorted.forEach(function(t){
     var isDone = t.status==='done'||t.status==='concluido';
     var vencido = !isDone && t.prazo && t.prazo < hoje;
-    var statusLbl = isDone ? 'Concluído' : vencido ? 'Atrasado' : 'Em Aberto';
-    var statusCor = isDone ? '#4ade80' : vencido ? '#f87676' : 'var(--mu)';
-    var pastaLbl = t.processo ? (function(){ var c=CLIENTS.find(function(x){return x.id===t.processo;}); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Escritório':'—');
+    var pastaLbl = t.processo ? (function(){ var c=CLIENTS.find(function(x){return x.id===t.processo;}); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Esc.':'—');
+    var etapaCls = isDone?'#4ade80':t.status==='andamento'?'#f59e0b':'var(--mu)';
 
     html += '<tr class="vk-lista-row'+(isDone?' vk-lista-done':'')+'">'
-      +'<td><input type="checkbox" '+(isDone?'checked':'')+' onchange="vkToggleLista(\''+t.id+'\')"></td>'
-      +'<td class="vk-lista-titulo'+(isDone?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(t.cliente||'')+'</div></td>'
+      +'<td>'
+        +'<div class="vk-lista-titulo'+(isDone?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(t.cliente||'')+'</div>'
+      +'</td>'
       +'<td style="font-size:11px;color:var(--ouro);font-weight:600">'+pastaLbl+'</td>'
-      +'<td><span style="font-size:10px;font-weight:700;color:'+(priorCor[t.prioridade]||'var(--mu)')+'">'+(priorLabel[t.prioridade]||'—')+'</span></td>'
-      +'<td><span style="font-size:10px;font-weight:700;color:'+(etapaCor[t.status]||'var(--mu)')+'">'+(etapaLabel[t.status]||'A Fazer')+'</span></td>'
-      +'<td><span style="font-size:10px;font-weight:700;color:'+statusCor+'">'+statusLbl+'</span></td>'
-      +'<td style="font-size:11px;color:'+(vencido?'#f87676':'var(--mu)')+'">'+( t.prazo?fDt(t.prazo):'—')+'</td>'
+      +'<td><span style="font-size:10px;font-weight:700;color:'+etapaCls+'">'+(etapaLabel[t.status]||'A Fazer')+'</span></td>'
+      +'<td style="font-size:11px;color:'+(vencido?'#f87676':'var(--mu)')+'">'+( t.prazo?fDt(t.prazo):'—')+(vencido?' <span style="font-size:8px;color:#f87676">!</span>':'')+'</td>'
       +'<td style="white-space:nowrap">'
+        +(isDone
+          ?'<button onclick="vkToggleLista(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">↩ Reabrir</button> '
+          :'<button onclick="vkToggleLista(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">✅ Concluir</button> ')
         +'<button onclick="vkEditar(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✏</button> '
         +'<button onclick="vkDeletar(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">✕</button>'
       +'</td>'
     +'</tr>';
   });
 
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   if(!sorted.length) html = '<div style="padding:30px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa</div>';
   return html;
 }

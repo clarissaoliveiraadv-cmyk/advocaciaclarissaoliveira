@@ -2441,6 +2441,17 @@ body.light .vk-lista-row:hover { background:#F5F6F8; }
 .fm-chip-btn.on { background:var(--sf3); color:var(--tx); border-color:var(--ouro); }
 .fm-chip-btn:hover { border-color:var(--ouro); }
 
+/* Dashboard checklist — compacto, só leitura */
+.hc-item { display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--bd); transition:background .1s; }
+.hc-item:hover { background:var(--sf3); }
+.hc-item-done { opacity:.5; }
+.hc-item-corpo { flex:1; min-width:0; }
+.hc-item-txt { font-size:12px; font-weight:600; color:var(--tx); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hc-item-txt.done { text-decoration:line-through; color:var(--mu); }
+.hc-item-meta { display:flex; gap:6px; align-items:center; margin-top:2px; flex-wrap:wrap; }
+.hc-item-cli { font-size:10px; color:var(--mu); }
+.hc-badge-atrasada { font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; background:rgba(201,72,74,.15); color:#c9484a; }
+
 /* ══ MOVIMENTAÇÕES + TIMELINE LATERAL (PROJURIS) ══ */
 .pj-mov-layout { display:flex; gap:0; }
 .pj-mov-list { flex:1; min-width:0; }
