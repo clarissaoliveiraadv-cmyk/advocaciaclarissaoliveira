@@ -15998,30 +15998,67 @@ function djSincronizar(cid){
     var movs = proc.movimentos || [];
     if(!movs.length){ showToast('Nenhuma movimentação encontrada'); return; }
 
-    // Pegar apenas a última movimentação do tribunal
-    var ultima = movs.reduce(function(best, m){
-      var d = (m.dataHora||'').slice(0,10);
-      return (!best || d > (best.dataHora||'').slice(0,10)) ? m : best;
-    }, null);
+    // Movimentações irrelevantes (burocráticas do sistema) — ignorar
+    var _djIgnorar = new Set([
+      'conclusão','mero expediente','juntada','vista','remessa',
+      'distribuição','redistribuição','recebimento',
+      'desentranhamento','numeração','publicação',
+      'baixa definitiva','arquivamento','desarquivamento',
+      'certidão emitida','certidão','expedição de documento',
+      'decurso de prazo','outros','ato ordinatório',
+      'inclusão no juízo 100% digital'
+    ]);
 
-    if(!ultima){ showToast('Nenhuma movimentação encontrada'); return; }
+    // Filtrar movimentações relevantes (sentença, audiência, despacho com conteúdo, etc.)
+    var relevantes = movs.filter(function(m){
+      var nome = (m.nome||'').toLowerCase().trim();
+      // Ignorar se nome é genérico
+      if(_djIgnorar.has(nome)) return false;
+      // Ignorar "conclusão — tipo_de_conclusao" e variantes genéricas
+      if(nome.startsWith('conclus')) return false;
+      if(nome === 'juntada de documento' || nome === 'juntada de petição') return false;
+      return true;
+    });
 
+    // Ordenar por data desc e pegar a mais recente relevante
+    relevantes.sort(function(a,b){
+      return ((b.dataHora||'').localeCompare(a.dataHora||''));
+    });
+
+    // Atualizar data da última movimentação (sempre, usando TODAS as movs)
+    var ultDtGeral = movs.reduce(function(max,m){
+      var d=(m.dataHora||'').slice(0,10); return d>max?d:max;
+    },'');
+    var hoje = new Date().toISOString().slice(0,10);
+    if(ultDtGeral){
+      c.ultima_mov = ultDtGeral;
+      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDtGeral)) / 86400000);
+    }
+
+    if(!relevantes.length){
+      showToast('✓ Processo ativo (última mov: ' + fDt(ultDtGeral) + ') — sem novidade relevante');
+      sbSalvarClientes(); marcarAlterado();
+      if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
+      return;
+    }
+
+    var ultima = relevantes[0];
     var dt = (ultima.dataHora || '').slice(0, 10);
     var desc = ultima.nome || 'Movimentação';
     var comp = ultima.complementosTabelados || [];
-    if(comp.length) desc += ' — ' + comp.map(function(c){ return c.descricao || c.nome; }).join(', ');
+    if(comp.length){
+      var compDescs = comp.map(function(c){ return c.descricao || c.nome; }).filter(function(s){
+        // Filtrar complementos genéricos tipo "tipo_de_conclusao"
+        return s && !s.match(/^tipo_de_/i) && s.toLowerCase() !== 'outros';
+      });
+      if(compDescs.length) desc += ' — ' + compDescs.join(', ');
+    }
 
     // Verificar se já existe
     var existSet = new Set((c.movimentacoes || []).map(function(m){
       return (m.data_movimentacao || m.data || '') + '|' + (m.movimentacao || m.desc || '');
     }));
-
     var jaExiste = existSet.has(dt + '|' + desc);
-
-    // Atualizar data da última movimentação (sempre)
-    c.ultima_mov = dt;
-    var hoje = new Date().toISOString().slice(0,10);
-    c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(dt)) / 86400000);
 
     // Inserir só se não existir ainda
     if(!jaExiste){
@@ -16083,25 +16120,24 @@ function djSincronizarTodos(){
       if(!erro && proc){
         var movs = proc.movimentos || [];
         if(movs.length){
-          // Só a última movimentação
-          var ultima = movs.reduce(function(best,m){
-            var d=(m.dataHora||'').slice(0,10);
-            return (!best||d>(best.dataHora||'').slice(0,10))?m:best;
-          },null);
-          if(ultima){
-            var dt=(ultima.dataHora||'').slice(0,10);
-            var desc=ultima.nome||'Movimentação';
-            var comp=ultima.complementosTabelados||[];
-            if(comp.length) desc+=' — '+comp.map(function(x){return x.descricao||x.nome;}).join(', ');
-            var existSet=new Set((c.movimentacoes||[]).map(function(m){
-              return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');
-            }));
-            if(!existSet.has(dt+'|'+desc)){
-              if(!c.movimentacoes) c.movimentacoes=[];
-              c.movimentacoes.unshift({data_movimentacao:dt,movimentacao:desc,tipo_movimentacao:'DataJud',_datajud:true,_cod:ultima.codigo});
+          // Atualizar ultima_mov com qualquer movimentação
+          var ultDt2=movs.reduce(function(max,m){var d=(m.dataHora||'').slice(0,10);return d>max?d:max;},'');
+          if(ultDt2){c.ultima_mov=ultDt2;c.ultima_mov_dias=Math.ceil((new Date()-new Date(ultDt2))/86400000);}
+          // Filtrar só relevantes
+          var rel2=movs.filter(function(m){
+            var n=(m.nome||'').toLowerCase().trim();
+            return !_djIgnorar.has(n)&&!n.startsWith('conclus')&&n!=='juntada de documento'&&n!=='juntada de petição';
+          }).sort(function(a,b){return (b.dataHora||'').localeCompare(a.dataHora||'');});
+          if(rel2.length){
+            var u2=rel2[0],dt2=(u2.dataHora||'').slice(0,10),desc2=u2.nome||'Movimentação';
+            var comp2=u2.complementosTabelados||[];
+            if(comp2.length){var cd=comp2.map(function(x){return x.descricao||x.nome;}).filter(function(s){return s&&!s.match(/^tipo_de_/i)&&s.toLowerCase()!=='outros';});if(cd.length)desc2+=' — '+cd.join(', ');}
+            var es2=new Set((c.movimentacoes||[]).map(function(m){return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');}));
+            if(!es2.has(dt2+'|'+desc2)){
+              if(!c.movimentacoes)c.movimentacoes=[];
+              c.movimentacoes.unshift({data_movimentacao:dt2,movimentacao:desc2,tipo_movimentacao:'DataJud',_datajud:true,_cod:u2.codigo});
               total++;
             }
-            c.ultima_mov=dt; c.ultima_mov_dias=Math.ceil((new Date()-new Date(dt))/86400000);
           }
         }
       }
