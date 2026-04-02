@@ -1187,28 +1187,19 @@ function renderChecklist(){
 function hcToggle(id, origem, tdIdx, hoje){
   if(origem==='kanban'){
     const t = vkTasks.find(x=>String(x.id)===String(id));
-    if(t){ t.status = t.status==='concluido' ? 'todo' : 'concluido'; vkSalvar(); }
+    if(t){
+      var wasDone = t.status==='concluido'||t.status==='done';
+      t.status = wasDone ? 'todo' : 'concluido';
+      vkSalvar();
+    }
   } else {
     if(tarefasDia[hoje]?.[tdIdx]!==undefined){
       tarefasDia[hoje][tdIdx].done = !tarefasDia[hoje][tdIdx].done;
       sbSet('co_td', tarefasDia);
     }
   }
-  // Atualizar visualmente sem re-renderizar tudo
-  const el = document.getElementById('hci-'+id);
-  if(el){
-    const isDone = (origem==='kanban')
-      ? vkTasks.find(x=>String(x.id)===String(id))?.status==='concluido'
-      : tarefasDia[hoje]?.[tdIdx]?.done;
-    const txt = el.querySelector('.hc-item-txt');
-    if(txt){ txt.classList.toggle('done', !!isDone); }
-    el.style.opacity = isDone ? '0.55' : '1';
-    // Mover para seção concluídas após breve delay
-    setTimeout(()=>renderChecklist(), 400);
-  } else {
-    renderChecklist();
-  }
   marcarAlterado();
+  renderChecklist();
 }
 
 function hcRemover(id, origem, tdIdx, hoje){
@@ -8682,11 +8673,53 @@ function renderFinDash(){
           +'<button onclick="vfTab(\'pagar\')" style="font-size:10px;padding:2px 8px;border-radius:4px;border:none;background:#c9484a;color:#fff;cursor:pointer">Ver</button>'
         +'</div>'
       : '';
+    // Receitas e Despesas previstas para HOJE
+    var fV6=function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+    var recHoje=[], despHoje=[], cobrar3=[];
+    var em2dDash=new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
+    (localLanc||[]).forEach(function(l){
+      if(l.pago||l.status==='pago') return;
+      var venc=(l.venc||l.data||'').slice(0,10);
+      if(!venc) return;
+      var isDesp=l.tipo==='repasse'||l.tipo==='despesa'||l.tipo==='despint'||l.direcao==='pagar';
+      if(venc===hojeDash){
+        (isDesp?despHoje:recHoje).push({cli:l.cliente||'—',desc:l.desc||'—',val:l.valor||0});
+      } else if(!isDesp&&venc>hojeDash&&venc<=em2dDash){
+        cobrar3.push({cli:l.cliente||'—',desc:l.desc||'—',val:l.valor||0,venc:venc});
+      }
+    });
+    var finHoje='';
+    if(recHoje.length||despHoje.length||cobrar3.length){
+      finHoje+='<div style="border-top:1px solid #2a2a2a;padding:10px 14px">';
+      if(recHoje.length){
+        var totR3=recHoje.reduce(function(s,r){return s+r.val;},0);
+        finHoje+='<div style="font-size:10px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">💰 Receitas previstas hoje — '+fV6(totR3)+'</div>';
+        recHoje.forEach(function(r){
+          finHoje+='<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span style="color:var(--tx)">'+escapeHtml(r.cli)+' — '+escapeHtml(r.desc)+'</span><span style="font-weight:700;color:#4ade80">'+fV6(r.val)+'</span></div>';
+        });
+        finHoje+='<div style="height:8px"></div>';
+      }
+      if(despHoje.length){
+        var totD3=despHoje.reduce(function(s,r){return s+r.val;},0);
+        finHoje+='<div style="font-size:10px;font-weight:700;color:#f87676;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">💸 Despesas de hoje — '+fV6(totD3)+'</div>';
+        despHoje.forEach(function(r){
+          finHoje+='<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span style="color:var(--tx)">'+escapeHtml(r.cli)+' — '+escapeHtml(r.desc)+'</span><span style="font-weight:700;color:#f87676">'+fV6(r.val)+'</span></div>';
+        });
+        finHoje+='<div style="height:8px"></div>';
+      }
+      if(cobrar3.length){
+        finHoje+='<div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📣 Cobrar (vencem em 2 dias)</div>';
+        cobrar3.forEach(function(r){
+          finHoje+='<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span style="color:var(--tx)">'+escapeHtml(r.cli)+' — '+escapeHtml(r.desc)+'</span><span style="font-weight:700;color:#f59e0b">'+fV6(r.val)+' <span style="font-size:9px;opacity:.7">vence '+fDt(r.venc)+'</span></span></div>';
+        });
+      }
+      finHoje+='</div>';
+    }
     hfd.innerHTML= repAlert + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 14px">'
       +'<div style="padding:8px 10px"><div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px">A receber</div><div style="font-size:15px;font-weight:700;color:#4caf7d">'+fBRL2(aRec)+'</div></div>'
       +'<div style="padding:8px 10px"><div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px">Inadimplente</div><div style="font-size:15px;font-weight:700;color:#c9484a">'+fBRL2(venc2)+'</div></div>'
       +'<div style="padding:8px 10px"><div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px">Desp. mês</div><div style="font-size:15px;font-weight:700;color:#f87676">'+fBRL2(desp2)+'</div></div>'
-      +'</div>';
+      +'</div>' + finHoje;
     // Early return — don't render the full detailed table on dashboard
     return;
     // update dsc-fin stat card

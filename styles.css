@@ -5,11 +5,11 @@
   --ouro:#D4AF37;--ouro-l:#e8cc6a;--ouro-d:#9a7d20;
   --preto:#0a0909;--c-esc:#333333;--c-med:#444444;--c-cla:#9E9E9E;
   --off:#E0E0E0;
-  /* Fundo: #121212 base, containers em #1E1E1E, elevado em #252525 */
-  --bg:#121212;--sf:#181818;--sf2:#1E1E1E;--sf3:#252525;
-  --bd:#333333;--bd-o:#5a4a1a;
-  --tx:#E0E0E0;   /* texto principal 90% branco */
-  --mu:#9E9E9E;   /* texto secundário */
+  /* Fundo: #0f0f0f base, containers em #1a1a1a, elevado em #242424 */
+  --bg:#0f0f0f;--sf:#161616;--sf2:#1c1c1c;--sf3:#272727;
+  --bd:#3a3a3a;--bd-o:#5a4a1a;
+  --tx:#ECECEC;   /* texto principal — mais branco */
+  --mu:#A8A8A8;   /* texto secundário — mais claro */
   --grn:#4caf7d;--red:#c9484a;--amb:#D4AF37;
   /* Fontes */
   --font:'Inter','Roboto','Open Sans','DM Sans',sans-serif;
