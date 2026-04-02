@@ -13896,10 +13896,13 @@ function _mvEnviarWpp(cid, idx){
   if(!m){ showToast('Movimentação não encontrada'); return; }
   var txt = m.movimentacao || m.desc || m.descricao || '';
   var msg = mvGerarMsg(c.cliente || 'cliente', txt);
-  var tel = (c.tel||'').replace(/\D/g,'');
-  if(!tel){ showToast('Cliente sem telefone cadastrado'); return; }
-  var url = 'https://wa.me/55' + tel + '?text=' + encodeURIComponent(msg);
-  window.open(url, '_blank');
+  // Copiar para clipboard
+  navigator.clipboard.writeText(msg).then(function(){
+    showToast('✓ Mensagem copiada para a área de transferência');
+  }).catch(function(){
+    // Fallback: prompt
+    prompt('Copie a mensagem abaixo:', msg);
+  });
 }
 
 function mvGerarMsg(cliente, descricao){
