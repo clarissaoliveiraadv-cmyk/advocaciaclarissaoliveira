@@ -1381,7 +1381,9 @@ function vkRenderKanban(tasks){
       if(col.id==='done') return s==='done'||s==='concluido';
       return s===col.id;
     });
-    const cards = itens.map(t=>vkCard(t)).join('');
+    // Limitar concluídos a 10 no kanban
+    const visivel = col.id==='done' ? itens.slice(0,10) : itens;
+    const cards = visivel.map(t=>vkCard(t)).join('') + (itens.length>10&&col.id==='done'?'<div style="font-size:10px;color:var(--mu);padding:8px;text-align:center">+'+(itens.length-10)+' mais</div>':'');
     return `
     <div class="vk-col">
       <div class="vk-col-head">
@@ -1421,11 +1423,12 @@ function vkRenderLista(tasks){
   var html = '<table class="vk-lista-table"><thead><tr>'
     +'<th style="width:30px"></th>'
     +'<th>Título</th>'
+    +'<th>Pasta</th>'
     +'<th>Prioridade</th>'
     +'<th>Etapa</th>'
     +'<th>Status</th>'
     +'<th>Data entrega</th>'
-    +'<th>Cliente</th>'
+    +'<th>Ações</th>'
   +'</tr></thead><tbody>';
 
   sorted.forEach(function(t){
@@ -1433,15 +1436,20 @@ function vkRenderLista(tasks){
     var vencido = !isDone && t.prazo && t.prazo < hoje;
     var statusLbl = isDone ? 'Concluído' : vencido ? 'Atrasado' : 'Em Aberto';
     var statusCor = isDone ? '#4ade80' : vencido ? '#f87676' : 'var(--mu)';
+    var pastaLbl = t.processo ? (function(){ var c=CLIENTS.find(function(x){return x.id===t.processo;}); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Escritório':'—');
 
     html += '<tr class="vk-lista-row'+(isDone?' vk-lista-done':'')+'">'
       +'<td><input type="checkbox" '+(isDone?'checked':'')+' onchange="vkToggleLista(\''+t.id+'\')"></td>'
-      +'<td class="vk-lista-titulo'+(isDone?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'</td>'
+      +'<td class="vk-lista-titulo'+(isDone?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(t.cliente||'')+'</div></td>'
+      +'<td style="font-size:11px;color:var(--ouro);font-weight:600">'+pastaLbl+'</td>'
       +'<td><span style="font-size:10px;font-weight:700;color:'+(priorCor[t.prioridade]||'var(--mu)')+'">'+(priorLabel[t.prioridade]||'—')+'</span></td>'
       +'<td><span style="font-size:10px;font-weight:700;color:'+(etapaCor[t.status]||'var(--mu)')+'">'+(etapaLabel[t.status]||'A Fazer')+'</span></td>'
       +'<td><span style="font-size:10px;font-weight:700;color:'+statusCor+'">'+statusLbl+'</span></td>'
       +'<td style="font-size:11px;color:'+(vencido?'#f87676':'var(--mu)')+'">'+( t.prazo?fDt(t.prazo):'—')+'</td>'
-      +'<td style="font-size:11px;color:var(--mu)">'+escapeHtml(t.cliente||'—')+'</td>'
+      +'<td style="white-space:nowrap">'
+        +'<button onclick="vkEditar(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✏</button> '
+        +'<button onclick="vkDeletar(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">✕</button>'
+      +'</td>'
     +'</tr>';
   });
 
@@ -1475,6 +1483,7 @@ function _renderTarefasPasta(cid){
         +'</div>'
       +'</div>'
       +'<button onclick="vkEditar(\''+t.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✏</button>'
+      +'<button onclick="vkDeletarPasta(\''+t.id+'\','+cid+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">✕</button>'
     +'</div>';
   }
 
@@ -1485,6 +1494,15 @@ function _renderTarefasPasta(cid){
     html += done.map(row).join('');
   }
   return html;
+}
+
+function vkDeletarPasta(id, cid){
+  if(!confirm('Excluir esta tarefa?')) return;
+  vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
+  vkSalvar(); marcarAlterado();
+  var el = document.getElementById('tp7-list-'+cid);
+  if(el) el.innerHTML = _renderTarefasPasta(cid);
+  showToast('Tarefa excluída');
 }
 
 function vkTogglePasta(id, cid){
@@ -1723,86 +1741,59 @@ function vkRenderResponsavel(tasks){
 
 // ── NOVA TAREFA ──
 function vkNovaTask(tipoDefault='tarefa'){
-  // Combina processos + contatos manuais na lista
-  const _ctcNomes = ctcTodos().map(c=>c.nome).filter(Boolean);
-  const _clientesNomes = CLIENTS.map(c=>c.cliente);
-  const _todosNomes = ['—',...new Set([..._clientesNomes,..._ctcNomes])];
-  const clientes = _todosNomes.map(n=>`<option>${n}</option>`).join('');
-  abrirModal('✅ Nova Tarefa',`
-  <div class="fm-row">
-    <div style="flex:2"><label class="fm-lbl">Título <span class="req">*</span></label>
-      <input class="fm-inp" id="vknt-titulo" placeholder="Ex: Protocolar recurso, Ligar para cliente...">
-    </div>
-    <div><label class="fm-lbl">Prazo</label>
-      <input class="fm-inp" type="date" id="vknt-prazo">
-    </div>
-  </div>
-  <div class="fm-row" style="margin-top:8px">
-    <div><label class="fm-lbl">Tipo</label>
-      <select class="fm-inp" id="vknt-tipo">
-        <option value="tarefa" ${tipoDefault==='tarefa'?'selected':''}>📋 Tarefa</option>
-        <option value="audiencia" ${tipoDefault==='audiencia'?'selected':''}>🔨 Audiência</option>
-        <option value="compromisso" ${tipoDefault==='compromisso'?'selected':''}>📅 Compromisso / Prazo</option>
-      </select>
-    </div>
-    <div><label class="fm-lbl">Prioridade</label>
-      <select class="fm-inp" id="vknt-prior">
-        <option value="alta">🔴 Alta</option>
-        <option value="media" selected>🟡 Média</option>
-        <option value="baixa">🟢 Baixa</option>
-      </select>
-    </div>
-    <div><label class="fm-lbl">Responsável</label>
-      <select class="fm-inp" id="vknt-resp">
-        <option>Clarissa</option>
-        <option>Assistente</option>
-        <option>Estagiário 1</option>
-        <option>Estagiário 2</option>
-      </select>
-    </div>
-  </div>
-  <div class="fm-row" style="margin-top:8px">
-    <div style="flex:2"><label class="fm-lbl">Vinculado à Pasta/Processo</label>
-      <select class="fm-inp" id="vknt-proc" onchange="var s=this.options[this.selectedIndex];document.getElementById('vknt-cli').value=s.dataset.cli||''">
-        <option value="" data-cli="">— Nenhum —</option>
-        ${CLIENTS.filter(function(c){return !(encerrados[c.id]||encerrados[String(c.id)]);}).map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">Pasta '+c.pasta+' — '+escapeHtml(c.cliente||'—')+'</option>';}).join('')}
-      </select>
-      <input type="hidden" id="vknt-cli" value="">
-    </div>
-    <div><label class="fm-lbl">Status inicial</label>
-      <select class="fm-inp" id="vknt-status">
-        <option value="todo">📋 A Fazer</option>
-        <option value="andamento">⚡ Em Andamento</option>
-      </select>
-    </div>
-  </div>
-  <div style="margin-top:8px"><label class="fm-lbl">Observação</label>
-    <textarea class="fm-inp" id="vknt-obs" rows="2" placeholder="Detalhes, contexto, documentos necessários..."></textarea>
-  </div>
-  `,()=>{
-    const titulo = document.getElementById('vknt-titulo')?.value.trim();
-    if(!titulo) return alert('Informe o título da tarefa');
-    var _procId = parseInt(document.getElementById('vknt-proc')?.value)||0;
-    var _cliNome = document.getElementById('vknt-cli')?.value||'';
+  var procOpts = CLIENTS.filter(function(c){return !(encerrados[c.id]||encerrados[String(c.id)]);})
+    .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');})
+    .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">Pasta '+c.pasta+' \u2014 '+escapeHtml(c.cliente||'\u2014')+'</option>';}).join('');
+  abrirModal('\u2705 Nova Tarefa',
+    '<div class="fm-row">'
+      +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo <span class="req">*</span></label>'
+        +'<input class="fm-inp" id="vknt-titulo" placeholder="Ex: Protocolar recurso..."></div>'
+      +'<div><label class="fm-lbl">Prazo</label>'
+        +'<input class="fm-inp" type="date" id="vknt-prazo"></div>'
+    +'</div>'
+    +'<div style="margin-top:8px"><label class="fm-lbl">Vinculado \u00e0 <span class="req">*</span></label>'
+      +'<div style="display:flex;gap:6px;margin-bottom:6px">'
+        +'<button type="button" class="fm-chip-btn on" id="vknt-vinc-pasta" onclick="document.getElementById(\'vknt-vinc-pasta\').classList.add(\'on\');document.getElementById(\'vknt-vinc-esc\').classList.remove(\'on\');document.getElementById(\'vknt-proc-wrap\').style.display=\'block\'">\ud83d\udcc1 Pasta do cliente</button>'
+        +'<button type="button" class="fm-chip-btn" id="vknt-vinc-esc" onclick="document.getElementById(\'vknt-vinc-esc\').classList.add(\'on\');document.getElementById(\'vknt-vinc-pasta\').classList.remove(\'on\');document.getElementById(\'vknt-proc-wrap\').style.display=\'none\'">\ud83c\udfe2 Escrit\u00f3rio (interno)</button>'
+      +'</div>'
+      +'<div id="vknt-proc-wrap"><select class="fm-inp" id="vknt-proc" onchange="var s=this.options[this.selectedIndex];document.getElementById(\'vknt-cli\').value=s.dataset.cli||\'\'"><option value="" data-cli="">\u2014 Selecione a pasta \u2014</option>'+procOpts+'</select></div>'
+      +'<input type="hidden" id="vknt-cli" value="">'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Tipo</label><select class="fm-inp" id="vknt-tipo">'
+        +'<option value="tarefa"'+(tipoDefault==='tarefa'?' selected':'')+'>Tarefa</option>'
+        +'<option value="audiencia"'+(tipoDefault==='audiencia'?' selected':'')+'>Audi\u00eancia</option>'
+        +'<option value="compromisso"'+(tipoDefault==='compromisso'?' selected':'')+'>Compromisso</option>'
+      +'</select></div>'
+      +'<div><label class="fm-lbl">Prioridade</label><select class="fm-inp" id="vknt-prior">'
+        +'<option value="alta">Alta</option><option value="media" selected>M\u00e9dia</option><option value="baixa">Baixa</option></select></div>'
+      +'<div><label class="fm-lbl">Respons\u00e1vel</label><select class="fm-inp" id="vknt-resp">'
+        +'<option>Clarissa</option><option>Assistente</option><option>Estagi\u00e1rio 1</option><option>Estagi\u00e1rio 2</option></select></div>'
+    +'</div>'
+    +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00e3o</label>'
+      +'<textarea class="fm-inp" id="vknt-obs" rows="2" placeholder="Detalhes..."></textarea></div>',
+  function(){
+    var titulo = (document.getElementById('vknt-titulo')||{}).value;
+    if(!titulo||!titulo.trim()) return alert('Informe o t\u00edtulo');
+    titulo = titulo.trim();
+    var isPasta = document.getElementById('vknt-vinc-pasta') && document.getElementById('vknt-vinc-pasta').classList.contains('on');
+    var _procId = parseInt((document.getElementById('vknt-proc')||{}).value)||0;
+    var _cliNome = (document.getElementById('vknt-cli')||{}).value||'';
+    if(isPasta && !_procId) return alert('Selecione a pasta do cliente');
+    if(!isPasta){ _procId = 0; _cliNome = 'Escrit\u00f3rio'; }
     vkTasks.push({
-      id: 'vk'+Date.now(),
-      titulo,
-      tipo:       document.getElementById('vknt-tipo')?.value,
-      prioridade: document.getElementById('vknt-prior')?.value,
-      responsavel:document.getElementById('vknt-resp')?.value,
-      prazo:      document.getElementById('vknt-prazo')?.value||'',
-      paraHoje:   document.getElementById('vknt-prazo')?.value===getTodayKey()?getTodayKey():'',
-      cliente:    _cliNome,
-      processo:   _procId,
-      status:     document.getElementById('vknt-status')?.value||'todo',
-      obs:        document.getElementById('vknt-obs')?.value.trim(),
-      origem:     'manual',
+      id:'vk'+Date.now(), titulo:titulo,
+      tipo: (document.getElementById('vknt-tipo')||{}).value||'tarefa',
+      prioridade: (document.getElementById('vknt-prior')||{}).value||'media',
+      responsavel: (document.getElementById('vknt-resp')||{}).value||'Clarissa',
+      prazo: (document.getElementById('vknt-prazo')||{}).value||'',
+      cliente: _cliNome, processo: _procId,
+      status:'todo', obs: ((document.getElementById('vknt-obs')||{}).value||'').trim(),
+      origem:'manual'
     });
-    vkSalvar();
-    fecharModal();
-    vkRender();
-    showToast('Tarefa criada ✓');
-  },'✅ Criar Tarefa');
+    vkSalvar(); fecharModal(); vkRender(); marcarAlterado();
+    showToast('Tarefa criada \u2713');
+  },'\u2705 Criar Tarefa');
 }
 
 // ── EDITAR ──
