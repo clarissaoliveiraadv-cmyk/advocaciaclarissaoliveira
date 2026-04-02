@@ -3582,6 +3582,13 @@ function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Phase 2: helper — converte HTML string em DocumentFragment (evita innerHTML em loops)
+function _fragFromHtml(html){
+  var t = document.createElement('template');
+  t.innerHTML = html;
+  return t.content;
+}
+
 // PERF: retorna constante cacheada em vez de recomputar new Date() a cada chamada
 function getTodayKey(){
   return _HOJE_STR;
@@ -3709,12 +3716,15 @@ function renderChecklist(){
     </div>`;
   };
 
-  let html2 = pendentes.map(renderItem).join('');
+  // Phase 2: DocumentFragment em vez de innerHTML em loop
+  var frag = document.createDocumentFragment();
+  pendentes.forEach(function(t){ frag.appendChild(_fragFromHtml(renderItem(t))); });
   if(concluidas.length){
-    html2 += `<div class="hc-sec-lbl">Concluídas hoje (${concluidas.length})</div>`;
-    html2 += concluidas.map(renderItem).join('');
+    frag.appendChild(_fragFromHtml(`<div class="hc-sec-lbl">Concluídas hoje (${concluidas.length})</div>`));
+    concluidas.forEach(function(t){ frag.appendChild(_fragFromHtml(renderItem(t))); });
   }
-  el.innerHTML = html2;
+  el.textContent = '';
+  el.appendChild(frag);
 }
 
 function hcToggle(id, origem, tdIdx, hoje){
@@ -4476,18 +4486,21 @@ function vfRender(){
   var e3=document.getElementById('vfkpi-custodia'); if(e3) e3.textContent=fK(custodia);
   var e4=document.getElementById('vfkpi-desp');     if(e4) e4.textContent=fK(despMes);
 
-  // ── Routing ──
+  // ── Routing ── Phase 2: DocumentFragment — evita innerHTML direto
   var tab = _vfTab||'mes';
-  if(tab==='mes')       el.innerHTML = vfMes(todos, mesP);
-  else if(tab==='receber')  el.innerHTML = vfAReceber(todos);
-  else if(tab==='repasses') el.innerHTML = vfRepasses();
-  else if(tab==='caixa')    el.innerHTML = vfCaixa();
-  else if(tab==='dre')      el.innerHTML = vfDRE(todos);
-  else if(tab==='fixas')    el.innerHTML = vfDespesasFixas();
-  else if(tab==='extrato')  el.innerHTML = vfExtrato();
-  else if(tab==='inadimplencia') el.innerHTML = vfInadimplencia(todos);
-  else if(tab==='fluxo')    el.innerHTML = vfFluxo(todos);
-  else                      el.innerHTML = vfMes(todos, mesP);
+  var htmlTab;
+  if(tab==='mes')              htmlTab = vfMes(todos, mesP);
+  else if(tab==='receber')     htmlTab = vfAReceber(todos);
+  else if(tab==='repasses')    htmlTab = vfRepasses();
+  else if(tab==='caixa')       htmlTab = vfCaixa();
+  else if(tab==='dre')         htmlTab = vfDRE(todos);
+  else if(tab==='fixas')       htmlTab = vfDespesasFixas();
+  else if(tab==='extrato')     htmlTab = vfExtrato();
+  else if(tab==='inadimplencia')htmlTab = vfInadimplencia(todos);
+  else if(tab==='fluxo')       htmlTab = vfFluxo(todos);
+  else                         htmlTab = vfMes(todos, mesP);
+  el.textContent = '';
+  el.appendChild(_fragFromHtml(htmlTab));
   _updateNavBtn();
 }
 
