@@ -9705,34 +9705,33 @@ function renderFinUnificado(cid){
     }
     if(!descLimpa) descLimpa = l.desc||'—';
 
-    // Card-style compact row: [data+badge | descrição | valor+status+menu]
-    return '<tr style="border-bottom:1px solid var(--bd);background:'+bgRow+'">'
-      // Coluna 1: data + badge de categoria em 2 linhas compactas
-      +'<td style="padding:7px 10px 7px 0;white-space:nowrap;vertical-align:middle">'
-        +'<div style="font-size:10px;color:var(--mu);margin-bottom:3px">'+fDt(l.data||l.venc)+'</div>'
-        +'<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:4px;background:'+catCor+';color:'+catText+'">'
+    // Projuris-style row: [data+badge | descrição | valor+status+menu]
+    return '<div class="fin-lanc-row" style="background:'+bgRow+'">'
+      +'<div class="fin-lanc-col-date">'
+        +'<div class="fin-lanc-date">'+fDt(l.data||l.venc)+'</div>'
+        +'<span class="fin-lanc-badge" style="background:'+catCor+';color:'+catText+'">'
           +catLabel+(isAguard?' ⏳':'')
         +'</span>'
-      +'</td>'
-      // Coluna 2: descrição (a maior)
-      +'<td style="padding:7px 10px;font-size:12px;color:var(--tx);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escapeHtml(l.desc||'')+'">'+escapeHtml(descLimpa)+'</td>'
-      // Coluna 3: valor + ícone de status + menu
-      +'<td style="padding:7px 0 7px 4px;text-align:right;white-space:nowrap;vertical-align:middle">'
-        +'<div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">'
-          +statusIcon
-          +'<span style="font-size:13px;font-weight:700;color:'+corVal+'">'+(isPos?'+':'−')+' '+fV(l.valor)+'</span>'
-          +menuHtml(l)
-        +'</div>'
-      +'</td>'
-    +'</tr>';
+      +'</div>'
+      +'<div class="fin-lanc-col-desc">'
+        +'<div class="fin-lanc-desc" title="'+escapeHtml(l.desc||'')+'">'+escapeHtml(descLimpa)+'</div>'
+        +(isPago&&l.dt_baixa?'<div class="fin-lanc-obs">Pago em '+fDt(l.dt_baixa)+'</div>':'')
+        +(vencido?'<div class="fin-lanc-obs" style="color:#c9484a">Vencido</div>':'')
+      +'</div>'
+      +'<div class="fin-lanc-col-valor">'
+        +'<span class="fin-lanc-status">'+statusIcon+'</span>'
+        +'<span class="fin-lanc-valor" style="color:'+corVal+'">'+(isPos?'+':'−')+' '+fV(l.valor)+'</span>'
+        +menuHtml(l)
+      +'</div>'
+    +'</div>';
   }
 
-  var html = '<table style="width:100%;border-collapse:collapse">'
-    +'<thead><tr style="border-bottom:1px solid var(--bd)">'
-      +'<th style="padding:5px 10px 5px 0;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);text-align:left;white-space:nowrap">Data / Tipo</th>'
-      +'<th style="padding:5px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);text-align:left">Descrição</th>'
-      +'<th style="padding:5px 0;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);text-align:right">Valor</th>'
-    +'</tr></thead><tbody>';
+  var html = '<div>'
+    +'<div class="fin-lanc-header">'
+      +'<span style="width:110px;min-width:110px">Data / Tipo</span>'
+      +'<span style="flex:1">Descrição</span>'
+      +'<span style="width:200px;min-width:200px;text-align:right">Valor</span>'
+    +'</div>';
 
   // Acordos agrupados — UMA linha por grupo
   Object.keys(grupos).forEach(function(gid){
@@ -9749,32 +9748,34 @@ function renderFinUnificado(cid){
     var desc   = hon[0]?.desc?.replace(/ — honorários \d+%/,'').replace(/ \(\d+\/\d+\)/,'') || 'Acordo';
     var cliente= hon[0]?.cliente || c.cliente || '—';
 
-    html += '<tr style="border-bottom:1px solid var(--bd);cursor:pointer" onclick="var d=document.getElementById(\''+expandId+'\');d.style.display=d.style.display===\'none\'?\'table-row-group\':\'none\'">'
-      +'<td style="padding:9px 8px 9px 0;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(dtUlt)+'</td>'
-      +'<td style="padding:9px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)">Acordo</td>'
-      +'<td style="padding:9px 8px;font-size:12px;color:var(--tx)">'
-        +'<span style="margin-right:8px">'+escapeHtml(desc)+'</span>'
-        +'<span style="font-size:10px;background:var(--sf3);border:1px solid var(--bd);border-radius:4px;padding:1px 6px;color:var(--mu)">'+nPago+'/'+nTot+' parcelas</span>'
-        +(vbruto>0?' <span style="font-size:10px;color:var(--mu)">· '+fV(vbruto)+' bruto</span>':'')
-      +'</td>'
-
-      +'<td style="padding:9px 0 9px 8px;text-align:right;white-space:nowrap">'
-        +(tudo?'<span style="color:#4ade80;font-size:12px;margin-right:4px">✓</span>':'')
-        +'<span style="font-size:13px;font-weight:700;color:'+(tudo?'#4ade80':'#fb923c')+'">+ '+fV(vTot)+'</span>'
-      +'</td>'
-      +'<td style="padding:9px 0;text-align:right;width:32px"><span style="font-size:11px;color:var(--mu)">›</span></td>'
-    +'</tr>';
+    html += '<div class="fin-lanc-row" style="cursor:pointer" onclick="var d=document.getElementById(\''+expandId+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.grp-arr\').textContent=d.style.display===\'none\'?\'›\':\'∨\'">'
+      +'<div class="fin-lanc-col-date">'
+        +'<div class="fin-lanc-date">'+fDt(dtUlt)+'</div>'
+        +'<span class="fin-lanc-badge" style="background:rgba(251,146,60,.12);color:#fb923c">Acordo</span>'
+      +'</div>'
+      +'<div class="fin-lanc-col-desc">'
+        +'<div class="fin-lanc-desc"><span style="margin-right:8px">'+escapeHtml(desc)+'</span>'
+          +'<span style="font-size:10px;background:var(--sf3);border:1px solid var(--bd);border-radius:4px;padding:1px 6px;color:var(--mu)">'+nPago+'/'+nTot+' parcelas</span>'
+          +(vbruto>0?' <span style="font-size:10px;color:var(--mu)">· '+fV(vbruto)+' bruto</span>':'')
+        +'</div>'
+      +'</div>'
+      +'<div class="fin-lanc-col-valor">'
+        +(tudo?'<span style="color:#4ade80;font-size:12px">✓</span>':'')
+        +'<span class="fin-lanc-valor" style="color:'+(tudo?'#4ade80':'#fb923c')+'">+ '+fV(vTot)+'</span>'
+        +'<span class="grp-arr" style="font-size:11px;color:var(--mu);width:20px;text-align:center">›</span>'
+      +'</div>'
+    +'</div>';
 
     // Parcelas individuais — ocultas por padrão
-    html += '<tbody id="'+expandId+'" style="display:none">';
+    html += '<div id="'+expandId+'" style="display:none">';
     lancs.forEach(function(l){ html += singleRow(l); });
-    html += '</tbody>';
+    html += '</div>';
   });
 
   // Lançamentos avulsos
   avulsos.forEach(function(l){ html += singleRow(l); });
 
-  html += '</tbody></table>';
+  html += '</div>';
   return html;
 }
 
@@ -13602,6 +13603,12 @@ function openC(id, procId=null){
   const navCli = document.getElementById('nav-clientes');
   if(navCli) navCli.classList.add('on');
   doSearch();
+  // Resetar modo financeiro expandido
+  var vclWrap = document.querySelector('.vcl-wrap');
+  if(vclWrap) vclWrap.classList.remove('fin-hidden');
+  _finRemoverSidebar();
+  var vclMain = document.querySelector('.vcl-main');
+  if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
   // Esconder empty e mostrar ficha dentro de vcl
   const emp2=document.getElementById('emp2');
   if(emp2) emp2.style.display='none';
@@ -14549,7 +14556,141 @@ function sw(btn,pid){
   btn.closest('.ficha').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   btn.closest('.ficha').querySelectorAll('.tp').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on'); document.getElementById(pid).classList.add('on');
-  if(pid==='tp4')renderFinBusca(AC.id);
+  // Financeiro expandido: esconder sidebar de clientes, mostrar sidebar financeira
+  var vclWrap = document.querySelector('.vcl-wrap');
+  if(pid==='tp4'){
+    if(vclWrap) vclWrap.classList.add('fin-hidden');
+    renderFinExpandido(AC.id);
+  } else {
+    if(vclWrap) vclWrap.classList.remove('fin-hidden');
+    _finRemoverSidebar();
+  }
+}
+
+function _finRemoverSidebar(){
+  var sb = document.getElementById('fin-sidebar-panel');
+  if(sb) sb.remove();
+}
+
+function renderFinExpandido(cid){
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+
+  // Remover sidebar financeira anterior se existir
+  _finRemoverSidebar();
+
+  // Criar sidebar financeira na vcl-main
+  var vclMain = document.querySelector('.vcl-main');
+  if(!vclMain) return;
+
+  var sb = document.createElement('div');
+  sb.id = 'fin-sidebar-panel';
+  sb.className = 'fin-sidebar';
+  vclMain.insertBefore(sb, vclMain.firstChild);
+  vclMain.style.display = 'flex';
+  vclMain.style.flexDirection = 'row';
+
+  _finRenderSidebar(cid);
+  renderFinBusca(cid);
+}
+
+function _finRenderSidebar(cid){
+  var sb = document.getElementById('fin-sidebar-panel');
+  if(!sb) return;
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var hoje = new Date().toISOString().slice(0,10);
+  var locais = (localLanc||[]).filter(function(l){return l.id_processo===cid;});
+
+  // Cálculos
+  var honRec=0, honPend=0, repassePago=0, repassePend=0, desp=0;
+  var pendentes=[], recebidos=[];
+
+  locais.forEach(function(l){
+    var val  = parseFloat(l.valor||0);
+    var pago = l.pago||l.status==='pago';
+    var isRep= l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
+    var isDesp= l.tipo==='despesa'||l.tipo==='despint';
+
+    if(isRep){
+      if(pago) repassePago+=val; else repassePend+=val;
+    } else if(isDesp){
+      if(pago) desp+=val;
+    } else {
+      if(pago){ honRec+=val; recebidos.push(l); }
+      else { honPend+=val; pendentes.push(l); }
+    }
+  });
+
+  var saldo = honRec - desp - repassePago;
+
+  // Build sidebar HTML
+  var html = '';
+
+  // Botão voltar
+  html += '<button class="fin-back-btn" onclick="document.querySelector(\'.vcl-wrap\').classList.remove(\'fin-hidden\');_finRemoverSidebar();var m=document.querySelector(\'.vcl-main\');if(m){m.style.display=\'\';m.style.flexDirection=\'\';}">'
+    +'← Voltar aos clientes</button>';
+
+  // Nome do cliente
+  html += '<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:2px">'+escapeHtml(c.cliente||'—')+'</div>';
+  if(c.adverso) html += '<div style="font-size:10px;color:var(--mu)">× '+escapeHtml(c.adverso)+'</div>';
+
+  // Card: Saldo
+  html += '<div class="fin-sb-card" style="border-color:'+(saldo>=0?'rgba(76,175,125,.3)':'rgba(201,72,74,.3)')+'">'
+    +'<div class="fin-sb-card-lbl">Saldo líquido</div>'
+    +'<div class="fin-sb-card-val" style="color:'+(saldo>=0?'#4ade80':'#c9484a')+'">'+(saldo>=0?'+':'')+fV(saldo)+'</div>'
+  +'</div>';
+
+  // Card: Honorários
+  html += '<div class="fin-sb-card">'
+    +'<div class="fin-sb-card-lbl">Honorários</div>'
+    +'<div class="fin-sb-card-val" style="color:#4ade80">'+fV(honRec)+'</div>'
+    +(honPend>0?'<div class="fin-sb-card-sub"><span style="color:#f59e0b">'+fV(honPend)+' pendente</span></div>':'')
+  +'</div>';
+
+  // Card: Repasse
+  if(repassePago>0 || repassePend>0){
+    html += '<div class="fin-sb-card" style="border-color:rgba(201,72,74,.25)">'
+      +'<div class="fin-sb-card-lbl">Repasse ao cliente</div>'
+      +'<div class="fin-sb-card-val" style="color:#f87676">'+fV(repassePago+repassePend)+'</div>'
+      +(repassePend>0?'<div class="fin-sb-card-sub"><span style="color:#c9484a">'+fV(repassePend)+' pendente</span></div>':'<div class="fin-sb-card-sub" style="color:#4ade80">✓ quitado</div>')
+    +'</div>';
+  }
+
+  // Card: Despesas
+  if(desp>0){
+    html += '<div class="fin-sb-card">'
+      +'<div class="fin-sb-card-lbl">Despesas</div>'
+      +'<div class="fin-sb-card-val" style="color:#f87676">'+fV(desp)+'</div>'
+    +'</div>';
+  }
+
+  // Recebíveis pendentes — lista detalhada
+  if(pendentes.length){
+    html += '<div style="margin-top:6px">';
+    html += '<div class="fin-sb-title">Recebíveis pendentes ('+pendentes.length+')</div>';
+    pendentes.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
+      var vencido = l.venc && l.venc < hoje;
+      html += '<div class="fin-sb-item">'
+        +'<div style="min-width:0">'
+          +'<div style="font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(l.desc||'—')+'</div>'
+          +'<div style="font-size:9px;color:'+(vencido?'#c9484a':'var(--mu)')+'">'+fDt(l.venc||l.data)+(vencido?' · Vencido':'')+'</div>'
+        +'</div>'
+        +'<span style="font-size:12px;font-weight:700;color:'+(vencido?'#c9484a':'#86efac')+'">'+fV(l.valor)+'</span>'
+      +'</div>';
+    });
+    html += '</div>';
+  }
+
+  // Botões de ação
+  html += '<div style="display:flex;gap:6px;margin-top:auto;padding-top:10px">'
+    +'<button onclick="abrirModalFin('+cid+',\'receber\')" class="fin-sb-btn" style="background:rgba(76,175,125,.1);color:#4ade80">➕ Entrada</button>'
+    +'<button onclick="abrirModalFin('+cid+',\'pagar\')" class="fin-sb-btn" style="background:rgba(248,118,118,.07);color:#f87676">➖ Saída</button>'
+  +'</div>';
+
+  sb.innerHTML = html;
 }
 
 function renderTasks(cid){
