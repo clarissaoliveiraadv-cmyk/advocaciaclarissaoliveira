@@ -2415,6 +2415,23 @@ body.light .dsh-stat { background:#fff; }
 body.light .dsh-at-item:hover { background:#F0F2F5; }
 body.light .dsh-atalhos-bar { background:#fff; }
 
+/* ══ VIEW LISTA KANBAN ══ */
+.vk-lista-table { width:100%; border-collapse:collapse; }
+.vk-lista-table th {
+  padding:8px 12px; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.05em; color:var(--mu); text-align:left; background:var(--sf3);
+  border-bottom:2px solid var(--bd); white-space:nowrap; position:sticky; top:0; z-index:1;
+}
+.vk-lista-table td { padding:9px 12px; border-bottom:1px solid var(--bd); vertical-align:middle; }
+.vk-lista-row { cursor:default; transition:background .1s; }
+.vk-lista-row:hover { background:var(--sf3); }
+.vk-lista-done { opacity:.6; }
+.vk-lista-titulo { font-size:12px; font-weight:600; color:var(--tx); }
+.vk-lista-riscado { text-decoration:line-through; color:var(--mu); }
+.vk-lista-table input[type="checkbox"] { width:16px; height:16px; cursor:pointer; }
+body.light .vk-lista-table th { background:#F0F2F5; }
+body.light .vk-lista-row:hover { background:#F5F6F8; }
+
 /* ══ MOVIMENTAÇÕES + TIMELINE LATERAL (PROJURIS) ══ */
 .pj-mov-layout { display:flex; gap:0; }
 .pj-mov-list { flex:1; min-width:0; }
