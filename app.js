@@ -13603,9 +13603,10 @@ function openC(id, procId=null){
   const navCli = document.getElementById('nav-clientes');
   if(navCli) navCli.classList.add('on');
   doSearch();
-  // Resetar modo financeiro expandido
+  // Esconder sidebar de clientes ao abrir qualquer cliente — tela toda pro cliente
   var vclWrap = document.querySelector('.vcl-wrap');
-  if(vclWrap) vclWrap.classList.remove('fin-hidden');
+  if(vclWrap) vclWrap.classList.add('fin-hidden');
+  // Limpar sidebar financeira se existir (será recriada se clicar em Financeiro)
   _finRemoverSidebar();
   var vclMain = document.querySelector('.vcl-main');
   if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
@@ -14556,20 +14557,35 @@ function sw(btn,pid){
   btn.closest('.ficha').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   btn.closest('.ficha').querySelectorAll('.tp').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on'); document.getElementById(pid).classList.add('on');
-  // Financeiro expandido: esconder sidebar de clientes, mostrar sidebar financeira
-  var vclWrap = document.querySelector('.vcl-wrap');
+  // Sidebar financeira: só aparece na aba Financeiro
   if(pid==='tp4'){
-    if(vclWrap) vclWrap.classList.add('fin-hidden');
     renderFinExpandido(AC.id);
   } else {
-    if(vclWrap) vclWrap.classList.remove('fin-hidden');
     _finRemoverSidebar();
+    var vclMain = document.querySelector('.vcl-main');
+    if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
   }
 }
 
 function _finRemoverSidebar(){
   var sb = document.getElementById('fin-sidebar-panel');
   if(sb) sb.remove();
+}
+
+function _finVoltarClientes(){
+  // Restaurar sidebar de clientes
+  var vclWrap = document.querySelector('.vcl-wrap');
+  if(vclWrap) vclWrap.classList.remove('fin-hidden');
+  _finRemoverSidebar();
+  var vclMain = document.querySelector('.vcl-main');
+  if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
+  // Fechar ficha e mostrar lista
+  var emp2 = document.getElementById('emp2');
+  if(emp2) emp2.style.display='';
+  var ficha = document.getElementById('ficha-vcl');
+  if(ficha) ficha.innerHTML='';
+  AC=null; AC_PROC=null;
+  doSearch();
 }
 
 function renderFinExpandido(cid){
@@ -14635,13 +14651,13 @@ function _finRenderSidebar(cid){
     }
   });
 
-  var saldo = honRec - desp - repassePago;
+  var saldo = honRec - desp; // repasse é dinheiro do cliente, não custo do escritório
 
   // Build sidebar HTML
   var html = '';
 
-  // Botão voltar
-  html += '<button class="fin-back-btn" onclick="document.querySelector(\'.vcl-wrap\').classList.remove(\'fin-hidden\');_finRemoverSidebar();var m=document.querySelector(\'.vcl-main\');if(m){m.style.display=\'\';m.style.flexDirection=\'\';}">'
+  // Botão voltar — restaura sidebar de clientes
+  html += '<button class="fin-back-btn" onclick="_finVoltarClientes()">'
     +'← Voltar aos clientes</button>';
 
   // Nome do cliente
