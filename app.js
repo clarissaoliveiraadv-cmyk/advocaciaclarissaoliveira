@@ -15998,49 +15998,41 @@ function djSincronizar(cid){
     var movs = proc.movimentos || [];
     if(!movs.length){ showToast('Nenhuma movimentação encontrada'); return; }
 
-    // Movimentações existentes no app
-    var existentes = (c.movimentacoes || []).map(function(m){
-      return (m.data_movimentacao || m.data || '') + '|' + (m.movimentacao || m.desc || '');
-    });
-    var existSet = new Set(existentes);
-
-    // Filtrar novas movimentações
-    var novas = [];
-    movs.forEach(function(m){
-      var dt = (m.dataHora || '').slice(0, 10);
-      var desc = m.nome || 'Movimentação';
-      var comp = m.complementosTabelados || [];
-      if(comp.length) desc += ' — ' + comp.map(function(c){ return c.descricao || c.nome; }).join(', ');
-      var chave = dt + '|' + desc;
-      if(!existSet.has(chave)){
-        novas.push({
-          data_movimentacao: dt,
-          movimentacao: desc,
-          tipo_movimentacao: 'DataJud',
-          _datajud: true,
-          _cod: m.codigo
-        });
-      }
-    });
-
-    if(!novas.length){
-      showToast('✓ Movimentações já estão atualizadas');
-      return;
-    }
-
-    // Adicionar ao processo
-    if(!c.movimentacoes) c.movimentacoes = [];
-    novas.forEach(function(n){ c.movimentacoes.unshift(n); });
-
-    // Atualizar data da última movimentação
-    var ultDt = movs.reduce(function(max, m){
+    // Pegar apenas a última movimentação do tribunal
+    var ultima = movs.reduce(function(best, m){
       var d = (m.dataHora||'').slice(0,10);
-      return d > max ? d : max;
-    }, '');
-    if(ultDt){
-      c.ultima_mov = ultDt;
-      var hoje = new Date().toISOString().slice(0,10);
-      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDt)) / 86400000);
+      return (!best || d > (best.dataHora||'').slice(0,10)) ? m : best;
+    }, null);
+
+    if(!ultima){ showToast('Nenhuma movimentação encontrada'); return; }
+
+    var dt = (ultima.dataHora || '').slice(0, 10);
+    var desc = ultima.nome || 'Movimentação';
+    var comp = ultima.complementosTabelados || [];
+    if(comp.length) desc += ' — ' + comp.map(function(c){ return c.descricao || c.nome; }).join(', ');
+
+    // Verificar se já existe
+    var existSet = new Set((c.movimentacoes || []).map(function(m){
+      return (m.data_movimentacao || m.data || '') + '|' + (m.movimentacao || m.desc || '');
+    }));
+
+    var jaExiste = existSet.has(dt + '|' + desc);
+
+    // Atualizar data da última movimentação (sempre)
+    c.ultima_mov = dt;
+    var hoje = new Date().toISOString().slice(0,10);
+    c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(dt)) / 86400000);
+
+    // Inserir só se não existir ainda
+    if(!jaExiste){
+      if(!c.movimentacoes) c.movimentacoes = [];
+      c.movimentacoes.unshift({
+        data_movimentacao: dt,
+        movimentacao: desc,
+        tipo_movimentacao: 'DataJud',
+        _datajud: true,
+        _cod: ultima.codigo
+      });
     }
 
     // Atualizar dados do processo vindos do DataJud
@@ -16060,8 +16052,12 @@ function djSincronizar(cid){
     // Re-render se estiver na ficha
     if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
 
-    showToast('✓ ' + novas.length + ' nova' + (novas.length > 1 ? 's' : '') + ' movimentação' + (novas.length > 1 ? 'ões' : '') + ' importada' + (novas.length > 1 ? 's' : ''));
-    audit('datajud_sync', 'processo', c.cliente + ' — ' + novas.length + ' movs');
+    if(jaExiste){
+      showToast('✓ Última mov: ' + desc + ' (' + fDt(dt) + ') — já registrada');
+    } else {
+      showToast('✓ Nova mov: ' + desc + ' (' + fDt(dt) + ')');
+    }
+    audit('datajud_sync', 'processo', c.cliente + ' — ' + desc);
   });
 }
 
@@ -16086,25 +16082,27 @@ function djSincronizarTodos(){
     djConsultar(c.numero, function(proc, erro){
       if(!erro && proc){
         var movs = proc.movimentos || [];
-        var existSet = new Set((c.movimentacoes||[]).map(function(m){
-          return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');
-        }));
-        var novas = [];
-        movs.forEach(function(m){
-          var dt = (m.dataHora||'').slice(0,10);
-          var desc = m.nome || 'Movimentação';
-          var comp = m.complementosTabelados || [];
-          if(comp.length) desc += ' — ' + comp.map(function(x){ return x.descricao||x.nome; }).join(', ');
-          if(!existSet.has(dt+'|'+desc)){
-            novas.push({data_movimentacao:dt, movimentacao:desc, tipo_movimentacao:'DataJud', _datajud:true, _cod:m.codigo});
+        if(movs.length){
+          // Só a última movimentação
+          var ultima = movs.reduce(function(best,m){
+            var d=(m.dataHora||'').slice(0,10);
+            return (!best||d>(best.dataHora||'').slice(0,10))?m:best;
+          },null);
+          if(ultima){
+            var dt=(ultima.dataHora||'').slice(0,10);
+            var desc=ultima.nome||'Movimentação';
+            var comp=ultima.complementosTabelados||[];
+            if(comp.length) desc+=' — '+comp.map(function(x){return x.descricao||x.nome;}).join(', ');
+            var existSet=new Set((c.movimentacoes||[]).map(function(m){
+              return (m.data_movimentacao||m.data||'')+'|'+(m.movimentacao||m.desc||'');
+            }));
+            if(!existSet.has(dt+'|'+desc)){
+              if(!c.movimentacoes) c.movimentacoes=[];
+              c.movimentacoes.unshift({data_movimentacao:dt,movimentacao:desc,tipo_movimentacao:'DataJud',_datajud:true,_cod:ultima.codigo});
+              total++;
+            }
+            c.ultima_mov=dt; c.ultima_mov_dias=Math.ceil((new Date()-new Date(dt))/86400000);
           }
-        });
-        if(novas.length){
-          if(!c.movimentacoes) c.movimentacoes = [];
-          novas.forEach(function(n){ c.movimentacoes.unshift(n); });
-          total += novas.length;
-          var ultDt = movs.reduce(function(max,m){ var d=(m.dataHora||'').slice(0,10); return d>max?d:max; },'');
-          if(ultDt){ c.ultima_mov=ultDt; c.ultima_mov_dias=Math.ceil((new Date()-new Date(ultDt))/86400000); }
         }
       }
       // Esperar 250ms entre requisições (respeitar rate limit)
