@@ -10472,6 +10472,95 @@ function importarDados(){
   inp.click();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ══ LIMPEZA DE PASTAS VAZIAS + RENUMERAÇÃO ══
+// ═══════════════════════════════════════════════════════════════
+
+function _pastaEhVazia(c){
+  // Pasta é vazia se não tem: movimentações, lançamentos, agenda, tarefas, comentários
+  var temMov = (c.movimentacoes && c.movimentacoes.length > 0)
+    || (localMov[c.id] && localMov[c.id].length > 0)
+    || (MOV_INDEX && MOV_INDEX[String(c.id)] && MOV_INDEX[String(c.id)].length > 0);
+  var temLanc = (localLanc||[]).some(function(l){ return l.id_processo === c.id; });
+  var temAg = (c.agenda && c.agenda.length > 0)
+    || (typeof localAg !== 'undefined' && localAg.some(function(a){ return a.id_processo === c.id; }));
+  var temTask = tasks[c.id] && tasks[c.id].length > 0;
+  var temNota = notes[c.id] && notes[c.id].length > 0;
+  var temComent = (typeof comentarios !== 'undefined') && comentarios[c.id] && comentarios[c.id].length > 0;
+  var temPrazo = (typeof prazos !== 'undefined') && prazos[c.id] && prazos[c.id].length > 0;
+
+  return !temMov && !temLanc && !temAg && !temTask && !temNota && !temComent && !temPrazo;
+}
+
+function limparPastasVazias(){
+  var vazias = CLIENTS.filter(function(c){ return _pastaEhVazia(c); });
+
+  if(!vazias.length){
+    showToast('Nenhuma pasta vazia encontrada');
+    return;
+  }
+
+  var nomes = vazias.slice(0, 20).map(function(c){
+    return 'Pasta ' + c.pasta + ' — ' + (c.cliente||'sem nome');
+  }).join('\n');
+  var mais = vazias.length > 20 ? '\n... e mais ' + (vazias.length - 20) : '';
+
+  abrirModal('🗑 Limpar ' + vazias.length + ' pasta' + (vazias.length>1?'s':'') + ' vazia' + (vazias.length>1?'s':''),
+    '<div style="color:var(--mu);font-size:12px;line-height:1.6">'
+      +'<p>Foram encontradas <strong style="color:#f59e0b">' + vazias.length + ' pastas</strong> sem nenhum dado (sem movimentações, lançamentos, agenda, tarefas ou comentários).</p>'
+      +'<div style="max-height:200px;overflow-y:auto;background:var(--sf3);border-radius:6px;padding:8px 12px;margin:10px 0;font-size:11px;white-space:pre-line;color:var(--tx)">' + escapeHtml(nomes + mais) + '</div>'
+      +'<p style="color:#c9484a;font-weight:600">Deseja excluir todas?</p>'
+    +'</div>',
+    function(){
+      var ids = new Set(vazias.map(function(c){ return c.id; }));
+      CLIENTS = CLIENTS.filter(function(c){ return !ids.has(c.id); });
+      // Limpar dados vinculados
+      ids.forEach(function(id){
+        delete encerrados[id]; delete tasks[id]; delete notes[id]; delete localMov[id];
+      });
+      sbSalvarClientes();
+      sbSet('co_encerrados', encerrados);
+      sbSet('co_t', tasks);
+      sbSet('co_n', notes);
+      marcarAlterado();
+      montarClientesAgrupados();
+      fecharModal();
+      AC = null; AC_PROC = null;
+      doSearch();
+      atualizarStats();
+      showToast('✓ ' + vazias.length + ' pasta' + (vazias.length>1?'s':'') + ' vazia' + (vazias.length>1?'s':'') + ' removida' + (vazias.length>1?'s':''));
+      audit('limpar_pastas', 'sistema', vazias.length + ' pastas vazias removidas');
+    },
+    '🗑 Sim, excluir vazias', '#c9484a'
+  );
+}
+
+function renumerarPastas(){
+  var ativos = CLIENTS.filter(function(c){
+    return !(encerrados[c.id] || encerrados[String(c.id)]);
+  }).sort(function(a,b){
+    return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
+  });
+  var encerr = CLIENTS.filter(function(c){
+    return encerrados[c.id] || encerrados[String(c.id)];
+  }).sort(function(a,b){
+    return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
+  });
+
+  // Ativos: 1, 2, 3...  Encerrados: continuam depois
+  var n = 1;
+  ativos.forEach(function(c){ c.pasta = n; n++; });
+  encerr.forEach(function(c){ c.pasta = n; n++; });
+
+  sbSalvarClientes();
+  marcarAlterado();
+  montarClientesAgrupados();
+  doSearch();
+  atualizarStats();
+  showToast('✓ ' + CLIENTS.length + ' pastas renumeradas (1 a ' + (n-1) + ')');
+  audit('renumerar_pastas', 'sistema', CLIENTS.length + ' pastas renumeradas');
+}
+
 let _unsaved = false;
 function marcarAlterado(){
   _unsaved = true;
