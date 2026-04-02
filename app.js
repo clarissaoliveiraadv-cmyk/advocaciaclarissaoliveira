@@ -15915,7 +15915,7 @@ else setTimeout(_initNotifWorkflows, 1000);
 // ═══════════════════════════════════════════════════════════════
 
 var DATAJUD_URL = 'https://api-publica.datajud.cnj.jus.br';
-var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDR4ZnY3Nkk6dGdqNXlW_SRnMC1yYXRKbnRnMWZvZw==';
+var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
 // Mapa de tribunal por código do número unificado (dígitos 14-16)
 var _djTribunais = {
