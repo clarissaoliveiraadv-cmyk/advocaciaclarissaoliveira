@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#510f10">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Phase 4: CSS extraído para arquivo separado -->
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 <style>
 /* CSS principal movido para styles.css — este bloco mantido vazio para eventuais overrides inline */
 </style>
@@ -73,8 +73,8 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- STATS + ALERTAS em linha -->
-    <div class="dsh-top-row">
+    <!-- TOPO: STATS + ATALHOS em linha -->
+    <div class="dsh-top-bar">
       <div class="dsh-stats-row">
         <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
           <div id="dsc-ativos" class="dsh-stat-val">—</div>
@@ -89,11 +89,21 @@
           <div class="dsh-stat-lbl">A receber</div>
         </div>
       </div>
-      <div id="home-alerts" class="dsh-alerts-compact"></div>
+      <div class="dsh-atalhos-bar">
+        <div class="dsh-at-item" onclick="novoProcesso()"><span class="dsh-at-ico" style="background:rgba(107,20,22,.25)">⚖️</span>Processo</div>
+        <div class="dsh-at-item" onclick="novoTarefaDia()"><span class="dsh-at-ico" style="background:rgba(212,175,55,.12)">📋</span>Tarefa</div>
+        <div class="dsh-at-item" onclick="novoCompromisso()"><span class="dsh-at-ico" style="background:rgba(96,165,250,.12)">📅</span>Compromisso</div>
+        <div class="dsh-at-item" onclick="novoLancamento()"><span class="dsh-at-ico" style="background:rgba(76,175,125,.12)">💰</span>Lançamento</div>
+        <div class="dsh-at-item" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span>Atendimento</div>
+        <div class="dsh-at-item" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span>Contato</div>
+      </div>
     </div>
 
-    <!-- 3 COLUNAS PRINCIPAIS -->
-    <div class="dsh-grid3">
+    <!-- ALERTAS -->
+    <div id="home-alerts" class="dsh-alerts-compact"></div>
+
+    <!-- 2 COLUNAS: TAREFAS | COMPROMISSOS + FINANCEIRO -->
+    <div class="dsh-grid2">
 
       <!-- COLUNA 1: TAREFAS DO DIA -->
       <div class="dsh-col">
@@ -130,7 +140,6 @@
             <div id="home-week"></div>
           </div>
         </div>
-        <!-- Financeiro do dia -->
         <div class="dsh-card">
           <div class="dsh-card-head">
             <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
@@ -138,23 +147,6 @@
           </div>
           <div class="dsh-card-body">
             <div id="home-fin-dash"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- COLUNA 3: ATALHOS -->
-      <div class="dsh-col">
-        <div class="dsh-card">
-          <div class="dsh-card-head">
-            <span class="dsh-card-title">⚡ Atalhos</span>
-          </div>
-          <div class="dsh-card-body dsh-atalhos">
-            <div class="dsh-atalho" onclick="novoProcesso()"><span class="dsh-at-ico" style="background:rgba(107,20,22,.25)">⚖️</span><span>Novo processo</span></div>
-            <div class="dsh-atalho" onclick="novoTarefaDia()"><span class="dsh-at-ico" style="background:rgba(212,175,55,.12)">📋</span><span>Nova tarefa</span></div>
-            <div class="dsh-atalho" onclick="novoCompromisso()"><span class="dsh-at-ico" style="background:rgba(96,165,250,.12)">📅</span><span>Compromisso</span></div>
-            <div class="dsh-atalho" onclick="novoLancamento()"><span class="dsh-at-ico" style="background:rgba(76,175,125,.12)">💰</span><span>Lançamento</span></div>
-            <div class="dsh-atalho" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span><span>Atendimento</span></div>
-            <div class="dsh-atalho" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span><span>Contato</span></div>
           </div>
         </div>
       </div>
@@ -411,7 +403,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
