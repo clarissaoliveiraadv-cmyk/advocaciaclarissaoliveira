@@ -14612,34 +14612,54 @@ function renderFicha(c, grp=null){
         </div>`).join(''):`<div class="fempty">Nenhum compromisso histórico</div>`}
     </div>
 
-    <!-- MOVIMENTAÇÕES -->
+    <!-- MOVIMENTAÇÕES + TIMELINE LATERAL -->
     <div class="tp on" id="tp2">
       <div class="tp-header">
         <span class="tp-title">📋 Andamentos <span class="tp-title-count">${cMov.length}</span></span>
         <button class="tp-btn" onclick="abrirModalMov(${c.id})">＋ Novo andamento</button>
       </div>
-      ${cMov.length?cMov.map((m,i)=>{
-        const isLocal = m.novo || m.origem;
-        const dtDisplay = m.data_movimentacao||m.data||'';
-        const txtDisplay = m.movimentacao||m.desc||m.descricao||'';
-        const tipoDisplay = m.tipo_movimentacao||'';
-        return `<div class="mvit">
-          <div class="mvline"><div class="mvdot ${isLocal?'new':''}"></div>${i<cMov.length-1?'<div class="mvbar"></div>':''}</div>
-          <div class="mvcnt">
-            <div class="mvdate">${fmtDataBR(dtDisplay)}${tipoDisplay?` <span style="font-size:9px;color:var(--mu);background:var(--sf3);padding:1px 5px;border-radius:3px;margin-left:4px">${tipoDisplay}</span>`:''}</div>
-            <div class="mvtxt">${txtDisplay}</div>
-            ${isLocal?`<div style="display:flex;gap:6px;margin-top:5px">
-              <button onclick="editarMovimentacao(${c.id},${i})"
-                style="background:#252525;border:1px solid #444;color:#9E9E9E;font-size:10px;padding:3px 9px;border-radius:5px;cursor:pointer;font-family:Inter,DM Sans,sans-serif;font-weight:500;line-height:1.4"
-                onmouseover="this.style.borderColor='#D4AF37';this.style.color='#D4AF37'"
-                onmouseout="this.style.borderColor='#444';this.style.color='#9E9E9E'">✏ editar</button>
-              <button onclick="excluirMovimentacao(${c.id},${i})"
-                style="background:#252525;border:1px solid #444;color:#9E9E9E;font-size:10px;padding:3px 9px;border-radius:5px;cursor:pointer;font-family:Inter,DM Sans,sans-serif;font-weight:500;line-height:1.4"
-                onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'"
-                onmouseout="this.style.borderColor='#444';this.style.color='#9E9E9E'">🗑 excluir</button>
-            </div>`:''}
+      <div class="pj-mov-layout">
+        <div class="pj-mov-list">
+          ${cMov.length?cMov.map((m,i)=>{
+            const isLocal = m.novo || m.origem;
+            const dtDisplay = m.data_movimentacao||m.data||'';
+            const txtDisplay = m.movimentacao||m.desc||m.descricao||'';
+            const tipoDisplay = m.tipo_movimentacao||'';
+            return `<div class="pj-mov-item">
+              <div class="pj-mov-ico-col">
+                <div class="pj-mov-plus" onclick="abrirModalMov(${c.id})" title="Adicionar">+</div>
+                ${tipoDisplay==='DataJud'?'':`<div class="pj-mov-env" onclick="mvGerarMsg(${c.id},${i})" title="Enviar ao cliente">✉</div>`}
+              </div>
+              <div class="pj-mov-body">
+                <span class="pj-mov-date">${fmtDataBR(dtDisplay)}</span> — ${escapeHtml(txtDisplay)}
+                ${isLocal?`<div style="display:flex;gap:6px;margin-top:4px">
+                  <button class="pj-mov-actbtn" onclick="editarMovimentacao(${c.id},${i})">✏ editar</button>
+                  <button class="pj-mov-actbtn pj-mov-actbtn-del" onclick="excluirMovimentacao(${c.id},${i})">🗑 excluir</button>
+                </div>`:''}
+              </div>
+            </div>`;}).join(''):`<div class="fempty">Nenhum andamento</div>`}
+        </div>
+        ${cMov.length>0?`<div class="pj-timeline">
+          <div class="pj-tl-title">Linha do Tempo</div>
+          <div class="pj-tl-track">
+            ${cMov.slice(0,15).map((m,i)=>{
+              const dt = (m.data_movimentacao||m.data||'').slice(0,10);
+              const txt = (m.movimentacao||m.desc||m.descricao||'').slice(0,30);
+              const isAg = (m.tipo_movimentacao||'').toLowerCase().includes('audiência') || (txt||'').toLowerCase().includes('audiência');
+              const MA2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+              const dtParts = dt.split('-');
+              const dtLabel = dtParts.length===3 ? dtParts[2]+'/'+dtParts[1]+'/'+dtParts[0].slice(2) : dt;
+              return `<div class="pj-tl-item">
+                <div class="pj-tl-dot"><span class="pj-tl-icon">${isAg?'📅':'📋'}</span></div>
+                <div class="pj-tl-content">
+                  <div class="pj-tl-txt" title="${escapeHtml(m.movimentacao||m.desc||'')}">${escapeHtml(txt)}${txt.length>=30?'…':''}</div>
+                </div>
+                <div class="pj-tl-date">${dtLabel}</div>
+              </div>`;
+            }).join('')}
           </div>
-        </div>`;}).join(''):`<div class="fempty">Nenhum andamento</div>`}
+        </div>`:''}
+      </div>
     </div>
 
     <!-- PARTES -->
