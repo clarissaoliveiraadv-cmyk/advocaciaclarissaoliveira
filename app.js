@@ -14445,14 +14445,14 @@ function renderFicha(c, grp=null){
     <!-- FINANCEIRO -->
     <div class="tp" id="tp4">
 
-      <!-- ── RESUMO RÁPIDO ── -->
-      <div id="fin-resumo-${c.id}" style="margin-bottom:16px"></div>
+      <!-- ── RESUMO RÁPIDO (escondido quando sidebar lateral ativa) ── -->
+      <div id="fin-resumo-${c.id}" class="fin-resumo-inline" style="margin-bottom:16px"></div>
 
       <!-- ── CONTRATO ── -->
       <div id="hon-pasta-${c.id}">${renderHonorariosPasta(c.id)}</div>
 
       <!-- ── LISTA UNIFICADA ── -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="fin-btns-inline" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Lançamentos</div>
         <div style="display:flex;gap:6px">
           <button onclick="abrirModalFin(${c.id},'receber')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">➕ Entrada</button>
@@ -14590,6 +14590,12 @@ function renderFinExpandido(cid){
   vclMain.style.display = 'flex';
   vclMain.style.flexDirection = 'row';
 
+  // Esconder resumo inline e botões inline (já estão na sidebar)
+  var ri = document.querySelector('.fin-resumo-inline');
+  if(ri) ri.style.display = 'none';
+  var bi = document.querySelector('.fin-btns-inline');
+  if(bi) bi.style.display = 'none';
+
   _finRenderSidebar(cid);
   renderFinBusca(cid);
 }
@@ -14614,10 +14620,15 @@ function _finRenderSidebar(cid){
     var isRep= l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
     var isDesp= l.tipo==='despesa'||l.tipo==='despint';
 
+    var isAlvara = l.tipo==='alvara';
+
     if(isRep){
       if(pago) repassePago+=val; else repassePend+=val;
     } else if(isDesp){
       if(pago) desp+=val;
+    } else if(isAlvara){
+      // Alvará não entra nos honorários até ser convertido
+      if(!pago) pendentes.push(l);
     } else {
       if(pago){ honRec+=val; recebidos.push(l); }
       else { honPend+=val; pendentes.push(l); }
