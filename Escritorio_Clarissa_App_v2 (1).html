@@ -316,21 +316,7 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;dis
 .novo-item:hover{background:var(--sf3)}
 
 /* ── Checklist do dia ── */
-/* ── TEMA CLARO ── */
-body.light {
-  --bg:   #F0F2F5;
-  --sf:   #FFFFFF;
-  --sf2:  #FFFFFF;
-  --sf3:  #F0F2F5;
-  --of:   #1C1C1E;
-  --mu:   #5A6272;
-  --bd:   #D8DDE6;
-  --red:  #C0392B;
-  --ouro: #7a5c1e;
-  --vinho:#8B1A1A;
-  --grn:  #1a7a3c;
-}
-body.light { color:#1C1C1E; background:#F0F2F5; }
+/* Phase 2: blocos body.light de variáveis consolidados na linha ~9174 */
 /* ══ LIGHT MODE COMPLETO ══ */
 body.light .header    { background:#FFFFFF; border-bottom:2px solid #D8DDE6; box-shadow:0 1px 4px rgba(0,0,0,.08); }
 body.light .logo-name { color:#1C1C1E !important; }
@@ -8531,7 +8517,7 @@ function vfExportarPDF(){
 .tl-tipo-prazo  { background:#f59e0b20;color:#f59e0b; }
 
 /* ══ TEMA CLARO — revisão completa ══ */
-body.light { background:#f5f2ee!important;color:#1a0f0f!important; }
+/* Phase 2: regra body.light avulsa removida — consolidada abaixo */
 body.light * { color:inherit; }
 body.light .prazo-item  { background:#fff!important;border-color:#d8d0c8!important; }
 body.light .prazo-titulo { color:#1a0f0f!important; }
@@ -8724,17 +8710,7 @@ body.light .ficha-tl-body .tl-data   { color:#6a5a50!important; }
 }
 .fhp-card-val.mono { font-family: 'DM Sans', monospace; font-size: 11px; color: var(--ouro); }
 
-/* ══ LIGHT MODE — Off-white Projuris ══ */
-body.light {
-  --bg:   #F8F9FA;
-  --sf2:  #FFFFFF;
-  --sf3:  #F0F2F5;
-  --of:   #1A1A1A;
-  --mu:   #6B7280;
-  --bd:   #E0E0E0;
-  --vinho:#7a1518;
-  --ouro: #8a6820;
-}
+/* Phase 2: bloco body.light "Off-white Projuris" removido — consolidado na linha ~9160 */
 body.light .fhead-pro { background: #FFFFFF; border-bottom-color: #E0E0E0; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 body.light .fhp-nome  { color: #1A1A1A !important; font-weight: 800; }
 body.light .fhp-pasta-label { color: #7a1518 !important; }
@@ -9170,7 +9146,7 @@ body.light .mv-edit-btn:hover { color:#7a1518; border-color:#7a1518; }
 }
 .sidebar.sb-open { width:270px; min-width:270px; border-right:1px solid var(--bd); }
 
-/* ══ LIGHT MODE COMPLETO — Projuris-inspired ══ */
+/* ══ LIGHT MODE COMPLETO — Consolidado (Phase 2) ══ */
 body.light {
   --bg:   #F0F2F5;
   --sf:   #FFFFFF;
@@ -16006,37 +15982,23 @@ function reativarProcesso(cid){
   showToast('Processo reativado!');
 }
 
-function renderList(lst, isEncView=false){
-  const cf={};
-  allPend().filter(p=>p.dt_raw>=HS).forEach(p=>{
-    if(p.id_processo&&p.id_processo!==0) cf[p.id_processo]=(cf[p.id_processo]||0)+1;
-  });
-  // Stats da lista atual
-  const sbStats = document.getElementById('sb-stats');
-  if(sbStats){
-    const total = lst.length;
-    const encIds2 = new Set(Object.keys(encerrados).map(Number));
-    const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPend().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
-    sbStats.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
-  }
-  document.getElementById('clist').innerHTML=lst.map(grp=>{
-    // grp é um cliente agrupado {id, nome, processos, naturezas}
-    const procs=grp.processos||[grp]; // retrocompatibilidade
+// Phase 2: virtualização — altura fixa por item, renderiza só os visíveis
+var _rlData=[], _rlEnc=false, _rlItemH=68, _rlBuffer=5;
+
+function _rlBuildItem(grp, cf, isEncView){
+    const procs=grp.processos||[grp];
     const isAtivo=AC&&procs.some(p=>p.id===AC.id);
-    // Verificar se TODOS os processos do grupo estão encerrados
     const encProcs=procs.filter(p=>(encerrados[p.id]||encerrados[String(p.id)]));
     const allEnc=encProcs.length===procs.length;
     const someEnc=encProcs.length>0;
     if(isEncView&&!someEnc) return '';
     if(!isEncView&&allEnc) return '';
-    // Badges agregados
     const totalAg=procs.reduce((s,p)=>(s+(p.agenda||[]).length),0);
     const totalMov=procs.reduce((s,p)=>(s+(p.movimentacoes||[]).length),0);
     const totalFut=procs.reduce((s,p)=>(s+(cf[p.id]||0)),0);
     const hasTel=procs.some(p=>p.tel);
     const maxDorm=procs.reduce((m,p)=>Math.max(m,p.ultima_mov_dias||0),0);
     const nProcs=procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).length;
-    // Naturezas únicas dos ativos
     const nats=[...new Set(procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).map(p=>p.natureza))];
     const dataLabel=allEnc?('Encerrado '+encProcs[encProcs.length-1].data):
       (procs.find(p=>!(encerrados[p.id]||encerrados[String(p.id)]))?.data_inicio||'').slice(0,7);
@@ -16059,7 +16021,58 @@ function renderList(lst, isEncView=false){
         ${hasTel?`<span class="badge btel">📞</span>`:''}
       </div>
     </div>`;
-  }).join('');
+}
+
+function _rlPaint(){
+  var el=document.getElementById('clist');
+  if(!el||!_rlData.length) return;
+  var scrollTop=el.scrollTop, viewH=el.clientHeight;
+  var total=_rlData.length, h=_rlItemH, buf=_rlBuffer;
+  var first=Math.max(0,Math.floor(scrollTop/h)-buf);
+  var last=Math.min(total-1,Math.ceil((scrollTop+viewH)/h)+buf);
+  // Reconstruct only visible items
+  var cf=_rlCf;
+  var parts=[];
+  parts.push('<div style="height:'+first*h+'px"></div>');
+  for(var i=first;i<=last;i++){
+    parts.push(_rlBuildItem(_rlData[i],cf,_rlEnc));
+  }
+  parts.push('<div style="height:'+(total-1-last)*h+'px"></div>');
+  el.innerHTML=parts.join('');
+}
+var _rlCf={};
+
+function renderList(lst, isEncView=false){
+  const cf={};
+  allPend().filter(p=>p.dt_raw>=HS).forEach(p=>{
+    if(p.id_processo&&p.id_processo!==0) cf[p.id_processo]=(cf[p.id_processo]||0)+1;
+  });
+  _rlCf=cf;
+  // Stats da lista atual
+  const sbStats = document.getElementById('sb-stats');
+  if(sbStats){
+    const total = lst.length;
+    const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPend().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
+    sbStats.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
+  }
+  // Phase 2: virtualização — listas pequenas renderizam direto, grandes usam scroll virtual
+  _rlData=lst; _rlEnc=isEncView;
+  var el=document.getElementById('clist');
+  if(lst.length<=50){
+    // lista pequena — render direto com DocumentFragment
+    var frag=document.createDocumentFragment();
+    lst.forEach(function(grp){
+      var html=_rlBuildItem(grp,cf,isEncView);
+      if(html) frag.appendChild(_fragFromHtml(html));
+    });
+    el.textContent='';
+    el.appendChild(frag);
+    el.onscroll=null;
+  } else {
+    // lista grande — scroll virtual
+    _rlPaint();
+    el.onscroll=_rlPaint;
+  }
 }
 
 function openC(id, procId=null){
