@@ -1353,6 +1353,8 @@ function vkRender(){
   const el = document.getElementById('vk-content');
   if(!el) return;
   const tasks = vkFiltrados();
+  // Lista precisa de overflow auto para scroll
+  el.style.overflow = _vkTab==='lista' ? 'auto' : 'hidden';
   if(_vkTab==='kanban')           el.innerHTML = vkRenderKanban(tasks);
   else if(_vkTab==='lista')       el.innerHTML = vkRenderLista(tasks);
   else if(_vkTab==='urgentes')    el.innerHTML = vkRenderUrgentes(tasks);
