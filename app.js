@@ -486,12 +486,14 @@ function ctcRenderLista(){
   const list = document.getElementById('ctc-lista');
   if(!list) return;
 
-  const todos = ctcTodos().filter(c=>
-    !q || (c.nome||'').toLowerCase().includes(q)
+  const fTipo = (document.getElementById('ctc-filtro-tipo')||{}).value||'';
+  const todos = ctcTodos().filter(c=>{
+    if(fTipo && (c.tipo||'').toLowerCase()!==fTipo) return false;
+    return !q || (c.nome||'').toLowerCase().includes(q)
        || (c.tel||'').includes(q)
        || (c.email||'').toLowerCase().includes(q)
-       || (c.cpf||'').includes(q)
-  ).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+       || (c.cpf||'').includes(q);
+  }).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
 
   if(!todos.length){
     list.innerHTML=`<div style="padding:20px;text-align:center;font-size:12px;color:var(--mu)">
@@ -577,20 +579,30 @@ function ctcAbrirFicha(id){
       </div>
     </div>` : '';
 
+  var _cNomeEsc = c.nome.replace(/'/g,"\\'");
   main.innerHTML = `
     <div class="ctc-ficha-header">
       <div class="ctc-avatar-big">${iniciais}</div>
-      <div>
+      <div style="flex:1">
         <div class="ctc-ficha-nome">${c.nome}</div>
         <div class="ctc-ficha-sub">${c.tipo||'Contato'} · Cadastrado em ${c.criado||'—'}</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          ${c.tel?`<span style="font-size:12px;color:var(--tx)">📞 ${c.tel}</span>`:''}
+          ${c.email?`<span style="font-size:12px;color:var(--tx)">✉ ${c.email}</span>`:''}
+        </div>
       </div>
-      <div class="ctc-ficha-acoes">
-        ${c.tel?`<a class="ctc-edit-btn" href="https://wa.me/55${c.tel.replace(/\D/g,'')}" target="_blank" style="text-decoration:none;background:#1a4a2e;color:#4ade80;border-color:#166534">💬 WhatsApp</a>`:''}
-        ${c.email?`<a class="ctc-edit-btn" href="mailto:${c.email}" style="text-decoration:none">✉️ E-mail</a>`:''}
-        <button class="ctc-edit-btn" onclick="ctcVincularTarefa('${c.id}','${c.nome.replace(/'/g,"\\'")}')">✅ Nova tarefa</button>
-        <button class="ctc-edit-btn" onclick="ctcVincularProcesso('${c.id}','${c.nome.replace(/'/g,"\\'")}')">⚖️ Vincular processo</button>
-        <button class="ctc-edit-btn" onclick="ctcEditar('${c.id}')">✏ Editar</button>
-        <button class="ctc-edit-btn del" onclick="ctcDeletar('${c.id}')">🗑 Excluir</button>
+      <div class="pj-opcoes-wrap">
+        <button class="pj-opcoes-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">Opções ▾</button>
+        <div class="pj-opcoes-menu" style="display:none" onclick="this.style.display='none'">
+          ${c.tel?`<div class="pj-opcoes-item" onclick="navigator.clipboard.writeText('55${c.tel.replace(/\\D/g,'')}');showToast('Tel copiado')">📞 Copiar telefone</div>`:''}
+          ${c.email?`<div class="pj-opcoes-item" onclick="window.open('mailto:${c.email}')">✉ Enviar e-mail</div>`:''}
+          <div class="pj-opcoes-sep"></div>
+          <div class="pj-opcoes-item" onclick="ctcVincularTarefa('${c.id}','${_cNomeEsc}')">✅ Nova tarefa</div>
+          <div class="pj-opcoes-item" onclick="ctcVincularProcesso('${c.id}','${_cNomeEsc}')">⚖️ Vincular processo</div>
+          <div class="pj-opcoes-sep"></div>
+          <div class="pj-opcoes-item" onclick="ctcEditar('${c.id}')">✏ Editar</div>
+          <div class="pj-opcoes-item" style="color:#c9484a" onclick="ctcDeletar('${c.id}')">🗑 Excluir</div>
+        </div>
       </div>
     </div>
     ${secIdent}

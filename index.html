@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#510f10">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Phase 4: CSS extraído para arquivo separado -->
-<link rel="stylesheet" href="styles.css?v=29">
+<link rel="stylesheet" href="styles.css?v=30">
 <style>
 /* CSS principal movido para styles.css — este bloco mantido vazio para eventuais overrides inline */
 </style>
@@ -372,7 +372,18 @@
   <div class="ctc-wrap">
     <div class="ctc-sidebar">
       <div class="ctc-sb-header">
-        <input class="ctc-sb-busca" id="ctc-busca" placeholder="🔍 buscar contato..." oninput="_db(function(){ctcRenderLista()},200,'ctcbusca')">
+        <input class="ctc-sb-busca" id="ctc-busca" placeholder="buscar contato..." oninput="_db(function(){ctcRenderLista()},200,'ctcbusca')">
+        <div style="display:flex;gap:4px;margin-top:6px">
+          <button class="dsh-btn" onclick="novoContato()" style="flex:1">＋ Novo contato</button>
+          <select id="ctc-filtro-tipo" class="dsh-btn dsh-btn-ghost" style="font-size:10px" onchange="ctcRenderLista()">
+            <option value="">Todos</option>
+            <option value="pf">PF</option>
+            <option value="pj">PJ</option>
+            <option value="advogado">Advogado</option>
+            <option value="perito">Perito</option>
+            <option value="parceiro">Parceiro</option>
+          </select>
+        </div>
       </div>
       <div class="ctc-sb-list" id="ctc-lista"></div>
     </div>
@@ -380,7 +391,7 @@
       <div class="ctc-empty-state" id="ctc-empty">
         <div style="font-size:32px;margin-bottom:10px">👤</div>
         <div style="font-size:14px;font-weight:600">Selecione um contato</div>
-        <div style="font-size:12px;margin-top:4px">ou use ＋ Novo → 👤 Novo contato</div>
+        <div style="font-size:12px;margin-top:4px">ou clique ＋ Novo contato</div>
       </div>
     </div>
   </div>
@@ -404,7 +415,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=29"></script>
+<script src="app.js?v=30"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
