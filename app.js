@@ -7334,10 +7334,16 @@ function fmChip(id, val, lbl, cls=''){
 }
 function fmToggle(id, val, el){
   // Alguns grupos são single-select (formaPag, centro, direcao, intervalo)
-  const single = ['formaPag','centro','direcao','intervalo'];
+  const single = ['tipo','formaPag','centro','direcao','intervalo'];
   if(single.includes(id)){
     _fl[id] = [val];
-    el.closest('.fm-chips').querySelectorAll('.fm-chip').forEach(c=>c.classList.remove('on'));
+    // Para tipo, desmarcar todos os chips de tipo (em ambos containers)
+    if(id==='tipo'){
+      document.querySelectorAll('#fm-tipos-entrada .fm-chip, #fm-tipos-saida .fm-chip').forEach(function(c){c.classList.remove('on');});
+    } else {
+      var parent = el.closest('.fm-chips');
+      if(parent) parent.querySelectorAll('.fm-chip').forEach(function(c){c.classList.remove('on');});
+    }
     el.classList.add('on');
   } else {
     _fl[id] = _fl[id]||[];
@@ -7361,10 +7367,13 @@ function fmAtualizar(){
   // Bloco valores — sempre visível
   bl('valores');
 
-  // Acordo → mostrar bloco acordo
-  if(tipo==='acordo'){ bl('acordo'); hl('honorario'); }
-  else if(tipo==='honorario'){ bl('honorario'); hl('acordo'); }
-  else { hl('acordo'); hl('honorario'); }
+  // Acordo → mostrar bloco acordo visível
+  var acordoEl = document.getElementById('fm-bl-acordo');
+  if(acordoEl) acordoEl.style.display = tipo==='acordo' ? 'block' : 'none';
+  // Split box — tipos com honorário
+  var splitVisible = ['honorario','honorario_direto','sucumbencia'].includes(tipo);
+  var splitBox = document.getElementById('fm-split-box');
+  if(splitBox) splitBox.style.display = splitVisible ? 'block' : 'none';
 
   fmCalcAcordo();
   fmPreviewParcelas();
@@ -7464,8 +7473,9 @@ function abrirModalFin(cid, direcao_default){
   <div style="margin-bottom:14px">
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que é?</div>
     <div id="fm-tipos-entrada" style="display:${isEnt?'flex':'none'};flex-wrap:wrap;gap:6px">
+      ${fmChip('tipo','acordo','⚖️ Acordo / Condenação')}
       ${fmChip('tipo','honorario_direto','💼 Me pagaram direto')}
-      ${fmChip('tipo','alvara','⚖️ Aguardando Alvará')}
+      ${fmChip('tipo','alvara','🏛️ Aguardando Alvará')}
       ${fmChip('tipo','sucumbencia','🏆 Sucumbência')}
       ${fmChip('tipo','reembolso','🔄 Ressarcimento')}
       ${fmChip('tipo','outro','📋 Outro')}
@@ -7501,7 +7511,49 @@ function abrirModalFin(cid, direcao_default){
   <!-- Descrição — compacta -->
   <div style="margin-bottom:12px">
     <label class="fm-lbl">Descrição *</label>
-    <input class="fm-inp" id="fm-desc" placeholder="Ex: Honorários 1/3, Taxa manutenção...">
+    <input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honorários 1/3...">
+  </div>
+
+  <!-- BLOCO ACORDO — aparece ao selecionar "Acordo/Condenação" -->
+  <div id="fm-bl-acordo" class="fm-bloco" style="display:none;border:1px solid rgba(212,175,55,.3);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(212,175,55,.04)">
+    <div style="font-size:11px;font-weight:700;color:var(--ouro);margin-bottom:10px">⚖️ DETALHES DO ACORDO</div>
+    <div class="fm-row">
+      <div><label class="fm-lbl">Valor bruto total *</label>
+        <input class="fm-inp" type="number" id="fm-vbruto" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>
+      <div><label class="fm-lbl">Sucumbência (R$)</label>
+        <input class="fm-inp" type="number" id="fm-vsucumb" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>
+    </div>
+    <div class="fm-row" style="margin-top:8px">
+      <div><label class="fm-lbl">Seus honorários (%)</label>
+        <input class="fm-inp" type="number" id="fm-honperc" min="0" max="100" step="0.5" value="${honPerc}" oninput="fmCalcAcordo()"></div>
+      <div><label class="fm-lbl">Ou valor fixo (R$)</label>
+        <input class="fm-inp" type="number" id="fm-honfixo" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>
+      <div><label class="fm-lbl">Despesas a descontar</label>
+        <input class="fm-inp" type="number" id="fm-vdesp" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>
+    </div>
+    <div id="fm-calc" style="margin-top:10px"></div>
+    <div class="fm-row" style="margin-top:8px">
+      <div><label class="fm-lbl">Nº de parcelas</label>
+        <input class="fm-inp" type="number" id="fm-nparc" min="1" max="120" value="1" oninput="fmPreviewParcelas()"></div>
+      <div><label class="fm-lbl">Valor por parcela (R$)</label>
+        <input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01" placeholder="auto" oninput="fmPreviewParcelas()"></div>
+      <div><label class="fm-lbl">1ª parcela em</label>
+        <input class="fm-inp" type="date" id="fm-venc1" value="${hoje}" oninput="fmPreviewParcelas()"></div>
+    </div>
+    <div id="fm-parc-preview" style="margin-top:6px"></div>
+    <!-- Parceria -->
+    <div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">
+        <input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro(${cid})" style="cursor:pointer">
+        <span style="font-weight:600">🤝 Tem parceiro neste processo?</span>
+      </label>
+      <div id="fm-parceiro-fields" style="display:none" class="fm-row">
+        <div style="flex:2"><label class="fm-lbl">Nome do parceiro</label>
+          <input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian..." oninput="fmAutoCalc(${cid})"></div>
+        <div><label class="fm-lbl">% do parceiro</label>
+          <input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1" value="60" oninput="fmAutoCalc(${cid})"></div>
+      </div>
+    </div>
   </div>
 
   <!-- PREVIEW AUTOMÁTICO — aparece só se honorário com split -->
