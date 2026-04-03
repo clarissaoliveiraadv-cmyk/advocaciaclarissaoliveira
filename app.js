@@ -3601,7 +3601,7 @@ function vfLista(todos, tipo){
       +'<td><div style="font-weight:500">'+(l.desc||'-')+'</div>'
         +(l.obs?'<div style="font-size:10px;color:var(--mu)">'+l.obs+'</div>':'')+'</td>'
       +'<td style="color:var(--mu)">'+(l.cliente||'-')+'</td>'
-      +'<td style="color:var(--mu);font-size:11px">'+(l.subtipo&&l.subtipo!=='undefined'?l.subtipo:(l.centro||''))+'</td>'
+      +'<td style="color:var(--mu);font-size:11px">'+(l.subtipo&&typeof l.subtipo==='string'?l.subtipo:(l.centro||''))+'</td>'
       +'<td class="td-val '+(isRec?'pos':'neg')+'" style="text-align:right;font-weight:700">'+fBRL(l.valor)+'</td>'
       +'<td>'+badge+(l.dt_baixa?'<div style="font-size:9px;color:var(--mu)">'+fmtDt(l.dt_baixa)+'</div>':'')+'</td>'
       +'<td><div class="vf-acoes">'+baixaBtn+editBtn+'</div></td>'
@@ -4523,12 +4523,28 @@ function vfBaixarComRepasse(id){
     // 1. Dar baixa no lançamento original pelo valor total
     _executarBaixa(id, total, dtBaixa, forma, obs, lanc);
 
-    // 2. Se houver repasse, gerar lançamento de despesa (obrigação)
+    // 2. Se houver repasse, gerar lançamento de repasse (obrigação ao cliente)
     if(repasse > 0.01){
       const dtRep = new Date(dtBaixa);
       dtRep.setDate(dtRep.getDate() + 2);
       const dtRepStr = dtRep.toISOString().slice(0,10);
-      // Repasse NÃO é criado aqui - é criado em abrirFluxoAlvara em localLanc para evitar duplicata
+      var cid2 = cliObj ? cliObj.id : 0;
+      localLanc.push({
+        id: Date.now() + 1,
+        id_processo: cid2,
+        tipo: 'repasse',
+        direcao: 'pagar',
+        desc: 'Repasse ao cliente' + (cliObj ? ' — ' + cliObj.cliente : ''),
+        valor: Math.round(repasse * 100) / 100,
+        data: dtBaixa,
+        venc: dtRepStr,
+        status: 'pendente',
+        pago: false,
+        cliente: cliObj ? cliObj.cliente : '',
+        _repasse_acordo: true,
+        obs: 'Gerado automaticamente ao receber com repasse'
+      });
+      sbSet('co_localLanc', localLanc);
     }
 
     // 3. Marcar despesas adiantadas como reembolsadas
@@ -4786,11 +4802,11 @@ function abrirFluxoRepasse(cid, lid){
   // Build data object compatible with abrirMensagemFinanceiro
   const d = {
     cliente: c.cliente,
-    valRec: rep._alv_valor_total || (rep.valor + (rep._alv_hon||0)),
-    hon:    rep._alv_hon || 0,
-    rep:    rep.valor,
-    despVal: rep._alv_desp || 0,
-    percHon: rep._alv_perc_hon ? rep._alv_perc_hon*100 : (c._hon_contrato?.perc||30),
+    valRec: rep._alv_valor_total || (parseFloat(rep.valor)||0) + (parseFloat(rep._alv_hon)||0),
+    hon:    parseFloat(rep._alv_hon) || 0,
+    rep:    parseFloat(rep.valor) || 0,
+    despVal: parseFloat(rep._alv_desp) || 0,
+    percHon: rep._alv_perc_hon ? (parseFloat(rep._alv_perc_hon)||0)*100 : (c._hon_contrato?.perc||30),
     parcela: rep._alv_parcela || rep.parcela || '',
     dtRec:  rep.data || hoje,
     banco: ex.banco||'', ag: ex.ag||'',
