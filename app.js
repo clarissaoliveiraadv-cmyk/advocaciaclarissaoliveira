@@ -4868,7 +4868,7 @@ function abrirFluxoAlvara(cid, lid){
 
   // Despesas reembolsáveis pendentes desta pasta
   const despPendentes = (localLanc||[]).filter(function(l){
-    return l.id_processo===cid && (l.tipo==='despesa'||l.tipo==='despesa_reimb') && !l.pago;
+    return Number(l.id_processo)===Number(cid) && (l.tipo==='despesa'||l.tipo==='despesa_reimb') && !l.pago;
   });
   const totalDesp = despPendentes.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
 
@@ -5102,7 +5102,7 @@ function abrirConfirmarRepasse(cid, d){
 
     // Marcar repasse como pago
     var rIdx = localLanc.findIndex(function(l){
-      return l.id_processo===cid && l.tipo==='repasse' && !l.pago &&
+      return Number(l.id_processo)===Number(cid) && l.tipo==='repasse' && !l.pago &&
              l._repasse_alvara && Math.abs((l.valor||0)-d.rep)<1;
     });
     if(rIdx!==-1){
@@ -7446,221 +7446,132 @@ function fmPreviewParcelas(){
 }
 
 function abrirModalFin(cid, direcao_default){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = CLIENTS.find(function(x){return x.id===cid;});
   if(!c) return;
-  const honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||c._hon_contrato||30) : 30;
+  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||c._hon_contrato||30) : 30;
   _fl = { tipo:[], direcao:[direcao_default||'receber'], formaPag:[], centro:[], intervalo:['unico'] };
-  const hoje   = new Date().toISOString().slice(0,10);
-  const isEnt  = (direcao_default||'receber') === 'receber';
+  var hoje = new Date().toISOString().slice(0,10);
+  var isEnt = (direcao_default||'receber') === 'receber';
 
-  abrirModal((isEnt ? '➕ Entrada' : '➖ Saída') + ' — ' + c.cliente, `
+  abrirModal((isEnt ? '+ Entrada' : '- Saida') + ' \u2014 ' + c.cliente,
+    // Direção
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+      +'<button id="btn-dir-entrada" onclick="fmSetDir(\'receber\')" style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(isEnt?'rgba(76,175,125,.7)':'var(--bd)')+';background:'+(isEnt?'rgba(76,175,125,.12)':'var(--sf3)')+';color:'+(isEnt?'#4ade80':'var(--mu)')+'">+ Entrada</button>'
+      +'<button id="btn-dir-saida" onclick="fmSetDir(\'pagar\')" style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(!isEnt?'rgba(248,118,118,.7)':'var(--bd)')+';background:'+(!isEnt?'rgba(248,118,118,.1)':'var(--sf3)')+';color:'+(!isEnt?'#f87676':'var(--mu)')+'">- Saida</button>'
+    +'</div>'
 
-  <!-- BLOCO 1: Direção + Tipo + Essencial -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-    <button id="btn-dir-entrada" onclick="fmSetDir('receber')"
-      style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;
-      border:2px solid ${isEnt?'rgba(76,175,125,.7)':'var(--bd)'};
-      background:${isEnt?'rgba(76,175,125,.12)':'var(--sf3)'};
-      color:${isEnt?'#4ade80':'var(--mu)'}">➕ Entrada</button>
-    <button id="btn-dir-saida" onclick="fmSetDir('pagar')"
-      style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;
-      border:2px solid ${!isEnt?'rgba(248,118,118,.7)':'var(--bd)'};
-      background:${!isEnt?'rgba(248,118,118,.1)':'var(--sf3)'};
-      color:${!isEnt?'#f87676':'var(--mu)'}">➖ Saída</button>
-  </div>
+    // Tipo chips
+    +'<div style="margin-bottom:14px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que e?</div>'
+      +'<div id="fm-tipos-entrada" style="display:'+(isEnt?'flex':'none')+';flex-wrap:wrap;gap:6px">'
+        +fmChip('tipo','acordo','\u2696 Acordo / Condena\u00e7\u00e3o')
+        +fmChip('tipo','honorario_direto','\ud83d\udcbc Me pagaram direto')
+        +fmChip('tipo','alvara','\ud83c\udfdb Aguardando Alvar\u00e1')
+        +fmChip('tipo','sucumbencia','\ud83c\udfc6 Sucumb\u00eancia')
+        +fmChip('tipo','reembolso','\ud83d\udd04 Ressarcimento')
+        +fmChip('tipo','outro','\ud83d\udccb Outro')
+      +'</div>'
+      +'<div id="fm-tipos-saida" style="display:'+(!isEnt?'flex':'none')+';flex-wrap:wrap;gap:6px">'
+        +fmChip('tipo','despesa','\ud83e\uddfe Despesa reembols\u00e1vel')
+        +fmChip('tipo','despint','\ud83d\udcb8 Despesa do escrit\u00f3rio')
+        +fmChip('tipo','honorario_pag','\ud83d\udcbc Paguei parceiro')
+        +fmChip('tipo','outro','\ud83d\udccb Outro')
+      +'</div>'
+    +'</div>'
 
-  <!-- Tipo — chips contextuais -->
-  <div style="margin-bottom:14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que é?</div>
-    <div id="fm-tipos-entrada" style="display:${isEnt?'flex':'none'};flex-wrap:wrap;gap:6px">
-      ${fmChip('tipo','acordo','⚖️ Acordo / Condenação')}
-      ${fmChip('tipo','honorario_direto','💼 Me pagaram direto')}
-      ${fmChip('tipo','alvara','🏛️ Aguardando Alvará')}
-      ${fmChip('tipo','sucumbencia','🏆 Sucumbência')}
-      ${fmChip('tipo','reembolso','🔄 Ressarcimento')}
-      ${fmChip('tipo','outro','📋 Outro')}
-    </div>
-    <div id="fm-tipos-saida" style="display:${!isEnt?'flex':'none'};flex-wrap:wrap;gap:6px">
-      ${fmChip('tipo','despesa','🧾 Despesa reembolsável')}
-      ${fmChip('tipo','despint','💸 Despesa do escritório')}
-      ${fmChip('tipo','honorario_pag','💼 Paguei parceiro')}
-      ${fmChip('tipo','outro','📋 Outro')}
-    </div>
-  </div>
+    // Valor + Data + Status
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor (R$) *</label>'
+        +'<input class="fm-inp" type="number" id="fm-valor" min="0" step="0.01" placeholder="0,00" style="font-size:16px;font-weight:700" oninput="fmAutoCalc('+cid+')"></div>'
+      +'<div><label class="fm-lbl">Data *</label>'
+        +'<input class="fm-inp" type="date" id="fm-data" value="'+hoje+'"></div>'
+      +'<div><label class="fm-lbl">Status</label>'
+        +'<select class="fm-inp" id="fm-status">'
+          +'<option value="pago">\u2713 J\u00e1 recebi / J\u00e1 paguei</option>'
+          +'<option value="pendente">\u23f3 Ainda vai entrar</option>'
+        +'</select></div>'
+    +'</div>'
 
-  <!-- Valor + Data + Status — sempre visível -->
-  <div class="fm-row">
-    <div>
-      <label class="fm-lbl">Valor (R$) *</label>
-      <input class="fm-inp" type="number" id="fm-valor" min="0" step="0.01"
-        placeholder="0,00" style="font-size:16px;font-weight:700" oninput="fmAutoCalc(${cid})">
-    </div>
-    <div>
-      <label class="fm-lbl">Data *</label>
-      <input class="fm-inp" type="date" id="fm-data" value="${hoje}">
-    </div>
-    <div>
-      <label class="fm-lbl">Status</label>
-      <select class="fm-inp" id="fm-status">
-        <option value="pago">✓ Já recebi / Já paguei</option>
-        <option value="pendente">⏳ Ainda vai entrar</option>
-      </select>
-    </div>
-  </div>
+    // Descrição
+    +'<div style="margin-bottom:12px"><label class="fm-lbl">Descri\u00e7\u00e3o *</label>'
+      +'<input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honor\u00e1rios 1/3..."></div>'
 
-  <!-- Descrição — compacta -->
-  <div style="margin-bottom:12px">
-    <label class="fm-lbl">Descrição *</label>
-    <input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honorários 1/3...">
-  </div>
+    // === BLOCO ACORDO (aparece quando tipo = acordo) ===
+    +'<div id="fm-bl-acordo" style="display:none;border:1px solid rgba(212,175,55,.3);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(212,175,55,.04)">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--ouro);margin-bottom:10px">\u2696 DETALHES DO ACORDO</div>'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Valor bruto total *</label>'
+          +'<input class="fm-inp" type="number" id="fm-vbruto" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>'
+        +'<div><label class="fm-lbl">Sucumb\u00eancia (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-vsucumb" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>'
+      +'</div>'
+      +'<div class="fm-row" style="margin-top:8px">'
+        +'<div><label class="fm-lbl">Seus honor\u00e1rios (%)</label>'
+          +'<input class="fm-inp" type="number" id="fm-honperc" min="0" max="100" step="0.5" value="'+honPerc+'" oninput="fmCalcAcordo()"></div>'
+        +'<div><label class="fm-lbl">Ou valor fixo (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-honfixo" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>'
+        +'<div><label class="fm-lbl">Despesas a descontar</label>'
+          +'<input class="fm-inp" type="number" id="fm-vdesp" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>'
+      +'</div>'
+      +'<div id="fm-calc" style="margin-top:10px"></div>'
+      +'<div class="fm-row" style="margin-top:8px">'
+        +'<div><label class="fm-lbl">N\u00ba de parcelas</label>'
+          +'<input class="fm-inp" type="number" id="fm-nparc" min="1" max="120" value="1" oninput="fmPreviewParcelas()"></div>'
+        +'<div><label class="fm-lbl">Valor por parcela (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01" placeholder="auto" oninput="fmPreviewParcelas()"></div>'
+        +'<div><label class="fm-lbl">1\u00aa parcela em</label>'
+          +'<input class="fm-inp" type="date" id="fm-venc1" value="'+hoje+'" oninput="fmPreviewParcelas()"></div>'
+      +'</div>'
+      +'<div id="fm-parc-preview" style="margin-top:6px"></div>'
+      // Parceiro dentro do bloco acordo
+      +'<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">'
+          +'<input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro('+cid+')" style="cursor:pointer">'
+          +'<span style="font-weight:600">\ud83e\udd1d Tem parceiro neste processo?</span>'
+        +'</label>'
+        +'<div id="fm-parceiro-fields" style="display:none" class="fm-row">'
+          +'<div style="flex:2"><label class="fm-lbl">Nome do parceiro</label>'
+            +'<input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian..." oninput="fmAutoCalc('+cid+')"></div>'
+          +'<div><label class="fm-lbl">% do parceiro</label>'
+            +'<input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1" value="60" oninput="fmAutoCalc('+cid+')"></div>'
+        +'</div>'
+        +'<div id="fm-parceiro-preview" style="font-size:11px;color:var(--mu);padding:5px 8px;background:var(--sf3);border-radius:4px;display:none"></div>'
+      +'</div>'
+    +'</div>'
 
-  <!-- BLOCO ACORDO — aparece ao selecionar "Acordo/Condenação" -->
-  <div id="fm-bl-acordo" class="fm-bloco" style="display:none;border:1px solid rgba(212,175,55,.3);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(212,175,55,.04)">
-    <div style="font-size:11px;font-weight:700;color:var(--ouro);margin-bottom:10px">⚖️ DETALHES DO ACORDO</div>
-    <div class="fm-row">
-      <div><label class="fm-lbl">Valor bruto total *</label>
-        <input class="fm-inp" type="number" id="fm-vbruto" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>
-      <div><label class="fm-lbl">Sucumbência (R$)</label>
-        <input class="fm-inp" type="number" id="fm-vsucumb" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>
-    </div>
-    <div class="fm-row" style="margin-top:8px">
-      <div><label class="fm-lbl">Seus honorários (%)</label>
-        <input class="fm-inp" type="number" id="fm-honperc" min="0" max="100" step="0.5" value="${honPerc}" oninput="fmCalcAcordo()"></div>
-      <div><label class="fm-lbl">Ou valor fixo (R$)</label>
-        <input class="fm-inp" type="number" id="fm-honfixo" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>
-      <div><label class="fm-lbl">Despesas a descontar</label>
-        <input class="fm-inp" type="number" id="fm-vdesp" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>
-    </div>
-    <div id="fm-calc" style="margin-top:10px"></div>
-    <div class="fm-row" style="margin-top:8px">
-      <div><label class="fm-lbl">Nº de parcelas</label>
-        <input class="fm-inp" type="number" id="fm-nparc" min="1" max="120" value="1" oninput="fmPreviewParcelas()"></div>
-      <div><label class="fm-lbl">Valor por parcela (R$)</label>
-        <input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01" placeholder="auto" oninput="fmPreviewParcelas()"></div>
-      <div><label class="fm-lbl">1ª parcela em</label>
-        <input class="fm-inp" type="date" id="fm-venc1" value="${hoje}" oninput="fmPreviewParcelas()"></div>
-    </div>
-    <div id="fm-parc-preview" style="margin-top:6px"></div>
-    <!-- Parceria -->
-    <div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">
-        <input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro(${cid})" style="cursor:pointer">
-        <span style="font-weight:600">🤝 Tem parceiro neste processo?</span>
-      </label>
-      <div id="fm-parceiro-fields" style="display:none" class="fm-row">
-        <div style="flex:2"><label class="fm-lbl">Nome do parceiro</label>
-          <input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian..." oninput="fmAutoCalc(${cid})"></div>
-        <div><label class="fm-lbl">% do parceiro</label>
-          <input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1" value="60" oninput="fmAutoCalc(${cid})"></div>
-      </div>
-    </div>
-  </div>
+    // === BLOCO SPLIT (para honorario_direto, sucumbencia — NÃO acordo) ===
+    +'<div id="fm-split-box" style="display:none;border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(76,175,125,.04)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<span style="font-size:11px;font-weight:700;color:var(--tx)">\u26a1 Divis\u00e3o autom\u00e1tica</span>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="font-size:10px;color:var(--mu)">Seus honor\u00e1rios:</span>'
+          +'<input class="fm-inp" type="number" id="fm-split-perc" value="'+honPerc+'" min="0" max="100" step="0.5" style="width:64px;text-align:center;font-weight:700;padding:3px 6px" oninput="fmAutoCalc('+cid+')">'
+          +'<span style="font-size:10px;color:var(--mu)">%</span>'
+        +'</div>'
+      +'</div>'
+      +'<div id="fm-split-preview"></div>'
+    +'</div>'
 
-  <!-- PREVIEW AUTOMÁTICO — aparece só se honorário com split -->
-  <div id="fm-split-box" style="display:none;border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(76,175,125,.04)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:11px;font-weight:700;color:var(--tx)">⚡ Divisão automática</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:10px;color:var(--mu)">Seus honorários:</span>
-        <input class="fm-inp" type="number" id="fm-split-perc" value="${honPerc}"
-          min="0" max="100" step="0.5"
-          style="width:64px;text-align:center;font-weight:700;padding:3px 6px"
-          oninput="fmAutoCalc(${cid})">
-        <span style="font-size:10px;color:var(--mu)">%</span>
-      </div>
-    </div>
-    <div id="fm-split-preview"></div>
-  </div>
-
-  <!-- DETALHES — accordion recolhido -->
-  <div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:4px">
-    <div onclick="var b=document.getElementById('fm-det');var arr=this.querySelector('.det-arr');b.style.display=b.style.display==='none'?'block':'none';arr.textContent=b.style.display==='none'?'▸':'▾'"
-      style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;cursor:pointer;background:var(--sf3)">
-      <span style="font-size:11px;font-weight:700;color:var(--mu)">▸ Detalhes opcionais</span>
-      <span class="det-arr" style="font-size:11px;color:var(--mu)">▸</span>
-    </div>
-    <div id="fm-det" style="display:none;padding:12px">
-
-      <!-- Parceria -->
-      <div id="fm-parceria-box" style="margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">
-          <input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro(${cid})" style="cursor:pointer">
-          <span style="font-weight:600">🤝 Tem parceiro neste processo?</span>
-        </label>
-        <div id="fm-parceiro-fields" style="display:none" class="fm-row">
-          <div style="flex:2">
-            <label class="fm-lbl">Nome do parceiro</label>
-            <input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian, Wesley..." oninput="fmAutoCalc(${cid})">
-          </div>
-          <div>
-            <label class="fm-lbl">% do parceiro</label>
-            <input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1"
-              value="60" oninput="fmAutoCalc(${cid})">
-          </div>
-        </div>
-        <div id="fm-parceiro-preview" style="font-size:11px;color:var(--mu);padding:5px 8px;background:var(--sf3);border-radius:4px;display:none"></div>
-      </div>
-
-      <!-- Parcelas -->
-      <div style="border-top:1px solid var(--bd);padding-top:10px;margin-bottom:10px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:8px">Parcelas</div>
-        <div class="fm-row" style="margin-bottom:6px">
-          <div>
-            <label class="fm-lbl">Tipo</label>
-            <select class="fm-inp" id="fm-tipo-parc">
-              <option value="unica">Única</option>
-              <option value="parcelado">Parcelado</option>
-              <option value="sucumbencia">Sucumbência</option>
-              <option value="mensalidade">Mensalidade</option>
-              <option value="adiantamento">Adiantamento</option>
-            </select>
-          </div>
-          <div>
-            <label class="fm-lbl">Valor bruto total (R$)</label>
-            <input class="fm-inp" type="number" id="fm-vbruto" min="0" step="0.01"
-              placeholder="0,00" oninput="fmUpdateBruto()">
-          </div>
-        </div>
-        <div class="fm-row">
-          <div>
-            <label class="fm-lbl">Nº de parcelas</label>
-            <input class="fm-inp" type="number" id="fm-nparc" min="1" max="120"
-              value="1" oninput="fmPreviewParcelas()">
-          </div>
-          <div>
-            <label class="fm-lbl">Valor por parcela (R$)</label>
-            <input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01"
-              placeholder="0,00" oninput="fmPreviewParcelas()">
-          </div>
-          <div>
-            <label class="fm-lbl">1ª parcela em</label>
-            <input class="fm-inp" type="date" id="fm-venc1" value="${hoje}"
-              oninput="fmPreviewParcelas()">
-          </div>
-        </div>
-        <div id="fm-parc-preview" style="margin-top:6px"></div>
-        <!-- Hidden venc for single entries -->
-        <input type="hidden" id="fm-venc" value="${hoje}">
-      </div>
-
-      <!-- Forma + Obs -->
-      <div style="border-top:1px solid var(--bd);padding-top:10px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:8px">Forma de pagamento</div>
-        <div class="fm-chips fm-tag-forma" style="margin-bottom:10px">
-          ${fmChip('formaPag','pix','PIX')}
-          ${fmChip('formaPag','alvara','Alvará')}
-          ${fmChip('formaPag','ted','TED/Depósito')}
-          ${fmChip('formaPag','boleto','Boleto')}
-          ${fmChip('formaPag','dinheiro','Dinheiro')}
-        </div>
-        <label class="fm-lbl">Observação</label>
-        <textarea class="fm-inp" id="fm-obs" rows="2" placeholder="Detalhes adicionais..."></textarea>
-      </div>
-
-    </div>
-  </div>
-
-  `, function(){ fmSalvar(cid); }, '💾 Salvar');
+    // === DETALHES OPCIONAIS (forma pagamento, obs) ===
+    +'<div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:4px">'
+      +'<div onclick="var b=document.getElementById(\'fm-det\');b.style.display=b.style.display===\'none\'?\'block\':\'none\'" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;cursor:pointer;background:var(--sf3)">'
+        +'<span style="font-size:11px;font-weight:700;color:var(--mu)">\u25b8 Detalhes opcionais</span>'
+      +'</div>'
+      +'<div id="fm-det" style="display:none;padding:12px">'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:8px">Forma de pagamento</div>'
+        +'<div class="fm-chips" style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px">'
+          +fmChip('formaPag','pix','PIX')
+          +fmChip('formaPag','alvara','Alvar\u00e1')
+          +fmChip('formaPag','ted','TED/Dep\u00f3sito')
+          +fmChip('formaPag','boleto','Boleto')
+          +fmChip('formaPag','dinheiro','Dinheiro')
+        +'</div>'
+        +'<label class="fm-lbl">Observa\u00e7\u00e3o</label>'
+        +'<textarea class="fm-inp" id="fm-obs" rows="2" placeholder="Detalhes adicionais..."></textarea>'
+      +'</div>'
+    +'</div>'
+    +'<input type="hidden" id="fm-venc" value="'+hoje+'">',
+  function(){ fmSalvar(cid); }, '\ud83d\udcbe Salvar');
 }
 
 function fmSetDir(dir){
@@ -7863,25 +7774,21 @@ function fmSalvar(cid){
       +(nparc>1?' — '+nparc+' parcelas':'');
     showToast('✅ '+msg);
 
-    // Gerar mensagem WPP de repasse se houver
-    if(repasse > 0 && nparc <= 1){
-      const dadosB = getDadosBancarios(c.cliente);
-      const dtR = (function(){ const d=new Date(); d.setDate(d.getDate()+2); return fDt(d.toISOString().slice(0,10)); })();
-      const wpp = '*REPASSE — '+c.cliente+'*\n'
+    // Copiar mensagem de repasse silenciosamente (não abre modal)
+    if(repasse > 0){
+      var dadosB = typeof getDadosBancarios==='function' ? getDadosBancarios(c.cliente) : null;
+      var dtR = (function(){ var d2=new Date(); d2.setDate(d2.getDate()+2); return fDt(d2.toISOString().slice(0,10)); })();
+      var wpp = '*REPASSE \u2014 '+c.cliente+'*\n'
         +'Acordo: '+desc+'\n'
         +'Valor total: '+fBRL(vbruto)+'\n'
-        +(vsucumb?'Sucumbência: '+fBRL(vsucumb)+'\n':'')
-        +'Honorários ('+honperc+'%): '+fBRL(hon)+'\n'
+        +(vsucumb?'Sucumb\u00eancia: '+fBRL(vsucumb)+'\n':'')
+        +'Honor\u00e1rios ('+honperc+'%): '+fBRL(hon)+'\n'
         +'*Repasse ao cliente: '+fBRL(repasse)+'*\n'
-        +'Prazo: até '+dtR+'\n'
-        +(dadosB ? '\n'+formatarDadosBancarios(dadosB) : '_Cadastrar dados bancários na ficha_');
-
-      setTimeout(function(){
-        abrirModal('📋 Resumo do acordo',
-          '<div style="background:var(--sf3);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;line-height:1.8;white-space:pre-wrap;color:var(--tx)">'+escapeHtml(wpp)+'</div>',
-          function(){ navigator.clipboard.writeText(wpp).then(function(){showToast('📲 Copiado!');}).catch(function(){var t=document.createElement('textarea');t.value=wpp;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);showToast('📲 Copiado!');}); },
-          '📲 Copiar para WhatsApp', '#25D366');
-      }, 400);
+        +'Prazo: at\u00e9 '+dtR+'\n'
+        +(dadosB ? '\n'+formatarDadosBancarios(dadosB) : '');
+      navigator.clipboard.writeText(wpp).then(function(){
+        showToast('\ud83d\udcf2 Mensagem de repasse copiada!');
+      }).catch(function(){});
     }
     return;
   }
@@ -8006,7 +7913,7 @@ function fmSalvar(cid){
 
 // ── Render financeiro na ficha do processo ──
 function renderFinLocal(cid){
-  const locais = (localLanc||[]).filter(function(l){return l.id_processo===cid;});
+  const locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
   if(!locais.length) return '<div style="font-size:12px;color:var(--mu);padding:10px 0;font-style:italic">Nenhum lançamento. Clique em + Novo lançamento.</div>';
 
   const hoje = new Date().toISOString().slice(0,10);
@@ -9953,7 +9860,7 @@ function renderFinUnificado(cid){
   };
 
   const todos = (localLanc||[])
-    .filter(function(l){ return l.id_processo===cid && !l.proj_ref && !l.origem_proj; })
+    .filter(function(l){ return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj; })
     .sort(function(a,b){ return (b.data||b.venc||'').localeCompare(a.data||a.venc||''); });
 
   if(!todos.length)
@@ -10104,7 +10011,7 @@ function renderFinResumo(cid){
   if(!c) return;
   const fmtV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   const hoje = new Date().toISOString().slice(0,10);
-  const locais = (localLanc||[]).filter(function(l){return l.id_processo===cid;});
+  const locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
 
   var honRec=0, outrosRec=0, desp=0, repassePago=0, repassePend=0;
   var repPassos=[], acordos=[];
@@ -15199,7 +15106,7 @@ function _finRenderSidebar(cid){
 
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var hoje = new Date().toISOString().slice(0,10);
-  var locais = (localLanc||[]).filter(function(l){return l.id_processo===cid;});
+  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
 
   // Cálculos
   var honRec=0, honPend=0, repassePago=0, repassePend=0, desp=0;
