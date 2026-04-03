@@ -7496,6 +7496,55 @@ function abrirModalFin(cid, direcao_default){
     +'<div style="margin-bottom:12px"><label class="fm-lbl">Descri\u00e7\u00e3o *</label>'
       +'<input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honor\u00e1rios 1/3..."></div>'
 
+    // Plano de Contas + Centro de Custo + Conta
+    +'<div class="fm-row" style="margin-bottom:12px">'
+      +'<div><label class="fm-lbl">Plano de Contas</label>'
+        +'<select class="fm-inp" id="fm-plano">'
+          +'<option value="">\u2014 Selecionar \u2014</option>'
+          +'<optgroup label="Receitas">'
+            +'<option value="honorario_inicial">Honor\u00e1rio inicial</option>'
+            +'<option value="honorario_exito">Honor\u00e1rio de \u00eaxito</option>'
+            +'<option value="acordo">Acordo / Condena\u00e7\u00e3o</option>'
+            +'<option value="sucumbencia">Sucumb\u00eancia</option>'
+            +'<option value="consulta">Consulta</option>'
+            +'<option value="assessoria">Assessoria mensal</option>'
+            +'<option value="reembolso_rec">Reembolso recebido</option>'
+          +'</optgroup>'
+          +'<optgroup label="Despesas">'
+            +'<option value="aluguel">Aluguel</option>'
+            +'<option value="internet">Internet / Telefone</option>'
+            +'<option value="energia">Energia / \u00c1gua</option>'
+            +'<option value="salario">Sal\u00e1rio / Pr\u00f3-labore</option>'
+            +'<option value="fgts_inss">FGTS / INSS</option>'
+            +'<option value="imposto">Impostos (Simples, IRPJ)</option>'
+            +'<option value="custas">Custas processuais</option>'
+            +'<option value="combustivel">Combust\u00edvel / Transporte</option>'
+            +'<option value="material">Material de escrit\u00f3rio</option>'
+            +'<option value="software">Software / Sistemas</option>'
+            +'<option value="marketing">Marketing</option>'
+            +'<option value="honorario_parceiro">Honor\u00e1rio parceiro</option>'
+            +'<option value="outro_desp">Outro</option>'
+          +'</optgroup>'
+        +'</select></div>'
+      +'<div><label class="fm-lbl">Centro de Custo</label>'
+        +'<select class="fm-inp" id="fm-centro">'
+          +'<option value="">\u2014</option>'
+          +'<option value="trabalhista">Trabalhista</option>'
+          +'<option value="previdenciario">Previdenci\u00e1rio</option>'
+          +'<option value="civel">C\u00edvel</option>'
+          +'<option value="familia">Fam\u00edlia</option>'
+          +'<option value="escritorio">Escrit\u00f3rio</option>'
+        +'</select></div>'
+      +'<div><label class="fm-lbl">Conta</label>'
+        +'<select class="fm-inp" id="fm-conta">'
+          +'<option value="">\u2014</option>'
+          +'<option value="inter">Inter</option>'
+          +'<option value="cef">CEF</option>'
+          +'<option value="dinheiro">Dinheiro</option>'
+          +'<option value="outra">Outra</option>'
+        +'</select></div>'
+    +'</div>'
+
     // === BLOCO ACORDO (aparece quando tipo = acordo) ===
     +'<div id="fm-bl-acordo" style="display:none;border:1px solid rgba(212,175,55,.3);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(212,175,55,.04)">'
       +'<div style="font-size:11px;font-weight:700;color:var(--ouro);margin-bottom:10px">\u2696 DETALHES DO ACORDO</div>'
@@ -7685,7 +7734,9 @@ function fmSalvar(cid){
   if(tipo==='honorario_direto') tipo='honorario';
   const dir     = (_fl.direcao||[])[0]||'receber';
   const forma   = (_fl.formaPag||[])[0]||'';
-  const centro  = (_fl.centro||[])[0]||'';
+  const centro  = fmVal('centro')||(_fl.centro||[])[0]||'';
+  const plano   = fmVal('plano')||'';
+  const conta   = fmVal('conta')||'';
   const intv    = (_fl.intervalo||[])[0]||'unico';
   const nparc   = parseInt(fmVal('nparc'))||1;
   const vparc   = fmNum('vparc');
@@ -7739,7 +7790,7 @@ function fmSalvar(cid){
           hon_parc: Math.round(hon/nparc*100)/100,
           honperc, vdesp_parc: Math.round(vdesp/nparc*100)/100,
           data: dt, venc: dt, status: statusLanc,
-          forma, centro, obs, id_processo: cid, cliente: c.cliente,
+          forma, centro, plano, conta, obs, id_processo: cid, cliente: c.cliente,
           _grupo_acordo: grupoId, _parcela: i+1, _total_parc: nparc,
           pago: statusLanc==='pago',
         });
@@ -7819,7 +7870,7 @@ function fmSalvar(cid){
       desc: desc, valor: liquido2,
       data: dt, venc: venc, status: statusLanc,
       pago: statusLanc==='pago', dt_baixa: statusLanc==='pago'?dt:'',
-      forma, centro, obs, id_processo: cid, cliente: c.cliente,
+      forma, centro, plano, conta, obs, id_processo: cid, cliente: c.cliente,
       natureza: 'honorario_escritorio',
       _honperc: perc*100, _vbruto: vbruto2,
       _tipo_parc: tipoParc2,
@@ -7881,7 +7932,7 @@ function fmSalvar(cid){
     tipo, direcao: dir, desc, valor,
     data: fmVal('data'), venc: fmVal('venc'),
     status: statusLanc, pago: statusLanc==='pago',
-    forma, centro, obs,
+    forma, centro, plano, conta, obs,
     id_processo: cid, cliente: c.cliente,
   };
 
