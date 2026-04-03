@@ -1407,7 +1407,7 @@ function vkRenderLista(tasks){
     return (a.prazo||'9999').localeCompare(b.prazo||'9999');
   });
 
-  var html = '<div style="overflow-x:auto"><table class="vk-lista-table"><thead><tr>'
+  var html = '<div style="overflow-x:auto;overflow-y:auto;flex:1"><table class="vk-lista-table"><thead><tr>'
     +'<th>Título</th>'
     +'<th>Pasta</th>'
     +'<th>Etapa</th>'
