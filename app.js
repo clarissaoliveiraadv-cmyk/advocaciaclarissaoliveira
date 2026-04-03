@@ -4158,10 +4158,11 @@ function vfBaixar(id){
     processLanc=clienteLanc;
   }
 
-  const isRec   = tipoDir==='receber';
+  const _tiposReceber = new Set(['receber','acordo','honorario','honorario_direto','sucumbencia','alvara','reembolso','assessoria','consulta']);
+  const isRec   = _tiposReceber.has(tipoDir) || (tipoDir!=='pagar' && tipoDir!=='repasse' && tipoDir!=='despesa' && tipoDir!=='despint');
   const hoje    = new Date().toISOString().slice(0,10);
   const corVal  = isRec ? '#4ade80' : '#f87676';
-  const CONTAS  = ['Banco Cora','Banco Inter'];
+  const CONTAS  = ['Inter','CEF','Dinheiro','Outra'];
   const FORMAS  = ['PIX','TED / Depósito','Boleto','Dinheiro','Cheque','Cartão de Crédito','Cartão de Débito','Alvará judicial'];
 
   const bodyHtml =
