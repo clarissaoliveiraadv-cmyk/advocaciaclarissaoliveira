@@ -7688,14 +7688,6 @@ function fmAutoCalc(cid){
   html += '</div>';
   prev.innerHTML = html;
 }
-    +(rep>0
-      ?'<div style="padding:8px 10px;background:rgba(201,72,74,.06);border-radius:6px">'
-        +'<div style="font-size:9px;font-weight:700;color:#c9484a;text-transform:uppercase;margin-bottom:3px">Repasse ao cliente</div>'
-        +'<div style="font-size:18px;font-weight:800;color:#c9484a">'+fmtV2(rep)+'</div>'
-      +'</div>'
-      :'')
-  +'</div>';
-}
 
 function fmToggleParceiro(cid){
   var checked = document.getElementById('fm-tem-parceiro')?.checked;
