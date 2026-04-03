@@ -8818,9 +8818,10 @@ function renderFinDash(){
     var lbl2=document.getElementById('fin-mes-lbl');
     if(lbl2) lbl2.textContent='Financeiro — '+MA3[mes2-1]+' '+ano2;
     var locais2=(localLanc||[]).filter(function(l){return (l.data||l.venc||'').slice(0,7)===ano2+'-'+mesStr2;});
-    var aRec=locais2.filter(function(l){return l.status!=='pago'&&l.direcao!=='pagar';}).reduce(function(s,l){return s+(l.valor||0);},0);
-    var venc2=locais2.filter(function(l){return l.status!=='pago'&&l.direcao!=='pagar'&&l.venc&&l.venc<new Date(HOJE).toISOString().slice(0,10);}).reduce(function(s,l){return s+(l.valor||0);},0);
-    var desp2=locais2.filter(function(l){return l.direcao==='pagar';}).reduce(function(s,l){return s+(l.valor||0);},0);
+    var _isDespFn = function(l){ return l.direcao==='pagar'||l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='repasse'; };
+    var aRec=locais2.filter(function(l){return l.status!=='pago'&&!_isDespFn(l);}).reduce(function(s,l){return s+(l.valor||0);},0);
+    var venc2=locais2.filter(function(l){return l.status!=='pago'&&!_isDespFn(l)&&l.venc&&l.venc<new Date(HOJE).toISOString().slice(0,10);}).reduce(function(s,l){return s+(l.valor||0);},0);
+    var desp2=locais2.filter(function(l){return _isDespFn(l);}).reduce(function(s,l){return s+(l.valor||0);},0);
     var fBRL2=function(v){return 'R$ '+Math.round(v).toLocaleString('pt-BR');};
     // Compact 3-stat widget (only show, don't duplicate full table)
     // Repasses vencendo/vencidos
@@ -8884,10 +8885,9 @@ function renderFinDash(){
       +'<div style="padding:8px 10px"><div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px">Inadimplente</div><div style="font-size:15px;font-weight:700;color:#c9484a">'+fBRL2(venc2)+'</div></div>'
       +'<div style="padding:8px 10px"><div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:3px">Desp. mês</div><div style="font-size:15px;font-weight:700;color:#f87676">'+fBRL2(desp2)+'</div></div>'
       +'</div>' + finHoje;
-    // Early return — don't render the full detailed table on dashboard
-    return;
-    // update dsc-fin stat card
+    // Update stat card on dashboard
     var dscFin2=document.getElementById('dsc-fin');if(dscFin2) dscFin2.textContent=fBRL2(aRec);
+    return;
   }
 
   const el = document.getElementById('home-fin-dash');
