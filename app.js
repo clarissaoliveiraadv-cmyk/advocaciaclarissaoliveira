@@ -7712,14 +7712,17 @@ function fmUpdateBruto(){
   }
 }
 
+var _fmSaving = false;
 function fmSalvar(cid){
+  if(_fmSaving) return; _fmSaving = true;
+  setTimeout(function(){ _fmSaving = false; }, 1000);
   const c = CLIENTS.find(x=>x.id===cid);
-  if(!c) return;
+  if(!c){ _fmSaving=false; return; }
 
   const desc    = fmVal('desc');
   if(!desc){ showToast('Informe a descrição'); return; }
 
-  const tipo    = (_fl.tipo||[])[0]||'outro';
+  let tipo      = (_fl.tipo||[])[0]||'outro';
   if(tipo==='honorario_direto') tipo='honorario';
   const dir     = (_fl.direcao||[])[0]||'receber';
   const forma   = (_fl.formaPag||[])[0]||'';
@@ -7832,6 +7835,7 @@ function fmSalvar(cid){
     }
     return;
   }
+  // ↑↑↑ ACORDO termina aqui — SEMPRE retorna ↑↑↑
 
   // ── HONORÁRIO DIRETO com split ──────────────────────────────
   if(tipo==='honorario' && dir==='receber'){
