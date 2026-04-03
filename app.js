@@ -7367,15 +7367,10 @@ function fmAtualizar(){
   // Bloco valores — sempre visível
   bl('valores');
 
-  // Acordo → mostrar bloco acordo visível
-  var acordoEl = document.getElementById('fm-bl-acordo');
-  if(acordoEl) acordoEl.style.display = tipo==='acordo' ? 'block' : 'none';
-  // Split box — tipos com honorário
-  var splitVisible = ['honorario','honorario_direto','sucumbencia'].includes(tipo);
-  var splitBox = document.getElementById('fm-split-box');
-  if(splitBox) splitBox.style.display = splitVisible ? 'block' : 'none';
+  // Split block — mostrar para entradas
+  var splitEl = document.getElementById('fm-bl-split');
+  if(splitEl) splitEl.style.display = dir==='receber' ? 'block' : 'none';
 
-  fmCalcAcordo();
   fmPreviewParcelas();
 }
 
@@ -7449,25 +7444,39 @@ function abrirModalFin(cid, direcao_default){
   var c = CLIENTS.find(function(x){return x.id===cid;});
   if(!c) return;
   var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||c._hon_contrato||30) : 30;
-  _fl = { tipo:[], direcao:[direcao_default||'receber'], formaPag:[], centro:[], intervalo:['unico'] };
+  _fl = { tipo:[], direcao:[direcao_default||'receber'], formaPag:[], centro:[], intervalo:['mensal'] };
   var hoje = new Date().toISOString().slice(0,10);
   var isEnt = (direcao_default||'receber') === 'receber';
 
-  abrirModal((isEnt ? '+ Entrada' : '- Saida') + ' \u2014 ' + c.cliente,
-    // Direção
+  // Buscar despesas reembolsáveis pendentes deste cliente
+  var despReemb = (localLanc||[]).filter(function(l){
+    return Number(l.id_processo)===Number(cid) && (l.tipo==='despesa'||l.tipo==='despesa_reimb') && !l.reembolsado && !l.pago;
+  });
+  var totalReemb = despReemb.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var reembHtml = totalReemb > 0
+    ? '<div style="font-size:10px;color:var(--mu);margin-top:4px">'
+      +'Despesas adiantadas a ressarcir: <strong style="color:#f59e0b">R$ '+totalReemb.toLocaleString('pt-BR',{minimumFractionDigits:2})+'</strong>'
+      +' (ser\u00e1 descontado do repasse)</div>'
+    : '';
+
+  abrirModal((isEnt ? '+ Entrada' : '- Sa\u00edda') + ' \u2014 ' + c.cliente,
+
+    // === DIRE\u00c7\u00c3O ===
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
       +'<button id="btn-dir-entrada" onclick="fmSetDir(\'receber\')" style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(isEnt?'rgba(76,175,125,.7)':'var(--bd)')+';background:'+(isEnt?'rgba(76,175,125,.12)':'var(--sf3)')+';color:'+(isEnt?'#4ade80':'var(--mu)')+'">+ Entrada</button>'
-      +'<button id="btn-dir-saida" onclick="fmSetDir(\'pagar\')" style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(!isEnt?'rgba(248,118,118,.7)':'var(--bd)')+';background:'+(!isEnt?'rgba(248,118,118,.1)':'var(--sf3)')+';color:'+(!isEnt?'#f87676':'var(--mu)')+'">- Saida</button>'
+      +'<button id="btn-dir-saida" onclick="fmSetDir(\'pagar\')" style="padding:10px 0;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid '+(!isEnt?'rgba(248,118,118,.7)':'var(--bd)')+';background:'+(!isEnt?'rgba(248,118,118,.1)':'var(--sf3)')+';color:'+(!isEnt?'#f87676':'var(--mu)')+'">- Sa\u00edda</button>'
     +'</div>'
 
-    // Tipo chips
+    // === TIPO ===
     +'<div style="margin-bottom:14px">'
-      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que e?</div>'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que \u00e9?</div>'
       +'<div id="fm-tipos-entrada" style="display:'+(isEnt?'flex':'none')+';flex-wrap:wrap;gap:6px">'
         +fmChip('tipo','acordo','\u2696 Acordo / Condena\u00e7\u00e3o')
-        +fmChip('tipo','honorario_direto','\ud83d\udcbc Me pagaram direto')
-        +fmChip('tipo','alvara','\ud83c\udfdb Aguardando Alvar\u00e1')
+        +fmChip('tipo','honorario_direto','\ud83d\udcbc Honor\u00e1rio fixo/\u00eanito')
+        +fmChip('tipo','alvara','\ud83c\udfdb Alvar\u00e1')
         +fmChip('tipo','sucumbencia','\ud83c\udfc6 Sucumb\u00eancia')
+        +fmChip('tipo','assessoria','\ud83d\udcc5 Assessoria mensal')
+        +fmChip('tipo','consulta','\ud83d\udcac Consulta')
         +fmChip('tipo','reembolso','\ud83d\udd04 Ressarcimento')
         +fmChip('tipo','outro','\ud83d\udccb Outro')
       +'</div>'
@@ -7479,49 +7488,95 @@ function abrirModalFin(cid, direcao_default){
       +'</div>'
     +'</div>'
 
-    // Valor + Data + Status
+    // === VALOR INTEGRAL + DESCRI\u00c7\u00c3O ===
     +'<div class="fm-row">'
-      +'<div><label class="fm-lbl">Valor (R$) *</label>'
+      +'<div style="flex:2"><label class="fm-lbl">Valor integral (R$) *</label>'
         +'<input class="fm-inp" type="number" id="fm-valor" min="0" step="0.01" placeholder="0,00" style="font-size:16px;font-weight:700" oninput="fmAutoCalc('+cid+')"></div>'
       +'<div><label class="fm-lbl">Data *</label>'
         +'<input class="fm-inp" type="date" id="fm-data" value="'+hoje+'"></div>'
-      +'<div><label class="fm-lbl">Status</label>'
-        +'<select class="fm-inp" id="fm-status">'
-          +'<option value="pago">\u2713 J\u00e1 recebi / J\u00e1 paguei</option>'
-          +'<option value="pendente">\u23f3 Ainda vai entrar</option>'
-        +'</select></div>'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><label class="fm-lbl">Descri\u00e7\u00e3o *</label>'
+      +'<input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honor\u00e1rios mensais..."></div>'
+
+    // === PARCELAS (sempre vis\u00edvel) ===
+    +'<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--sf2)">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:8px">Pagamento</div>'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Intervalo</label>'
+          +'<select class="fm-inp" id="fm-intervalo" onchange="fmPreviewParcelas()">'
+            +'<option value="unico">\u00danica</option>'
+            +'<option value="mensal" selected>Mensal</option>'
+            +'<option value="quinzenal">Quinzenal</option>'
+            +'<option value="semanal">Semanal</option>'
+          +'</select></div>'
+        +'<div><label class="fm-lbl">Ocorr\u00eancias</label>'
+          +'<input class="fm-inp" type="number" id="fm-nparc" min="1" max="120" value="1" oninput="fmPreviewParcelas()"></div>'
+        +'<div><label class="fm-lbl">Valor parcela (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01" placeholder="auto" oninput="fmPreviewParcelas()"></div>'
+        +'<div><label class="fm-lbl">1\u00aa parcela em</label>'
+          +'<input class="fm-inp" type="date" id="fm-venc1" value="'+hoje+'" oninput="fmPreviewParcelas()"></div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:8px">'
+        +'<label class="fm-lbl" style="margin:0">Status</label>'
+        +'<select class="fm-inp" id="fm-status" style="width:auto">'
+          +'<option value="pendente">\u23f3 Pendente</option>'
+          +'<option value="pago">\u2713 J\u00e1 recebido / pago</option>'
+        +'</select>'
+      +'</div>'
+      +'<div id="fm-parc-preview" style="margin-top:6px"></div>'
     +'</div>'
 
-    // Descrição
-    +'<div style="margin-bottom:12px"><label class="fm-lbl">Descri\u00e7\u00e3o *</label>'
-      +'<input class="fm-inp" id="fm-desc" placeholder="Ex: Acordo Trabalhista, Honor\u00e1rios 1/3..."></div>'
+    // === SEPARA\u00c7\u00c3O HONOR\u00c1RIOS (aparece para entradas) ===
+    +'<div id="fm-bl-split" style="display:'+(isEnt?'block':'none')+';border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(76,175,125,.04)">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4ade80;margin-bottom:10px">\u2696 Separa\u00e7\u00e3o de valores</div>'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Seus honor\u00e1rios (%)</label>'
+          +'<input class="fm-inp" type="number" id="fm-honperc" min="0" max="100" step="0.5" value="'+honPerc+'" oninput="fmAutoCalc('+cid+')"></div>'
+        +'<div><label class="fm-lbl">Ou valor fixo (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-honfixo" min="0" step="0.01" placeholder="0,00" oninput="fmAutoCalc('+cid+')"></div>'
+        +'<div><label class="fm-lbl">Sucumb\u00eancia (R$)</label>'
+          +'<input class="fm-inp" type="number" id="fm-vsucumb" min="0" step="0.01" value="0" oninput="fmAutoCalc('+cid+')"></div>'
+      +'</div>'
+      +reembHtml
+      // Parceiro
+      +'<div style="margin-top:8px;border-top:1px solid var(--bd);padding-top:8px">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">'
+          +'<input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro('+cid+')" style="cursor:pointer">'
+          +'<span style="font-weight:600">\ud83e\udd1d Tem parceiro?</span>'
+        +'</label>'
+        +'<div id="fm-parceiro-fields" style="display:none" class="fm-row">'
+          +'<div style="flex:2"><label class="fm-lbl">Nome</label>'
+            +'<input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian..." oninput="fmAutoCalc('+cid+')"></div>'
+          +'<div><label class="fm-lbl">% do parceiro</label>'
+            +'<input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1" value="60" oninput="fmAutoCalc('+cid+')"></div>'
+        +'</div>'
+      +'</div>'
+      // Preview calculado
+      +'<div id="fm-split-preview" style="margin-top:10px"></div>'
+    +'</div>'
 
-    // Plano de Contas + Centro de Custo + Conta
+    // === PLANO + CENTRO + CONTA ===
     +'<div class="fm-row" style="margin-bottom:12px">'
       +'<div><label class="fm-lbl">Plano de Contas</label>'
         +'<select class="fm-inp" id="fm-plano">'
-          +'<option value="">\u2014 Selecionar \u2014</option>'
+          +'<option value="">\u2014</option>'
           +'<optgroup label="Receitas">'
             +'<option value="honorario_inicial">Honor\u00e1rio inicial</option>'
-            +'<option value="honorario_exito">Honor\u00e1rio de \u00eaxito</option>'
+            +'<option value="honorario_exito">Honor\u00e1rio \u00eaxito</option>'
             +'<option value="acordo">Acordo / Condena\u00e7\u00e3o</option>'
             +'<option value="sucumbencia">Sucumb\u00eancia</option>'
             +'<option value="consulta">Consulta</option>'
             +'<option value="assessoria">Assessoria mensal</option>'
-            +'<option value="reembolso_rec">Reembolso recebido</option>'
+            +'<option value="reembolso_rec">Reembolso</option>'
           +'</optgroup>'
           +'<optgroup label="Despesas">'
             +'<option value="aluguel">Aluguel</option>'
-            +'<option value="internet">Internet / Telefone</option>'
-            +'<option value="energia">Energia / \u00c1gua</option>'
-            +'<option value="salario">Sal\u00e1rio / Pr\u00f3-labore</option>'
-            +'<option value="fgts_inss">FGTS / INSS</option>'
-            +'<option value="imposto">Impostos (Simples, IRPJ)</option>'
+            +'<option value="internet">Internet/Telefone</option>'
+            +'<option value="energia">Energia/\u00c1gua</option>'
+            +'<option value="salario">Sal\u00e1rio/Pr\u00f3-labore</option>'
+            +'<option value="imposto">Impostos</option>'
             +'<option value="custas">Custas processuais</option>'
-            +'<option value="combustivel">Combust\u00edvel / Transporte</option>'
-            +'<option value="material">Material de escrit\u00f3rio</option>'
-            +'<option value="software">Software / Sistemas</option>'
-            +'<option value="marketing">Marketing</option>'
+            +'<option value="software">Software</option>'
             +'<option value="honorario_parceiro">Honor\u00e1rio parceiro</option>'
             +'<option value="outro_desp">Outro</option>'
           +'</optgroup>'
@@ -7545,82 +7600,26 @@ function abrirModalFin(cid, direcao_default){
         +'</select></div>'
     +'</div>'
 
-    // === BLOCO ACORDO (aparece quando tipo = acordo) ===
-    +'<div id="fm-bl-acordo" style="display:none;border:1px solid rgba(212,175,55,.3);border-radius:8px;padding:14px;margin-bottom:12px;background:rgba(212,175,55,.04)">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--ouro);margin-bottom:10px">\u2696 DETALHES DO ACORDO</div>'
-      +'<div class="fm-row">'
-        +'<div><label class="fm-lbl">Valor bruto total *</label>'
-          +'<input class="fm-inp" type="number" id="fm-vbruto" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>'
-        +'<div><label class="fm-lbl">Sucumb\u00eancia (R$)</label>'
-          +'<input class="fm-inp" type="number" id="fm-vsucumb" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>'
-      +'</div>'
-      +'<div class="fm-row" style="margin-top:8px">'
-        +'<div><label class="fm-lbl">Seus honor\u00e1rios (%)</label>'
-          +'<input class="fm-inp" type="number" id="fm-honperc" min="0" max="100" step="0.5" value="'+honPerc+'" oninput="fmCalcAcordo()"></div>'
-        +'<div><label class="fm-lbl">Ou valor fixo (R$)</label>'
-          +'<input class="fm-inp" type="number" id="fm-honfixo" min="0" step="0.01" placeholder="0,00" oninput="fmCalcAcordo()"></div>'
-        +'<div><label class="fm-lbl">Despesas a descontar</label>'
-          +'<input class="fm-inp" type="number" id="fm-vdesp" min="0" step="0.01" value="0" oninput="fmCalcAcordo()"></div>'
-      +'</div>'
-      +'<div id="fm-calc" style="margin-top:10px"></div>'
-      +'<div class="fm-row" style="margin-top:8px">'
-        +'<div><label class="fm-lbl">N\u00ba de parcelas</label>'
-          +'<input class="fm-inp" type="number" id="fm-nparc" min="1" max="120" value="1" oninput="fmPreviewParcelas()"></div>'
-        +'<div><label class="fm-lbl">Valor por parcela (R$)</label>'
-          +'<input class="fm-inp" type="number" id="fm-vparc" min="0" step="0.01" placeholder="auto" oninput="fmPreviewParcelas()"></div>'
-        +'<div><label class="fm-lbl">1\u00aa parcela em</label>'
-          +'<input class="fm-inp" type="date" id="fm-venc1" value="'+hoje+'" oninput="fmPreviewParcelas()"></div>'
-      +'</div>'
-      +'<div id="fm-parc-preview" style="margin-top:6px"></div>'
-      // Parceiro dentro do bloco acordo
-      +'<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">'
-        +'<label style="display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;margin-bottom:6px">'
-          +'<input type="checkbox" id="fm-tem-parceiro" onchange="fmToggleParceiro('+cid+')" style="cursor:pointer">'
-          +'<span style="font-weight:600">\ud83e\udd1d Tem parceiro neste processo?</span>'
-        +'</label>'
-        +'<div id="fm-parceiro-fields" style="display:none" class="fm-row">'
-          +'<div style="flex:2"><label class="fm-lbl">Nome do parceiro</label>'
-            +'<input class="fm-inp" id="fm-parceiro-nome" placeholder="Ex: Vivian..." oninput="fmAutoCalc('+cid+')"></div>'
-          +'<div><label class="fm-lbl">% do parceiro</label>'
-            +'<input class="fm-inp" type="number" id="fm-parceiro-perc" min="0" max="100" step="1" value="60" oninput="fmAutoCalc('+cid+')"></div>'
-        +'</div>'
-        +'<div id="fm-parceiro-preview" style="font-size:11px;color:var(--mu);padding:5px 8px;background:var(--sf3);border-radius:4px;display:none"></div>'
-      +'</div>'
-    +'</div>'
+    // === OBSERVA\u00c7\u00c3O ===
+    +'<div style="margin-bottom:8px"><label class="fm-lbl">Observa\u00e7\u00e3o</label>'
+      +'<textarea class="fm-inp" id="fm-obs" rows="2" placeholder="Detalhes..."></textarea></div>'
 
-    // === BLOCO SPLIT (para honorario_direto, sucumbencia — NÃO acordo) ===
-    +'<div id="fm-split-box" style="display:none;border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(76,175,125,.04)">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-        +'<span style="font-size:11px;font-weight:700;color:var(--tx)">\u26a1 Divis\u00e3o autom\u00e1tica</span>'
-        +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<span style="font-size:10px;color:var(--mu)">Seus honor\u00e1rios:</span>'
-          +'<input class="fm-inp" type="number" id="fm-split-perc" value="'+honPerc+'" min="0" max="100" step="0.5" style="width:64px;text-align:center;font-weight:700;padding:3px 6px" oninput="fmAutoCalc('+cid+')">'
-          +'<span style="font-size:10px;color:var(--mu)">%</span>'
-        +'</div>'
-      +'</div>'
-      +'<div id="fm-split-preview"></div>'
-    +'</div>'
+    +'<input type="hidden" id="fm-venc" value="'+hoje+'">'
+    +'<input type="hidden" id="fm-vbruto" value="0">',
 
-    // === DETALHES OPCIONAIS (forma pagamento, obs) ===
-    +'<div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:4px">'
-      +'<div onclick="var b=document.getElementById(\'fm-det\');b.style.display=b.style.display===\'none\'?\'block\':\'none\'" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;cursor:pointer;background:var(--sf3)">'
-        +'<span style="font-size:11px;font-weight:700;color:var(--mu)">\u25b8 Detalhes opcionais</span>'
-      +'</div>'
-      +'<div id="fm-det" style="display:none;padding:12px">'
-        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:8px">Forma de pagamento</div>'
-        +'<div class="fm-chips" style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px">'
-          +fmChip('formaPag','pix','PIX')
-          +fmChip('formaPag','alvara','Alvar\u00e1')
-          +fmChip('formaPag','ted','TED/Dep\u00f3sito')
-          +fmChip('formaPag','boleto','Boleto')
-          +fmChip('formaPag','dinheiro','Dinheiro')
-        +'</div>'
-        +'<label class="fm-lbl">Observa\u00e7\u00e3o</label>'
-        +'<textarea class="fm-inp" id="fm-obs" rows="2" placeholder="Detalhes adicionais..."></textarea>'
-      +'</div>'
-    +'</div>'
-    +'<input type="hidden" id="fm-venc" value="'+hoje+'">',
   function(){ fmSalvar(cid); }, '\ud83d\udcbe Salvar');
+
+  // Auto-preencher centro de custo pela natureza do processo
+  setTimeout(function(){
+    var sel = document.getElementById('fm-centro');
+    if(sel && c.natureza){
+      var n = c.natureza.toLowerCase();
+      if(n.includes('trabalh')) sel.value='trabalhista';
+      else if(n.includes('previd')) sel.value='previdenciario';
+      else if(n.includes('c\u00edv')||n.includes('civel')) sel.value='civel';
+      else if(n.includes('fam\u00edl')||n.includes('familia')) sel.value='familia';
+    }
+  },50);
 }
 
 function fmSetDir(dir){
@@ -7642,55 +7641,52 @@ function fmSetDir(dir){
 }
 
 function fmAutoCalc(cid){
-  var val  = parseFloat(document.getElementById('fm-valor')?.value||0);
-  var perc = parseFloat(document.getElementById('fm-split-perc')?.value||30)/100;
-  var desp = parseFloat(document.getElementById('fm-split-desp')?.value||0);
-  var box  = document.getElementById('fm-split-box');
-  var prev = document.getElementById('fm-split-preview');
-  var tipoAtivo = (_fl.tipo||[])[0]||'';
-  var dir       = (_fl.direcao||[])[0]||'receber';
+  var val    = parseFloat((document.getElementById('fm-valor')||{}).value||0);
+  var honP   = parseFloat((document.getElementById('fm-honperc')||{}).value||30)/100;
+  var honFix = parseFloat((document.getElementById('fm-honfixo')||{}).value||0);
+  var sucumb = parseFloat((document.getElementById('fm-vsucumb')||{}).value||0);
+  var prev   = document.getElementById('fm-split-preview');
+  var splitBox = document.getElementById('fm-bl-split');
+  var dir    = (_fl.direcao||[])[0]||'receber';
 
-  var showSplit = val>0 && dir==='receber'
-    && ['acordo','honorario','honorario_direto','sucumbencia','reembolso'].indexOf(tipoAtivo)!==-1;
-  if(box) box.style.display = showSplit ? 'block' : 'none';
-  if(!showSplit || !prev) return;
+  // Mostrar bloco split só para entradas com valor
+  if(splitBox) splitBox.style.display = (dir==='receber' && val>0) ? 'block' : 'none';
+  if(dir!=='receber' || val<=0 || !prev) return;
 
-  var hon    = Math.round(val*perc*100)/100;
-  var rep    = Math.max(0, Math.round((val-hon-desp)*100)/100);
-  var fmtV2  = function(v){ return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  // Atualizar hidden vbruto
+  var vbrEl = document.getElementById('fm-vbruto');
+  if(vbrEl) vbrEl.value = val;
+
+  var hon = honFix > 0 ? honFix : Math.round(val * honP * 100) / 100;
+  var totalEsc = sucumb + hon;
+  var rep = Math.max(0, Math.round((val - totalEsc) * 100) / 100);
+  var fV = function(v){ return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
   // Parceiro
-  var temParceiro = document.getElementById('fm-tem-parceiro')?.checked;
-  var parcPerc    = parseFloat(document.getElementById('fm-parceiro-perc')?.value||0)/100;
-  var parcNome    = document.getElementById('fm-parceiro-nome')?.value||'Parceiro';
-  var parcVal     = temParceiro ? Math.round(hon*parcPerc*100)/100 : 0;
-  var liquido     = hon - parcVal;
+  var temParceiro = (document.getElementById('fm-tem-parceiro')||{}).checked;
+  var parcPerc    = parseFloat((document.getElementById('fm-parceiro-perc')||{}).value||0)/100;
+  var parcNome    = (document.getElementById('fm-parceiro-nome')||{}).value||'Parceiro';
+  var parcVal     = temParceiro ? Math.round(hon * parcPerc * 100) / 100 : 0;
+  var liquido     = hon - parcVal + sucumb;
 
-  // Parceiro preview
-  var parcPrev = document.getElementById('fm-parceiro-preview');
-  if(parcPrev){
-    if(temParceiro && hon>0){
-      parcPrev.style.display='block';
-      parcPrev.innerHTML = escapeHtml(parcNome)+' ('+Math.round(parcPerc*100)+'%): <strong style="color:#D4AF37">'+fmtV2(parcVal)+'</strong>'
-        +' &nbsp;·&nbsp; Seu líquido: <strong style="color:#4ade80">'+fmtV2(liquido)+'</strong>';
-    } else {
-      parcPrev.style.display='none';
-    }
+  // Preview
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px">';
+  html += '<div style="padding:8px;background:rgba(76,175,125,.1);border-radius:6px;text-align:center">'
+    +'<div style="font-size:8px;font-weight:700;color:#4ade80;text-transform:uppercase;margin-bottom:2px">\u2705 Escrit\u00f3rio</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#4ade80">'+fV(liquido)+'</div></div>';
+  if(temParceiro && parcVal > 0){
+    html += '<div style="padding:8px;background:rgba(212,175,55,.08);border-radius:6px;text-align:center">'
+      +'<div style="font-size:8px;font-weight:700;color:#D4AF37;text-transform:uppercase;margin-bottom:2px">'+escapeHtml(parcNome)+'</div>'
+      +'<div style="font-size:16px;font-weight:800;color:#D4AF37">'+fV(parcVal)+'</div></div>';
   }
-
-  // Main preview
-  var cols = temParceiro ? 'repeat(3,1fr)' : '1fr 1fr';
-  prev.innerHTML = '<div style="display:grid;grid-template-columns:'+cols+';gap:8px">'
-    +'<div style="padding:8px 10px;background:rgba(76,175,125,.1);border-radius:6px">'
-      +'<div style="font-size:9px;font-weight:700;color:#4ade80;text-transform:uppercase;margin-bottom:3px">'+(temParceiro?'Seu líquido':'Seu honorário')+'</div>'
-      +'<div style="font-size:18px;font-weight:800;color:#4ade80">'+fmtV2(liquido)+'</div>'
-    +'</div>'
-    +(temParceiro
-      ?'<div style="padding:8px 10px;background:rgba(212,175,55,.08);border-radius:6px">'
-        +'<div style="font-size:9px;font-weight:700;color:#D4AF37;text-transform:uppercase;margin-bottom:3px">'+escapeHtml(parcNome)+' ('+Math.round(parcPerc*100)+'%)</div>'
-        +'<div style="font-size:18px;font-weight:800;color:#D4AF37">'+fmtV2(parcVal)+'</div>'
-      +'</div>'
-      :'')
+  if(rep > 0){
+    html += '<div style="padding:8px;background:rgba(201,72,74,.06);border-radius:6px;text-align:center">'
+      +'<div style="font-size:8px;font-weight:700;color:#c9484a;text-transform:uppercase;margin-bottom:2px">\ud83d\udce4 Repasse cliente</div>'
+      +'<div style="font-size:16px;font-weight:800;color:#c9484a">'+fV(rep)+'</div></div>';
+  }
+  html += '</div>';
+  prev.innerHTML = html;
+}
     +(rep>0
       ?'<div style="padding:8px 10px;background:rgba(201,72,74,.06);border-radius:6px">'
         +'<div style="font-size:9px;font-weight:700;color:#c9484a;text-transform:uppercase;margin-bottom:3px">Repasse ao cliente</div>'
@@ -7848,8 +7844,8 @@ function fmSalvar(cid){
   if(tipo==='honorario' && dir==='receber'){
     const valor  = fmNum('valor');
     if(!valor){ showToast('Informe o valor'); return; }
-    const perc   = fmNum('split-perc')/100 || 1; // default 100% = sem repasse
-    const desp   = fmNum('split-desp') || 0;
+    const perc   = fmNum('honperc')/100 || 1; // default 100% = sem repasse
+    const desp   = fmNum('vsucumb') || 0;
     const hon    = Math.round(valor * perc * 100) / 100;
     const rep    = Math.max(0, Math.round((valor - hon - desp)*100)/100);
     const dt     = fmVal('data') || new Date().toISOString().slice(0,10);
