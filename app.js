@@ -9955,7 +9955,7 @@ function renderFinUnificado(cid){
     var isPos    = l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.direcao!=='pagar';
     var items = [];
     if(isAguard)      items.push({t:'💰 Chegou',       fn:'abrirFluxoAlvara('+cid+','+l.id+')'});
-    else if(!isPago)  items.push({t:(isPos?'✓ Receber':'✓ Pagar'), fn:'vfBaixar("l'+l.id+'")'});
+    else if(!isPago)  items.push({t:(isPos?'✓ Receber':'✓ Pagar'), fn:'vfBaixar(\'l'+l.id+'\')'});
     else              items.push({t:'↩ Estornar',       fn:'finEstornarLocal('+cid+','+l.id+')'});
     items.push({t:'✏ Editar', fn:'finEditarLanc('+cid+','+l.id+')'});
     if(!isPago) items.push({t:'✕ Excluir', fn:'finDelLanc('+cid+','+l.id+')'});
