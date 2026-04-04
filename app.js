@@ -2888,7 +2888,7 @@ function vfRepasses(){
   +'</div>';
 
   if(!pend.length){
-    return html+'<div style="text-align:center;padding:30px;color:#4ade80;font-weight:600">✓ Nenhum repasse pendente</div></div>';
+    return html+'<div style="text-align:center;padding:30px;color:#4ade80;font-weight:600">✓ Nenhum repasse pendente</span></div></div>';
   }
 
   // Months
@@ -8227,7 +8227,7 @@ function _finApuracaoTab(cid, c, locais, fV, hoje){
       +linha('Saldo pendente', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', true)
     +'</div>'
     +'<div style="display:flex;gap:6px;margin-top:10px">'
-      +(calc.saldoPendRepasse>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button>':'<span style="font-size:11px;color:#4ade80">\u2713 Nenhum repasse pendente</span>')
+      +(calc.saldoPendRepasse>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button> <button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar Repasse</button>':'<span style="font-size:11px;color:#4ade80">\u2713 Nenhum repasse pendente</span></span>')
     +'</div>'
   +'</div>';
 }
@@ -8306,6 +8306,103 @@ function _finGerarMsgPrestacao(cid){
 }
 
 // ── Inicializar aba financeira ao abrir ──
+
+// ── TIPOS DE RECEBIMENTO ──
+var _FIN_TIPOS_RECEBIMENTO = {
+  principal_cliente: 'Principal do cliente',
+  honorarios_sucumbenciais: 'Honor. sucumbenciais',
+  acordo_global: 'Acordo global',
+  deposito_judicial: 'Dep\u00f3sito judicial',
+  pagamento_direto_escritorio: 'Pagamento direto escrit\u00f3rio',
+  custas_reembolsadas: 'Custas reembolsadas',
+  multa_juros_cliente: 'Multa/juros cliente',
+  outros: 'Outros'
+};
+
+// ── STATUS DE RECEBIMENTO ──
+var _FIN_STATUS_RECEBIMENTO = ['recebido','em_apuracao','apurado','aguardando_repasse','parcialmente_repassado','repassado'];
+
+// ── GERAR REPASSE ──
+function _finGerarRepasse(cid){
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
+  var cls = _finClassificar(locais);
+  var calc = _finCalcApuracao(c, cls);
+  if(calc.saldoPendRepasse <= 0){ showToast('Nenhum repasse pendente</span>'); return; }
+  var fV2 = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  abrirModal('\ud83d\udce4 Gerar Repasse \u2014 '+c.cliente,
+    '<div style="background:var(--sf3);border-radius:8px;padding:12px;margin-bottom:12px">'
+      +'<div style="font-size:11px;color:var(--mu)">L\u00edquido do cliente: <strong style="color:#fb923c">'+fV2(calc.liquidoCliente)+'</strong></div>'
+      +'<div style="font-size:11px;color:var(--mu)">J\u00e1 repassado: '+fV2(calc.jaRepassado)+'</div>'
+      +'<div style="font-size:11px;color:var(--mu)">Cust\u00f3dia atual: <strong style="color:#c9484a">'+fV2(calc.custodia)+'</strong></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor do repasse (R$)</label>'
+        +'<input class="fm-inp" type="number" id="rep-valor" value="'+calc.saldoPendRepasse.toFixed(2)+'" min="0.01" max="'+calc.saldoPendRepasse.toFixed(2)+'" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data</label>'
+        +'<input class="fm-inp" type="date" id="rep-data" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Conta destino</label>'
+        +'<select class="fm-inp" id="rep-conta"><option>Inter</option><option>CEF</option><option>PIX</option><option>TED</option><option>Dinheiro</option></select></div>'
+      +'<div><label class="fm-lbl">Observa\u00e7\u00e3o</label>'
+        +'<input class="fm-inp" id="rep-obs" placeholder="Comprovante, refer\u00eancia..."></div>'
+    +'</div>',
+  function(){
+    var val = parseFloat((document.getElementById('rep-valor')||{}).value||0);
+    var data = (document.getElementById('rep-data')||{}).value||new Date().toISOString().slice(0,10);
+    var conta = (document.getElementById('rep-conta')||{}).value||'';
+    var obs = (document.getElementById('rep-obs')||{}).value||'';
+    if(val <= 0){ showToast('Informe o valor'); return; }
+    if(val > calc.saldoPendRepasse + 0.01){ showToast('Valor excede o l\u00edquido do cliente ('+fV2(calc.saldoPendRepasse)+')'); return; }
+    localLanc.push({
+      id: Date.now(), tipo:'repasse', direcao:'pagar',
+      desc: 'Repasse ao cliente', valor: Math.round(val*100)/100,
+      data: data, venc: data, status:'pago', pago:true, dt_baixa:data,
+      forma: conta, conta: conta, obs: obs,
+      id_processo: cid, cliente: c.cliente,
+      _repasse_acordo: true
+    });
+    sbSet('co_localLanc', localLanc);
+    marcarAlterado(); fecharModal();
+    _finTab(_finCurTab, cid, null);
+    showToast('\u2713 Repasse de '+fV2(val)+' registrado');
+    audit('repasse', 'financeiro', c.cliente+' \u2014 '+fV2(val));
+  }, '\ud83d\udce4 Confirmar Repasse');
+}
+
+// ── HISTÓRICO FINANCEIRO ──
+function _finHistoricoTab(cid, c, locais, fV, hoje){
+  var eventos = [];
+  locais.forEach(function(l){
+    var pago = l.pago||l.status==='pago';
+    var isRep = l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';
+    var isDesp = l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';
+    var isSucumb = l.tipo==='sucumbencia';
+    var tipo = isRep?'repasse':isDesp?'despesa':isSucumb?'sucumbencia':'parcela';
+    var dt = l.data||l.venc||'';
+    eventos.push({dt:dt, tipo:tipo, desc:l.desc||'\u2014', valor:l.valor||0, status:pago?'pago':'pendente', id:l.id});
+    if(pago && l.dt_baixa && l.dt_baixa!==dt){
+      eventos.push({dt:l.dt_baixa, tipo:tipo+'_baixa', desc:'Baixa: '+(l.desc||'\u2014'), valor:l.valor||0, status:'baixa', id:l.id});
+    }
+  });
+  eventos.sort(function(a,b){return (b.dt||'').localeCompare(a.dt||'');});
+  if(!eventos.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum evento registrado.</div>';
+  var icoMap = {parcela:'\ud83d\udcb0',despesa:'\ud83d\udcb8',repasse:'\ud83d\udce4',sucumbencia:'\ud83c\udfc6',parcela_baixa:'\u2713',despesa_baixa:'\u2713',repasse_baixa:'\u2713',sucumbencia_baixa:'\u2713'};
+  var html = '<div style="padding:10px 0">';
+  eventos.forEach(function(e){
+    var ico = icoMap[e.tipo]||'\ud83d\udccb';
+    var cor = e.tipo.includes('repasse')?'#c9484a':e.tipo.includes('despesa')?'#f87676':e.tipo.includes('sucumb')?'#4ade80':'var(--tx)';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd)">'
+      +'<span style="font-size:14px">'+ico+'</span>'
+      +'<div style="flex:1"><div style="font-size:11px;color:var(--tx)">'+escapeHtml(e.desc)+'</div>'
+        +'<div style="font-size:9px;color:var(--mu)">'+fDt(e.dt)+' \u00b7 '+e.status+'</div></div>'
+      +'<span style="font-size:12px;font-weight:700;color:'+cor+'">'+fV(e.valor)+'</span>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
 function _finInitTab(cid){
   _finCurTab = 'resumo';
   _finTab('resumo', cid, null);
