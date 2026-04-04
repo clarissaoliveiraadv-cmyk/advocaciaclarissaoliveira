@@ -1061,6 +1061,10 @@ function findClientByName(nome){
   return (CLIENTS||[]).find(function(c){ return (c.cliente||'').toLowerCase().trim()===n; }) || null;
 }
 
+// ── Auditoria: gerador de IDs únicos (evita colisões de Date.now()) ──
+var _lastGenId = 0;
+function genId(){ var id = Date.now(); if(id <= _lastGenId) id = _lastGenId + 1; _lastGenId = id; return id; }
+
 // ── Auditoria: guard contra double-click em modais financeiros ──
 var _finProcessing = false;
 function finGuard(fn){
@@ -3093,7 +3097,7 @@ function abrirNovoLancGlobal(){
 
         // My part — honorários
         finLancs.push({
-          id: Date.now()+1, tipo:'receber', desc:desc,
+          id: genId(), tipo:'receber', desc:desc,
           valor: meuVal, data:data, venc:data,
           pago:true, status:'pago', dt_baixa:data, forma:forma,
           cliente: cliNm||'Escritório', cat:'Honorários',
@@ -3104,9 +3108,9 @@ function abrirNovoLancGlobal(){
 
         // Client repasse — pending
         if(repVal > 0){
-          var cliObj = (CLIENTS||[]).find(function(c){ return c.cliente===cliNm; });
+          var cliObj = findClientByName(cliNm);
           var newRep = {
-            id: Date.now()+2,
+            id: genId(),
             tipo:'repasse', direcao:'pagar',
             id_processo: cliObj?.id||null,
             desc:'Repasse — '+escapeHtml(cliNm||'Cliente')+' ('+((1-perc)*100).toFixed(0)+'% de R$'+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+')',
@@ -3123,7 +3127,7 @@ function abrirNovoLancGlobal(){
         // 100% mine
         var cliMeu = document.getElementById('nlg-cli-meu')?.value||'';
         finLancs.push({
-          id:Date.now()+1, tipo:'receber', desc:desc,
+          id:genId(), tipo:'receber', desc:desc,
           valor:valor, data:data, venc:data,
           pago:true, status:'pago', dt_baixa:data, forma:forma,
           cliente:cliMeu||'Escritório', cat:'Honorários',
@@ -3141,7 +3145,7 @@ function abrirNovoLancGlobal(){
       var spago  = document.querySelector('input[name="nlg-pago"]:checked')?.value==='sim';
       if(!sdesc||!svalor){ showToast('Preencha descrição e valor'); return; }
       finLancs.push({
-        id:Date.now()+1, tipo:'pagar', desc:sdesc,
+        id:genId(), tipo:'pagar', desc:sdesc,
         valor:svalor, data:sdata, venc:sdata,
         pago:spago, status:spago?'pago':'pendente',
         dt_baixa:spago?sdata:'', forma:sforma, cat:scat,
@@ -4348,7 +4352,7 @@ function vfBaixar(id){
       _inserirMonteMor(finLancs[i]);
       _syncPasta();
       sbSet('co_fin', finLancs);
-      if(clienteLanc){ const _cG=CLIENTS.find(c=>c.cliente===clienteLanc); if(_cG) _reRenderFinPasta(_cG.id); }
+      if(clienteLanc){ const _cG=findClientByName(clienteLanc); if(_cG) _reRenderFinPasta(_cG.id); }
     } else if(id.startsWith('l')){
       const rawId = id.slice(1);
       const i = (localLanc||[]).findIndex(l=>String(l.id)===rawId);
@@ -4359,7 +4363,7 @@ function vfBaixar(id){
       sbSet('co_localLanc', localLanc);
       const _cidL = localLanc[(localLanc||[]).findIndex(l=>String(l.id)===id.slice(1))]?.id_processo;
       if(_cidL) _reRenderFinPasta(_cidL);
-      else if(clienteLanc){ const _cL=CLIENTS.find(c=>c.cliente===clienteLanc); if(_cL) _reRenderFinPasta(_cL.id); }
+      else if(clienteLanc){ const _cL=findClientByName(clienteLanc); if(_cL) _reRenderFinPasta(_cL.id); }
     } else if(id.startsWith('p')){
       const rawNum = id.slice(1);
       const pm={}; CLIENTS.forEach(c=>{pm[String(c.pasta)]=c.cliente;});
@@ -4384,7 +4388,7 @@ function vfBaixar(id){
         _syncPasta();
       }
       sbSet('co_fin', finLancs);
-      if(clienteLanc){ const _cP=CLIENTS.find(c=>c.cliente===clienteLanc); if(_cP) _reRenderFinPasta(_cP.id); }
+      if(clienteLanc){ const _cP=findClientByName(clienteLanc); if(_cP) _reRenderFinPasta(_cP.id); }
     }
 
     marcarAlterado();
@@ -4583,7 +4587,7 @@ function vfBaixarComRepasse(id){
       const dtRepStr = dtRep.toISOString().slice(0,10);
       var cid2 = cliObj ? cliObj.id : 0;
       localLanc.push({
-        id: Date.now() + 1,
+        id: genId(),
         id_processo: cid2,
         tipo: 'repasse',
         direcao: 'pagar',
@@ -4732,11 +4736,17 @@ function vfCalcRepasse(){
 
 // Executar a baixa real em qualquer tipo de lançamento
 function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
+  valorBaixa = roundMoney(valorBaixa);
+  if(!isFinite(valorBaixa) || valorBaixa <= 0){ showToast('Valor de baixa inválido'); return; }
   function _atualizarObj(obj){
+    var valOrig = parseFloat(obj.valor)||0;
+    if(valorBaixa > valOrig * 1.05 && valOrig > 0){
+      showToast('⚠ Valor de baixa ('+fBRL(valorBaixa)+') excede o original ('+fBRL(valOrig)+') em mais de 5%');
+    }
     return {...obj, status:'pago', pago:true, dt_baixa:dtBaixa,
       valor_baixa:valorBaixa, forma:forma||obj.forma||'',
       obs:obs?((obj.obs?obj.obs+' | ':'')+obs):(obj.obs||''),
-      parcial: valorBaixa < (parseFloat(obj.valor)||0)};
+      parcial: valorBaixa < valOrig};
   }
   if(id.startsWith('g')){
     const rawId=parseInt(id.slice(1));
@@ -4750,7 +4760,7 @@ function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
   } else if(id.startsWith('p')){
     const rawNum=id.slice(1);
     const ex=(finLancs||[]).find(function(l){return String(l._projuris_id)===rawNum;});
-    const reg={id:Date.now(),_projuris_id:rawNum,tipo:'receber',
+    const reg={id:genId(),_projuris_id:rawNum,tipo:'receber',
       desc:lancRef?lancRef.desc:'',cliente:lancRef?lancRef.cliente:'',
       valor:valorBaixa,data:dtBaixa,dt_baixa:dtBaixa,forma:forma,
       status:'pago',pago:true,obs:obs||''};
@@ -4804,7 +4814,7 @@ function vfEditarLocal(lid){
     if(cid) _reRenderFinPasta(cid);
     else {
       // Tentar achar por nome do cliente
-      const cli = CLIENTS.find(function(c){ return c.cliente===localLanc[idx].cliente; });
+      const cli = findClientByName(localLanc[idx].cliente);
       if(cli) _reRenderFinPasta(cli.id);
     }
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
@@ -4831,7 +4841,7 @@ function vfDelLocal(lid){
     marcarAlterado(); fecharModal();
     if(cid_del) _reRenderFinPasta(cid_del);
     else {
-      const cli_del = CLIENTS.find(function(c){ return c.cliente===l.cliente; });
+      const cli_del = findClientByName(l.cliente);
       if(cli_del) _reRenderFinPasta(cli_del.id);
     }
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
@@ -5844,7 +5854,7 @@ function extratoBaixarVinculo(i){
     if(!existInFin) finLancs.push(reg);
     else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
     sbSet('co_fin',finLancs);
-    const c2=CLIENTS.find(function(c){return c.cliente===l._match_cliente;});
+    const c2=findClientByName(l._match_cliente);
     if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:l.data,movimentacao:'[Conciliação] Baixa confirmada via extrato: '+l._match_desc+' — '+fBRL(Math.abs(l.valor)),tipo_movimentacao:'Financeiro',origem:'conciliacao'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
   } else if(vid.startsWith('l')){
     const rawId=vid.slice(1);
@@ -6063,7 +6073,7 @@ function extratoClassificar(i){
         if(!existInFin) finLancs.push(reg);
         else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
         sbSet('co_fin', finLancs);
-        const c2=CLIENTS.find(function(c){return c.cliente===matchT.cliente;});
+        const c2=findClientByName(matchT.cliente);
         if(c2){ if(!localMov[c2.id]) localMov[c2.id]=[]; localMov[c2.id].unshift({data:l.data,movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(c2.id); }
       } else if(vinculo.startsWith('l')){
         const rawId=vinculo.slice(1);
@@ -6092,7 +6102,7 @@ function extratoClassificar(i){
       };
       finLancs.push(novoLanc);
       sbSet('co_fin', finLancs);
-      const cliP=CLIENTS.find(function(c){return c.cliente===cliTxt;});
+      const cliP=findClientByName(cliTxt);
       if(cliP){ if(!localMov[cliP.id]) localMov[cliP.id]=[]; localMov[cliP.id].unshift({data:l.data,movimentacao:'[Financeiro] Extrato: '+desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(cliP.id); }
       _extratoLinhas[i]._status='importado';
       _extratoLinhas[i]._lanc_id=novoLanc.id;
@@ -7315,7 +7325,7 @@ function _renderModalLanc(dados){
     // Sync pasta do cliente (finLancs global) — usar dados.cliente se editando
     const _cliNome = dados && dados.cliente ? dados.cliente : (base && base.cliente ? base.cliente : null);
     if(_cliNome && _cliNome !== '—' && _cliNome !== 'Escritório'){
-      const cliGlob = CLIENTS.find(function(c){ return c.cliente===_cliNome; });
+      const cliGlob = findClientByName(_cliNome);
       if(cliGlob) _reRenderFinPasta(cliGlob.id);
     }
     vfRender(); renderFinDash();
@@ -7913,7 +7923,7 @@ function fmSalvar(cid){
 
     // 1. Honorários — líquido após parceiro
     localLanc.push({
-      id: Date.now()+1, tipo:'honorario', direcao:'receber',
+      id: genId(), tipo:'honorario', direcao:'receber',
       desc: desc, valor: liquido2,
       data: dt, venc: venc, status: statusLanc,
       pago: statusLanc==='pago', dt_baixa: statusLanc==='pago'?dt:'',
@@ -7931,7 +7941,7 @@ function fmSalvar(cid){
       const dtRep = new Date(dt+'T12:00:00');
       dtRep.setDate(dtRep.getDate()+2);
       localLanc.push({
-        id: Date.now()+2, tipo:'repasse', direcao:'pagar',
+        id: genId(), tipo:'repasse', direcao:'pagar',
         desc: 'Repasse — '+desc, valor: rep,
         data: dtRep.toISOString().slice(0,10),
         venc: dtRep.toISOString().slice(0,10),
@@ -8001,7 +8011,7 @@ function fmSalvar(cid){
     return;
   }
 
-  localLanc.push({...base, id: Date.now()});
+  localLanc.push({...base, id: genId()});
   sbSet('co_localLanc', localLanc);
   marcarAlterado(); fecharModal(); _reRenderFinPasta(cid);
   if(document.getElementById('vf')?.classList.contains('on')) vfRender();
@@ -8388,7 +8398,7 @@ function _finGerarRepasse(cid){
     if(val <= 0){ showToast('Informe o valor'); return; }
     if(val > calc.saldoPendRepasse + 0.01){ showToast('Valor excede o l\u00edquido do cliente ('+fV2(calc.saldoPendRepasse)+')'); return; }
     localLanc.push({
-      id: Date.now(), tipo:'repasse', direcao:'pagar',
+      id: genId(), tipo:'repasse', direcao:'pagar',
       desc: 'Repasse ao cliente', valor: roundMoney(val),
       data: data, venc: data, status:'pago', pago:true, dt_baixa:data,
       forma: conta, conta: conta, obs: obs,
@@ -11470,7 +11480,7 @@ function _abrirModalCompromisso(cid_fixo){
     if(!cid_fixo){
       const cliVal = document.getElementById('cm-cli')?.value.trim()||'';
       const opt    = document.querySelector('#cm-cli-list option[value="'+cliVal+'"]');
-      const foundC = CLIENTS.find(c=>c.cliente===cliVal);
+      const foundC = findClientByName(cliVal);
       cid = foundC?.id||null;
       clienteNome = cliVal;
     }
@@ -11630,7 +11640,7 @@ function cmPreviewRecorr(){
 // Autopreenchimento de cliente ao digitar
 function cmCliChange(){
   const val = document.getElementById('cm-cli')?.value||'';
-  const found = CLIENTS.find(c=>c.cliente===val.trim());
+  const found = findClientByName(val);
   if(found){
     const chip = document.getElementById('cm-cli')?.parentElement;
     // apenas registrar que foi selecionado
