@@ -8117,7 +8117,7 @@ function _finContratoTab(cid, c){
     {lbl:'Valor parcela', val:hon.valor_parcela||'\u2014'},
     {lbl:'Honor\u00e1rios \u00eaxito %', val:(hon.perc||30)+'%'},
     {lbl:'Honor\u00e1rios fixos', val:hon.fixo||'\u2014'},
-    {lbl:'Data contrata\u00e7\u00e3o', val:c.data_inicio?fDt(c.data_inicio):'\u2014'},
+    {lbl:'Data contrata\u00e7\u00e3o', val:c.data_inicio?fDt((c.data_inicio||'').slice(0,10)):'\u2014'},
     {lbl:'Observa\u00e7\u00f5es', val:hon.obs||'\u2014'}
   ];
   return '<div style="padding:14px">'
