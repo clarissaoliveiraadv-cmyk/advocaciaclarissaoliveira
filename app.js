@@ -8101,9 +8101,13 @@ function _finResumoTab(cid, c, locais, fV, hoje){
     +card('Total repassado', calc.jaRepassado, calc.jaRepassado>0?'var(--tx)':'var(--mu)', '')
     +card('Pendente repasse', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', calc.saldoPendRepasse<=0?'\u2713 quitado':'')
   +'</div>'
-  +'<div style="display:flex;gap:6px;margin-bottom:14px">'
+  +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
     +'<button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>'
     +'<button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">- Sa\u00edda</button>'
+    // Botão contextual — próximo passo sugerido
+    +(calc.totalRecebido>0&&calc.saldoPendRepasse>0?'<button onclick="_finTab(\'apuracao\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u2696 Ver apura\u00e7\u00e3o \u2192</button>':'')
+    +(calc.saldoPendRepasse>0?'<button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar repasse</button>':'')
+    +(totalContratado===0?'<button onclick="_finTab(\'contrato\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:#60a5fa;cursor:pointer">\ud83d\udcdd Cadastrar contrato</button>':'')
   +'</div>';
 }
 
@@ -8135,7 +8139,7 @@ function _finContratoTab(cid, c){
 function _finParcelasTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
   var parcelas = cls.parcelas;
-  if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
+  if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.\n<br>Cadastre o contrato e gere as parcelas para acompanhar os pagamentos.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
   var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer;margin-bottom:10px">+ Nova parcela</button>';
   parcelas.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
     var pago=l.pago||l.status==='pago', vencido=!pago&&l.venc&&l.venc<hoje;
@@ -8156,7 +8160,7 @@ function _finParcelasTab(cid, c, locais, fV, hoje){
 // ── ABA 4: DESPESAS DO CASO ──
 function _finDespesasTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
-  if(!cls.despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
+  if(!cls.despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.\n<br>Registre custas, dilig00eancias e outros custos do caso.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
   var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer;margin-bottom:10px">+ Nova despesa</button>';
   cls.despesas.forEach(function(l){
     var tipoDesp = l.tipo==='despint' ? 'Custo escrit\u00f3rio' : 'Reembols\u00e1vel / Abat\u00edvel';
@@ -8235,7 +8239,7 @@ function _finApuracaoTab(cid, c, locais, fV, hoje){
 // ── ABA 7: REPASSES ──
 function _finRepassesTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
-  if(!cls.repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.</div>';
+  if(!cls.repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.\n<br>Ap00f3s apurar o l00edquido do cliente, gere o repasse pela aba Apura00e700e3o.</div>';
   var html = '<div style="padding:10px 0">';
   cls.repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
     var pago=l.pago||l.status==='pago';
