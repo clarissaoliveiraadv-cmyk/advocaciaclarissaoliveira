@@ -7982,6 +7982,257 @@ function fmSalvar(cid){
   showToast('Lançamento salvo ✓');
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ══ FINANCEIRO PASTA DO CLIENTE — 8 ABAS INTERNAS ══
+// ═══════════════════════════════════════════════════════════════
+
+var _finCurTab = 'resumo';
+
+function _finTab(tab, cid, btn){
+  _finCurTab = tab;
+  // Toggle buttons
+  var nav = document.getElementById('fin-nav-'+cid);
+  if(nav) nav.querySelectorAll('.fin-nav-btn').forEach(function(b){b.classList.remove('on');});
+  if(btn) btn.classList.add('on');
+  // Render content
+  var el = document.getElementById('fin-tab-content-'+cid);
+  if(!el) return;
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var hoje = new Date().toISOString().slice(0,10);
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c){ el.innerHTML=''; return; }
+  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
+
+  if(tab==='resumo')       el.innerHTML = _finResumoTab(cid, c, locais, fV, hoje);
+  else if(tab==='contrato') el.innerHTML = _finContratoTab(cid, c);
+  else if(tab==='parcelas') el.innerHTML = _finParcelasTab(cid, c, locais, fV, hoje);
+  else if(tab==='despesas') el.innerHTML = _finDespesasTab(cid, c, locais, fV, hoje);
+  else if(tab==='recebidos') el.innerHTML = _finRecebidosTab(cid, c, locais, fV, hoje);
+  else if(tab==='apuracao') el.innerHTML = _finApuracaoTab(cid, c, locais, fV, hoje);
+  else if(tab==='repasses') el.innerHTML = _finRepassesTab(cid, c, locais, fV, hoje);
+  else if(tab==='prestacao') el.innerHTML = _finPrestacaoTab(cid, c, locais, fV, hoje);
+  else el.innerHTML = '<div style="padding:20px;color:var(--mu)">Em desenvolvimento</div>';
+}
+
+// ── ABA 1: RESUMO ──
+function _finResumoTab(cid, c, locais, fV, hoje){
+  var honRec=0, honPend=0, despTotal=0, recebidoCliente=0, repassado=0, repassePend=0;
+  locais.forEach(function(l){
+    var val=parseFloat(l.valor||0), pago=l.pago||l.status==='pago';
+    var isRep=l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
+    var isDesp=l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';
+    var isRecCliente=l.tipo==='alvara'||l.tipo==='acordo'&&l._grupo_acordo;
+    if(isRep){ if(pago) repassado+=val; else repassePend+=val; }
+    else if(isDesp){ despTotal+=val; }
+    else { if(pago) honRec+=val; else honPend+=val; }
+  });
+  var saldo = honPend;
+  var totalContratado = honRec + honPend;
+
+  function card(lbl, val, cor, sub){
+    return '<div style="flex:1;min-width:120px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin-bottom:4px">'+lbl+'</div>'
+      +'<div style="font-size:15px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
+      +(sub?'<div style="font-size:9px;color:var(--mu);margin-top:2px">'+sub+'</div>':'')
+    +'</div>';
+  }
+
+  return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'
+    +card('Total contratado', totalContratado, 'var(--tx)', '')
+    +card('Pago ao escritório', honRec, '#4ade80', honRec>0?'\u2713 recebido':'')
+    +card('Saldo em aberto', honPend, honPend>0?'#f59e0b':'var(--mu)', '')
+    +card('Despesas do caso', despTotal, despTotal>0?'#f87676':'var(--mu)', '')
+    +card('Valor em custódia', repassePend, repassePend>0?'#fb923c':'var(--mu)', '')
+    +card('Total repassado', repassado, repassado>0?'var(--tx)':'var(--mu)', '')
+    +card('Pendente repasse', repassePend, repassePend>0?'#c9484a':'var(--mu)', '')
+  +'</div>'
+  +'<div style="display:flex;gap:6px;margin-bottom:14px">'
+    +'<button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>'
+    +'<button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">- Saída</button>'
+  +'</div>';
+}
+
+// ── ABA 2: CONTRATO ──
+function _finContratoTab(cid, c){
+  var hon = c._hon_contrato||{};
+  return '<div style="padding:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:12px">Contrato de Honorários</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">'
+      +'<div class="ctc-field"><div class="ctc-field-lbl">% Honorários</div><div class="ctc-field-val">'+(hon.perc||'30')+'%</div></div>'
+      +'<div class="ctc-field"><div class="ctc-field-lbl">Tipo</div><div class="ctc-field-val">'+(hon.tipo||'\u00caxito')+'</div></div>'
+      +'<div class="ctc-field"><div class="ctc-field-lbl">Valor entrada</div><div class="ctc-field-val">'+(hon.entrada||'\u2014')+'</div></div>'
+      +'<div class="ctc-field"><div class="ctc-field-lbl">Data contratação</div><div class="ctc-field-val">'+(c.data_inicio?fDt(c.data_inicio):'\u2014')+'</div></div>'
+    +'</div>'
+    +'<div style="margin-top:12px;display:flex;gap:6px">'
+      +'<button onclick="editarHonorariosPasta('+cid+')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u270f Editar contrato</button>'
+    +'</div>'
+  +'</div>';
+}
+
+// ── ABA 3: PARCELAS ──
+function _finParcelasTab(cid, c, locais, fV, hoje){
+  var parcelas = locais.filter(function(l){return l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&!l._repasse_acordo&&!l._repasse_alvara;});
+  if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
+  var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer;margin-bottom:10px">+ Nova parcela</button>';
+  parcelas.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
+    var pago=l.pago||l.status==='pago', vencido=!pago&&l.venc&&l.venc<hoje;
+    var cor=pago?'#4ade80':vencido?'#c9484a':'var(--tx)';
+    var statusLbl=pago?'\u2713 Recebido':vencido?'! Vencido':'\u23f3 Pendente';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.venc||l.data)+(l.forma?' \u00b7 '+l.forma:'')+'</div></div>'
+      +'<span style="font-size:10px;font-weight:700;color:'+cor+'">'+statusLbl+'</span>'
+      +'<span style="font-size:13px;font-weight:700;color:'+cor+'">'+fV(l.valor)+'</span>'
+      +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">\u2713 Receber</button>':'')
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA 4: DESPESAS DO CASO ──
+function _finDespesasTab(cid, c, locais, fV, hoje){
+  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';});
+  if(!despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
+  var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer;margin-bottom:10px">+ Nova despesa</button>';
+  despesas.forEach(function(l){
+    var reimb = l.tipo==='despesa'||l.tipo==='despesa_reimb';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(reimb?' \u00b7 <span style="color:#f59e0b">Reembols\u00e1vel</span>':'')+'</div></div>'
+      +'<span style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</span>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA 5: VALORES RECEBIDOS EM NOME DO CLIENTE ──
+function _finRecebidosTab(cid, c, locais, fV, hoje){
+  var recebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo);});
+  if(!recebidos.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum valor recebido em nome do cliente.</div>';
+  var html = '<div style="padding:10px 0">';
+  recebidos.forEach(function(l){
+    var pago=l.pago||l.status==='pago';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Valor recebido')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 '+(l.tipo==='alvara'?'Alvar\u00e1':'Acordo')+'</div></div>'
+      +'<span style="font-size:13px;font-weight:700;color:'+(pago?'#4ade80':'#fb923c')+'">'+fV(l.valor)+'</span>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA 6: APURAÇÃO DE REPASSE ──
+function _finApuracaoTab(cid, c, locais, fV, hoje){
+  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
+  var recebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&!l._repasse_acordo);});
+  var despAbativeis = locais.filter(function(l){return (l.tipo==='despesa'||l.tipo==='despesa_reimb')&&!l.reembolsado;});
+  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara;});
+  var bruto = recebidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var hon = Math.round(bruto * honPerc / 100 * 100) / 100;
+  var despAbat = despAbativeis.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var liquido = Math.max(0, bruto - hon - despAbat);
+  var jaRepassado = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var saldoPend = liquido - jaRepassado;
+
+  return '<div style="padding:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:14px">\u2696 Mem\u00f3ria de c\u00e1lculo do repasse</div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px">'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">Valor bruto recebido</span><span style="font-weight:700;color:var(--tx)">'+fV(bruto)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">(-) Honor\u00e1rios '+honPerc+'%</span><span style="font-weight:700;color:#4ade80">'+fV(hon)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">(-) Despesas abat\u00edveis</span><span style="font-weight:700;color:#f87676">'+fV(despAbat)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--tx);font-weight:700">= L\u00edquido do cliente</span><span style="font-weight:800;color:#fb923c;font-size:15px">'+fV(liquido)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">J\u00e1 repassado</span><span style="font-weight:700;color:var(--mu)">'+fV(jaRepassado)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:'+(saldoPend>0?'#c9484a':'#4ade80')+';font-weight:700">Saldo pendente</span><span style="font-weight:800;color:'+(saldoPend>0?'#c9484a':'#4ade80')+';font-size:15px">'+fV(saldoPend)+'</span></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px">'
+      +(saldoPend>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button>':'')
+    +'</div>'
+  +'</div>';
+}
+
+// ── ABA 7: REPASSES ──
+function _finRepassesTab(cid, c, locais, fV, hoje){
+  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
+  if(!repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.</div>';
+  var html = '<div style="padding:10px 0">';
+  repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
+    var pago=l.pago||l.status==='pago';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Repasse')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+'</div></div>'
+      +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#c9484a')+'">'+(pago?'\u2713 Pago':'\u23f3 Pendente')+'</span>'
+      +'<span style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</span>'
+      +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2713 Pagar</button>':'')
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA 8: PRESTAÇÃO DE CONTAS ──
+function _finPrestacaoTab(cid, c, locais, fV, hoje){
+  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
+  var parcelas = locais.filter(function(l){return l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&!l._repasse_acordo;});
+  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint';});
+  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
+  var totalPago = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalDesp = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalRep = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var saldo = totalPago - totalDesp - totalRep;
+
+  return '<div style="padding:14px">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:14px;font-family:\'Playfair Display\',serif">Presta\u00e7\u00e3o de Contas \u2014 '+escapeHtml(c.cliente)+'</div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px">'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Valores pagos ao escrit\u00f3rio</span><span style="font-weight:700;color:#4ade80">'+fV(totalPago)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Despesas do processo</span><span style="font-weight:700;color:#f87676">'+fV(totalDesp)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Repasses realizados</span><span style="font-weight:700;color:var(--tx)">'+fV(totalRep)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px"><span style="font-weight:700">Saldo</span><span style="font-weight:800;color:'+(saldo>=0?'#4ade80':'#c9484a')+'">'+fV(saldo)+'</span></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px">'
+      +'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Copiar para WhatsApp</button>'
+    +'</div>'
+  +'</div>';
+}
+
+// ── MENSAGEM DE PRESTAÇÃO DE CONTAS ──
+function _finGerarMsgPrestacao(cid){
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
+  var parcelas = locais.filter(function(l){return l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&!l._repasse_acordo;});
+  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint';});
+  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
+  var totalPago = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalDesp = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalRep = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+
+  var msg = '*PRESTA\u00c7\u00c3O DE CONTAS*\n'
+    +'Cliente: '+c.cliente+'\n'
+    +(c.numero?'Processo: '+c.numero+'\n':'')
+    +'\n'
+    +'Valores pagos ao escrit\u00f3rio: '+fV(totalPago)+'\n'
+    +'Despesas do processo: '+fV(totalDesp)+'\n'
+    +'Repasses realizados: '+fV(totalRep)+'\n'
+    +'\n_CO Advocacia App_';
+
+  navigator.clipboard.writeText(msg).then(function(){
+    showToast('\u2713 Presta\u00e7\u00e3o de contas copiada!');
+  }).catch(function(){});
+}
+
+// ── Inicializar aba financeira ao abrir ──
+function _finInitTab(cid){
+  _finCurTab = 'resumo';
+  _finTab('resumo', cid, null);
+  var nav = document.getElementById('fin-nav-'+cid);
+  if(nav){
+    var btns = nav.querySelectorAll('.fin-nav-btn');
+    btns.forEach(function(b){b.classList.remove('on');});
+    if(btns[0]) btns[0].classList.add('on');
+  }
+}
+
 // ── Render financeiro na ficha do processo ──
 function renderFinLocal(cid){
   const locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
@@ -14995,22 +15246,21 @@ function renderFicha(c, grp=null){
       <div id="tp7-list-${c.id}">${_renderTarefasPasta(c.id)}</div>
     </div>
 
-    <!-- FINANCEIRO -->
+    <!-- FINANCEIRO — 8 ABAS INTERNAS -->
     <div class="tp" id="tp4">
-      <!-- ── RESUMO HORIZONTAL NO TOPO ── -->
-      <div id="fin-resumo-${c.id}" style="margin-bottom:10px"></div>
-
-      <!-- ── CONTRATO + AÇÕES ── -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-        <div id="hon-pasta-${c.id}" style="flex:1">${renderHonorariosPasta(c.id)}</div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button onclick="abrirModalFin(${c.id},'receber')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>
-          <button onclick="abrirModalFin(${c.id},'pagar')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">- Saída</button>
-        </div>
+      <!-- Navegação interna do financeiro -->
+      <div class="fin-nav" id="fin-nav-${c.id}">
+        <button class="fin-nav-btn on" onclick="_finTab('resumo',${c.id},this)">Resumo</button>
+        <button class="fin-nav-btn" onclick="_finTab('contrato',${c.id},this)">Contrato</button>
+        <button class="fin-nav-btn" onclick="_finTab('parcelas',${c.id},this)">Parcelas</button>
+        <button class="fin-nav-btn" onclick="_finTab('despesas',${c.id},this)">Despesas</button>
+        <button class="fin-nav-btn" onclick="_finTab('recebidos',${c.id},this)">Valores Recebidos</button>
+        <button class="fin-nav-btn" onclick="_finTab('apuracao',${c.id},this)">Apuração</button>
+        <button class="fin-nav-btn" onclick="_finTab('repasses',${c.id},this)">Repasses</button>
+        <button class="fin-nav-btn" onclick="_finTab('prestacao',${c.id},this)">Prestação de Contas</button>
       </div>
-
-      <!-- ── LANÇAMENTOS ── -->
-      <div id="finunif-${c.id}">${renderFinUnificado(c.id)}</div>
+      <!-- Conteúdo dinâmico -->
+      <div id="fin-tab-content-${c.id}"></div>
     </div>
 
     <!-- COMENTÁRIOS -->
@@ -15105,7 +15355,7 @@ function sw(btn,pid){
   btn.closest('.ficha').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   btn.closest('.ficha').querySelectorAll('.tp').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on'); document.getElementById(pid).classList.add('on');
-  if(pid==='tp4' && AC) renderFinBusca(AC.id);
+  if(pid==='tp4' && AC) _finInitTab(AC.id);
 }
 
 function _finRemoverSidebar(){
