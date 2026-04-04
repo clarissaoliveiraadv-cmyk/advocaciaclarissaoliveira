@@ -4199,9 +4199,35 @@ function vfBaixar(id){
       +'<input class="fm-inp" id="vfb-obs" placeholder="Comprovante, referência, nº nota...">'
     +'</div>';
 
-  // Para receitas: oferecer opção de recebimento com repasse
+  // Para receitas: verificar se já tem repasse gerado (acordo)
   if(isRec){
-    const escolhaHtml = bodyHtml
+    // Se é acordo com repasse já gerado, ir direto para recebimento simples
+    var temRepasseGerado = false;
+    if(id.startsWith('l')){
+      var _ll2 = (localLanc||[]).find(function(x){return String(x.id)===id.slice(1);});
+      if(_ll2 && _ll2._grupo_acordo){
+        temRepasseGerado = (localLanc||[]).some(function(x){return x._grupo_acordo===_ll2._grupo_acordo && x._repasse_acordo;});
+      }
+    }
+
+    if(temRepasseGerado){
+      // Acordo: recebimento simples direto (repasse já existe)
+      abrirModal('\u2705 Confirmar Recebimento', bodyHtml, function(){
+        var valorBaixa2 = parseFloat((document.getElementById('vfb-valor')||{}).value)||valorLanc;
+        var dtBaixa2 = (document.getElementById('vfb-data')||{}).value||hoje;
+        var conta2 = (document.getElementById('vfb-conta')||{}).value||'';
+        var forma2 = (document.getElementById('vfb-forma')||{}).value||'';
+        var obs2 = ((document.getElementById('vfb-obs')||{}).value||'').trim();
+        if(valorBaixa2<=0){showToast('Informe valor');return;}
+        _executarBaixa(id,valorBaixa2,dtBaixa2,forma2,obs2,lanc);
+        fecharModal(); marcarAlterado(); vfInvalidarCache();
+        if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+        renderFinDash();
+        showToast('\u2705 Recebimento registrado!');
+      }, '\u2705 Confirmar');
+    } else {
+      // Outros: escolha simples ou com repasse
+      var escolhaHtml = bodyHtml
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">'
         +'<button onclick="vfBaixarSimples(&quot;'+id+'&quot;)" style="padding:12px;border-radius:8px;border:1px solid rgba(76,175,125,.4);background:rgba(76,175,125,.08);color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'
           +'✅ Recebimento simples<br><span style="font-size:10px;font-weight:400;color:var(--mu)">100% para o escritório<br>(honorários, consultoria, sucumbência pura)</span>'
@@ -4211,6 +4237,7 @@ function vfBaixar(id){
         +'</button>'
       +'</div>';
     abrirModal('💰 Confirmar Recebimento', escolhaHtml, null, null);
+    }
     return;
   }
   abrirModal('✅ Confirmar Pagamento', bodyHtml, ()=>{
@@ -10071,7 +10098,7 @@ function renderFinResumo(cid){
     } else if(isDesp){
       if(pago) desp+=val;
     } else if(l.tipo==='honorario'||l.tipo==='sucumbencia'||l.tipo==='acordo'){
-      if(pago) honRec+=val;
+      if(pago) honRec+=val; else outrosRec+=val; // outrosRec = honPend aqui
       // Collect acordo groups for progress bar
       if((l.tipo==='honorario'||l.tipo==='acordo') && l._grupo_acordo){
         var g = acordos.find(function(a){return a.grupo===l._grupo_acordo;});
@@ -10114,7 +10141,7 @@ function renderFinResumo(cid){
     : (repassePago>0?'<span style="color:#4ade80">✓ pago</span>':'');
 
   html += '<div style="display:flex;gap:6px;margin-bottom:10px">'
-    + chip('Honorários', honRec, honRec>0?'#4ade80':'var(--mu)', honRec>0?'✓ recebido':'—')
+    + chip('Honorários', honRec, honRec>0?'#4ade80':'var(--mu)', outrosRec>0?'<span style="color:#f59e0b">'+fmtV(outrosRec)+' pendente</span>':(honRec>0?'\u2713 recebido':'\u2014'))
     + chip('Repasse', repassePago, repassePago>0?'var(--tx)':'var(--mu)', repBadge||'—')
     + chip('Despesas', desp, desp>0?'#f87676':'var(--mu)', desp>0?'registrado':'—')
   +'</div>';
@@ -14970,24 +14997,20 @@ function renderFicha(c, grp=null){
 
     <!-- FINANCEIRO -->
     <div class="tp" id="tp4">
+      <!-- ── RESUMO HORIZONTAL NO TOPO ── -->
+      <div id="fin-resumo-${c.id}" style="margin-bottom:10px"></div>
 
-      <!-- ── RESUMO RÁPIDO (escondido quando sidebar lateral ativa) ── -->
-      <div id="fin-resumo-${c.id}" class="fin-resumo-inline" style="margin-bottom:16px"></div>
-
-      <!-- ── CONTRATO ── -->
-      <div id="hon-pasta-${c.id}">${renderHonorariosPasta(c.id)}</div>
-
-      <!-- ── LISTA UNIFICADA ── -->
-      <div class="fin-btns-inline" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Lançamentos</div>
-        <div style="display:flex;gap:6px">
-          <button onclick="abrirModalFin(${c.id},'receber')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">➕ Entrada</button>
-          <button onclick="abrirModalFin(${c.id},'pagar')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.07);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">➖ Saída</button>
+      <!-- ── CONTRATO + AÇÕES ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div id="hon-pasta-${c.id}" style="flex:1">${renderHonorariosPasta(c.id)}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="abrirModalFin(${c.id},'receber')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>
+          <button onclick="abrirModalFin(${c.id},'pagar')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">- Saída</button>
         </div>
       </div>
+
+      <!-- ── LANÇAMENTOS ── -->
       <div id="finunif-${c.id}">${renderFinUnificado(c.id)}</div>
-
-
     </div>
 
     <!-- COMENTÁRIOS -->
@@ -15082,14 +15105,7 @@ function sw(btn,pid){
   btn.closest('.ficha').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   btn.closest('.ficha').querySelectorAll('.tp').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on'); document.getElementById(pid).classList.add('on');
-  // Sidebar financeira: só aparece na aba Financeiro
-  if(pid==='tp4'){
-    renderFinExpandido(AC.id);
-  } else {
-    _finRemoverSidebar();
-    var vclMain = document.querySelector('.vcl-main');
-    if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
-  }
+  if(pid==='tp4' && AC) renderFinBusca(AC.id);
 }
 
 function _finRemoverSidebar(){
