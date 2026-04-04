@@ -1051,6 +1051,27 @@ function escapeHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── Auditoria: helper de arredondamento monetário consistente ──
+function roundMoney(v){ return Math.round((+v||0)*100)/100; }
+
+// ── Auditoria: helper de lookup de cliente case-insensitive ──
+function findClientByName(nome){
+  if(!nome) return null;
+  var n = nome.toLowerCase().trim();
+  return (CLIENTS||[]).find(function(c){ return (c.cliente||'').toLowerCase().trim()===n; }) || null;
+}
+
+// ── Auditoria: guard contra double-click em modais financeiros ──
+var _finProcessing = false;
+function finGuard(fn){
+  return function(){
+    if(_finProcessing){ showToast('Processando, aguarde...'); return; }
+    _finProcessing = true;
+    try { fn.apply(this, arguments); }
+    finally { setTimeout(function(){ _finProcessing=false; }, 600); }
+  };
+}
+
 // Phase 2: helper — converte HTML string em DocumentFragment (evita innerHTML em loops)
 function _fragFromHtml(html){
   var t = document.createElement('template');
@@ -2557,7 +2578,7 @@ function fmComplementarLanc(lid){
     var temParc = document.getElementById('comp-tem-parc')?.checked;
     var pNome   = document.getElementById('comp-parc-nome')?.value||'';
     var pPerc   = parseFloat(document.getElementById('comp-parc-perc')?.value||0);
-    var pVal    = temParc ? Math.round(l.valor*(pPerc/100)*100)/100 : 0;
+    var pVal    = temParc ? roundMoney(l.valor*(pPerc/100)) : 0;
 
     var i = localLanc.findIndex(function(x){ return String(x.id)===id; });
     if(i!==-1){
@@ -3067,8 +3088,8 @@ function abrirNovoLancGlobal(){
         // Split: my part + client repasse
         var perc   = parseFloat(document.getElementById('nlg-split-perc')?.value||30)/100;
         var cliNm  = document.getElementById('nlg-split-cli')?.value||'';
-        var meuVal = Math.round(valor*perc*100)/100;
-        var repVal = Math.round((valor - meuVal)*100)/100;
+        var meuVal = roundMoney(valor*perc);
+        var repVal = roundMoney(valor - meuVal);
 
         // My part — honorários
         finLancs.push({
@@ -3170,8 +3191,8 @@ function nlgCalcSplit(){
   if(!prev) return;
   var total  = parseFloat(document.getElementById('nlg-valor')?.value||0);
   var perc   = parseFloat(document.getElementById('nlg-split-perc')?.value||30);
-  var meu    = Math.round(total*(perc/100)*100)/100;
-  var cliente= Math.round((total-meu)*100)/100;
+  var meu    = roundMoney(total*(perc/100));
+  var cliente= roundMoney(total-meu);
   var fmtV2  = function(v){ return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   if(!total){ prev.textContent='Digite o valor para ver o split'; return; }
   prev.innerHTML = '<strong style="color:#4ade80">Seu ('+perc+'%): '+fmtV2(meu)+'</strong>'
@@ -4285,7 +4306,7 @@ function vfBaixar(id){
     // ── C. Sync pasta do cliente ────────────────────────────
     function _syncPasta(){
       if(!clienteLanc) return;
-      const cli = CLIENTS.find(c=>c.cliente===clienteLanc);
+      const cli = findClientByName(clienteLanc);
       if(!cli) return;
       if(!cli.lancamentos) cli.lancamentos=[];
       // Evitar duplicata
@@ -4440,8 +4461,9 @@ function vfBaixarSimples(id){
       +'<div style="flex:2"><label class="fm-lbl">Observação</label>'
         +'<input class="fm-inp" id="vfbs-obs" placeholder="Comprovante, referência..."></div>'
     +'</div>',
-  function(){
+  finGuard(function(){
     const valorBaixa = parseFloat(document.getElementById('vfbs-valor')?.value)||lanc.valor;
+    if(valorBaixa <= 0){ showToast('Valor deve ser positivo'); return; }
     const dtBaixa    = document.getElementById('vfbs-data')?.value||hoje;
     const forma      = document.getElementById('vfbs-forma')?.value||'';
     const obs        = document.getElementById('vfbs-obs')?.value.trim()||'';
@@ -4451,7 +4473,7 @@ function vfBaixarSimples(id){
     renderFinDash();
     if(typeof atualizarStats==='function') atualizarStats();
     showToast('✅ Recebimento registrado');
-  }, '✅ Confirmar recebimento');
+  }), '✅ Confirmar recebimento');
 }
 
 // ── Recebimento com repasse: calculadora de alvará/acordo ──
@@ -4463,7 +4485,7 @@ function vfBaixarComRepasse(id){
   const fBRL3 = function(v){ return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
   // Buscar despesas reembolsáveis pendentes deste processo
-  const cliObj = CLIENTS.find(function(c){ return c.cliente===lanc.cliente; });
+  const cliObj = findClientByName(lanc.cliente);
   const despReimbPend = cliObj
     ? (localLanc||[]).filter(function(l){
         return l.id_processo===cliObj.id && l.tipo==='despesa' && !l.reembolsado && l.status!=='pago';
@@ -4534,24 +4556,27 @@ function vfBaixarComRepasse(id){
       +'<div style="flex:2"><label class="fm-lbl">Observação</label>'
         +'<input class="fm-inp" id="vfbr-obs" placeholder="Referência, processo..."></div>'
     +'</div>',
-  function(){
+  finGuard(function(){
     const total   = parseFloat(document.getElementById('vfbr-total')?.value)||0;
     const sucumb  = parseFloat(document.getElementById('vfbr-sucumb')?.value)||0;
     const desp    = parseFloat(document.getElementById('vfbr-desp')?.value)||0;
-    const perc    = parseFloat(document.getElementById('vfbr-perc')?.value)||0;
+    const perc    = Math.max(0, Math.min(100, parseFloat(document.getElementById('vfbr-perc')?.value)||0));
     const dtBaixa = document.getElementById('vfbr-data')?.value||hoje;
     const forma   = document.getElementById('vfbr-forma')?.value||'';
     const obs     = document.getElementById('vfbr-obs')?.value.trim()||'';
     if(total <= 0){ showToast('Informe o valor'); return; }
-    const vCli    = total - sucumb;
-    const hon     = vCli * perc / 100;
-    const repasse = Math.max(0, vCli - hon - desp);
-    const meu     = sucumb + hon + desp;
+    if(sucumb > total){ showToast('Sucumbência não pode ser maior que o valor recebido'); return; }
+    if(perc <= 0 || perc > 100){ showToast('Percentual deve estar entre 0% e 100%'); return; }
+    const vCli    = roundMoney(Math.max(0, total - sucumb));
+    const hon     = roundMoney(vCli * perc / 100);
+    const repasse = roundMoney(Math.max(0, vCli - hon - desp));
+    const meu     = roundMoney(sucumb + hon + desp);
 
     // 1. Dar baixa no lançamento original pelo valor total
     _executarBaixa(id, total, dtBaixa, forma, obs, lanc);
 
     // 2. Se houver repasse, gerar lançamento de repasse (obrigação ao cliente)
+    var localLancDirty = false;
     if(repasse > 0.01){
       const dtRep = new Date(dtBaixa);
       dtRep.setDate(dtRep.getDate() + 2);
@@ -4563,7 +4588,7 @@ function vfBaixarComRepasse(id){
         tipo: 'repasse',
         direcao: 'pagar',
         desc: 'Repasse ao cliente' + (cliObj ? ' — ' + cliObj.cliente : ''),
-        valor: Math.round(repasse * 100) / 100,
+        valor: roundMoney(repasse),
         data: dtBaixa,
         venc: dtRepStr,
         status: 'pendente',
@@ -4572,7 +4597,7 @@ function vfBaixarComRepasse(id){
         _repasse_acordo: true,
         obs: 'Gerado automaticamente ao receber com repasse'
       });
-      sbSet('co_localLanc', localLanc);
+      localLancDirty = true;
     }
 
     // 3. Marcar despesas adiantadas como reembolsadas
@@ -4585,8 +4610,10 @@ function vfBaixarComRepasse(id){
           restDesp -= (l.valor||0);
         }
       });
-      sbSet('co_localLanc', localLanc);
+      localLancDirty = true;
     }
+    // Salvar localLanc uma única vez após todas as mutações
+    if(localLancDirty) sbSet('co_localLanc', localLanc);
 
     // 4. Registrar andamento na pasta
     if(cliObj){
@@ -4684,19 +4711,19 @@ function vfBaixarComRepasse(id){
     }, 500);
 
     audit('baixa','Recebimento com repasse: '+lanc.desc+' — '+fBRL(total),'lancamento');
-  }, '✅ Confirmar e gerar repasse');
+  }), '✅ Confirmar e gerar repasse');
 }
 
 function vfCalcRepasse(){
   const total  = parseFloat(document.getElementById('vfbr-total')?.value)||0;
   const sucumb = parseFloat(document.getElementById('vfbr-sucumb')?.value)||0;
   const desp   = parseFloat(document.getElementById('vfbr-desp')?.value)||0;
-  const perc   = parseFloat(document.getElementById('vfbr-perc')?.value)||0;
-  const vCli   = Math.max(0, total - sucumb);
-  const hon    = vCli * perc / 100;
-  const rep    = Math.max(0, vCli - hon - desp);
-  const meu    = sucumb + hon + desp;
-  const fmt    = function(v){ return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  const perc   = Math.max(0, Math.min(100, parseFloat(document.getElementById('vfbr-perc')?.value)||0));
+  const vCli   = roundMoney(Math.max(0, total - sucumb));
+  const hon    = roundMoney(vCli * perc / 100);
+  const rep    = roundMoney(Math.max(0, vCli - hon - desp));
+  const meu    = roundMoney(sucumb + hon + desp);
+  const fmt    = function(v){ return 'R$ '+(isFinite(v)?v:0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var e1=document.getElementById('vfbr-vcli'); if(e1) e1.value=fmt(vCli);
   var e2=document.getElementById('vfbr-hon');  if(e2) e2.value=fmt(hon);
   var e3=document.getElementById('vfbr-meu');  if(e3) e3.textContent=fmt(meu);
@@ -4730,7 +4757,7 @@ function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
     if(!ex) finLancs.push(reg);
     else { const fi=finLancs.indexOf(ex); finLancs[fi]={...finLancs[fi],...reg}; }
     sbSet('co_fin',finLancs);
-    const c2=CLIENTS.find(function(c){return c.cliente===(lancRef?lancRef.cliente:'');});
+    const c2=findClientByName(lancRef?lancRef.cliente:'');
     if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:dtBaixa,movimentacao:'[Financeiro] '+fBRL(valorBaixa)+' via '+(forma||'—'),tipo_movimentacao:'Financeiro',origem:'baixa'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
   }
   marcarAlterado();
@@ -4968,8 +4995,8 @@ function abrirFluxoAlvara(cid, lid){
     if(totalParc > 1 && (parcela==='1/1'||parcela==='Única'||parcela==='unica'))
       parcela = '1/'+totalParc;
 
-    var hon  = Math.round(valRec * percHon * 100)/100;
-    var rep  = Math.max(0, Math.round((valRec - hon - despVal)*100)/100);
+    var hon  = roundMoney(valRec * percHon);
+    var rep  = Math.max(0, roundMoney(valRec - hon - despVal));
 
     // Marca o lançamento original como recebido
     var i = localLanc.findIndex(function(l){return l.id===lid;});
@@ -5045,8 +5072,8 @@ function alvCalc(){
   var el    = document.getElementById('alv-resultado');
   if(!el) return;
   if(!val){ el.innerHTML='<div style="font-size:11px;color:var(--mu)">Informe o valor recebido.</div>'; return; }
-  var hon = Math.round(val*perc*100)/100;
-  var rep = Math.max(0, Math.round((val-hon-desp)*100)/100);
+  var hon = roundMoney(val*perc);
+  var rep = Math.max(0, roundMoney(val-hon-desp));
   var fmtV = function(v){ return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   el.innerHTML = ''
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
@@ -7685,16 +7712,16 @@ function fmAutoCalc(cid){
   var vbrEl = document.getElementById('fm-vbruto');
   if(vbrEl) vbrEl.value = val;
 
-  var hon = honFix > 0 ? honFix : Math.round(val * honP * 100) / 100;
-  var totalEsc = sucumb + hon;
-  var rep = Math.max(0, Math.round((val - totalEsc) * 100) / 100);
-  var fV = function(v){ return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var hon = honFix > 0 ? honFix : roundMoney(val * honP);
+  var totalEsc = roundMoney(sucumb + hon);
+  var rep = Math.max(0, roundMoney(val - totalEsc));
+  var fV = function(v){ return 'R$ '+(isFinite(v)?Math.abs(v):0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
   // Parceiro
   var temParceiro = (document.getElementById('fm-tem-parceiro')||{}).checked;
   var parcPerc    = parseFloat((document.getElementById('fm-parceiro-perc')||{}).value||0)/100;
   var parcNome    = (document.getElementById('fm-parceiro-nome')||{}).value||'Parceiro';
-  var parcVal     = temParceiro ? Math.round(hon * parcPerc * 100) / 100 : 0;
+  var parcVal     = temParceiro ? roundMoney(hon * parcPerc) : 0;
   var liquido     = hon - parcVal + sucumb;
 
   // Preview
@@ -7731,7 +7758,7 @@ function fmUpdateBruto(){
   var vbruto = parseFloat(document.getElementById('fm-vbruto')?.value||0);
   var nparc  = parseInt(document.getElementById('fm-nparc')?.value||1);
   if(vbruto > 0 && nparc > 0){
-    var perParc = Math.round(vbruto/nparc*100)/100;
+    var perParc = roundMoney(vbruto/nparc);
     var vparcEl = document.getElementById('fm-vparc');
     if(vparcEl && !vparcEl.value) vparcEl.value = perParc;
     var valorEl = document.getElementById('fm-valor');
@@ -7781,16 +7808,16 @@ function fmSalvar(cid){
     const honfixo = fmNum('honfixo')||0;
     if(!vbruto){ showToast('Informe o valor bruto do acordo'); return; }
 
-    const vBase   = vliq - vsucumb;            // valor do cliente (sem sucumb)
-    const hon     = honfixo || (vBase * honperc / 100);  // honorários contratuais
-    const repasse = Math.max(0, vBase - hon - vdesp);    // o que vai pro cliente
+    const vBase   = roundMoney(vliq - vsucumb);            // valor do cliente (sem sucumb)
+    const hon     = honfixo || roundMoney(vBase * honperc / 100);  // honorários contratuais
+    const repasse = Math.max(0, roundMoney(vBase - hon - vdesp));    // o que vai pro cliente
 
     // Valor que fica no escritório por parcel
-    const totalEscritorio = vsucumb + hon;
+    const totalEscritorio = roundMoney(vsucumb + hon);
     const valorParc = (nparc>1 && vparc) ? vparc : vbruto;
     // proporcional por parcela
-    const escPorParc  = nparc>1 ? (totalEscritorio / nparc) : totalEscritorio;
-    const repPorParc  = nparc>1 ? (repasse / nparc) : repasse;
+    const escPorParc  = nparc>1 ? roundMoney(totalEscritorio / nparc) : totalEscritorio;
+    const repPorParc  = nparc>1 ? roundMoney(repasse / nparc) : repasse;
 
     const grupoId = Date.now();
     let lancamentosCriados = 0;
@@ -7803,11 +7830,11 @@ function fmSalvar(cid){
       if(escPorParc > 0){
         localLanc.push({
           id: grupoId+i*10+1, tipo:'acordo', direcao:'receber',
-          desc: desc+lbl, valor: Math.round(escPorParc*100)/100,
-          vbruto_parc: Math.round((valorParc/nparc)*100)/100,
-          vsucumb_parc: Math.round((vsucumb/nparc)*100)/100,
-          hon_parc: Math.round(hon/nparc*100)/100,
-          honperc, vdesp_parc: Math.round(vdesp/nparc*100)/100,
+          desc: desc+lbl, valor: roundMoney(escPorParc),
+          vbruto_parc: roundMoney(valorParc/nparc),
+          vsucumb_parc: roundMoney(vsucumb/nparc),
+          hon_parc: roundMoney(hon/nparc),
+          honperc, vdesp_parc: roundMoney(vdesp/nparc),
           data: dt, venc: dt, status: statusLanc,
           forma, centro, plano, conta, obs, id_processo: cid, cliente: c.cliente,
           _grupo_acordo: grupoId, _parcela: i+1, _total_parc: nparc,
@@ -7822,7 +7849,7 @@ function fmSalvar(cid){
         dtRep.setDate(dtRep.getDate()+2);
         localLanc.push({
           id: grupoId+i*10+2, tipo:'repasse', direcao:'pagar',
-          desc: 'Repasse — '+desc+lbl, valor: Math.round(repPorParc*100)/100,
+          desc: 'Repasse — '+desc+lbl, valor: roundMoney(repPorParc),
           data: dtRep.toISOString().slice(0,10), venc: dtRep.toISOString().slice(0,10),
           status:'pendente', pago:false,
           forma, centro, obs:'Repasse de acordo: '+desc,
@@ -7870,8 +7897,8 @@ function fmSalvar(cid){
     if(!valor){ showToast('Informe o valor'); return; }
     const perc   = fmNum('honperc')/100 || 1; // default 100% = sem repasse
     const desp   = fmNum('vsucumb') || 0;
-    const hon    = Math.round(valor * perc * 100) / 100;
-    const rep    = Math.max(0, Math.round((valor - hon - desp)*100)/100);
+    const hon    = roundMoney(valor * perc);
+    const rep    = Math.max(0, roundMoney(valor - hon - desp));
     const dt     = fmVal('data') || new Date().toISOString().slice(0,10);
     const venc   = fmVal('venc') || dt;
 
@@ -7879,7 +7906,7 @@ function fmSalvar(cid){
     var temParceiro2  = document.getElementById('fm-tem-parceiro')?.checked || false;
     var parcNome2     = document.getElementById('fm-parceiro-nome')?.value?.trim() || '';
     var parcPerc2     = parseFloat(document.getElementById('fm-parceiro-perc')?.value||0);
-    var parcVal2      = temParceiro2 ? Math.round(hon*(parcPerc2/100)*100)/100 : 0;
+    var parcVal2      = temParceiro2 ? roundMoney(hon*(parcPerc2/100)) : 0;
     var liquido2      = hon - parcVal2;
     var tipoParc2     = document.getElementById('fm-tipo-parc')?.value || 'unica';
     var vbruto2       = parseFloat(document.getElementById('fm-vbruto')?.value||0)||valor;
@@ -8050,7 +8077,7 @@ function _finCalcApuracao(c, cls){
   var sucumbRecebida = soma(cls.sucumbencias, pago);
   var sucumbPend = soma(cls.sucumbencias, function(l){return !pago(l);});
   // Honorários contratuais sobre principal
-  var honContratuais = Math.round(principalRecebido * honPerc / 100 * 100) / 100;
+  var honContratuais = roundMoney(principalRecebido * honPerc / 100);
   // Despesas abatíveis
   var despAbativeis = soma(cls.despesas.filter(function(l){return !l.reembolsado && l.tipo!=='despint';}));
   // Líquido do cliente
@@ -8362,7 +8389,7 @@ function _finGerarRepasse(cid){
     if(val > calc.saldoPendRepasse + 0.01){ showToast('Valor excede o l\u00edquido do cliente ('+fV2(calc.saldoPendRepasse)+')'); return; }
     localLanc.push({
       id: Date.now(), tipo:'repasse', direcao:'pagar',
-      desc: 'Repasse ao cliente', valor: Math.round(val*100)/100,
+      desc: 'Repasse ao cliente', valor: roundMoney(val),
       data: data, venc: data, status:'pago', pago:true, dt_baixa:data,
       forma: conta, conta: conta, obs: obs,
       id_processo: cid, cliente: c.cliente,
@@ -8548,7 +8575,7 @@ function finEditarLanc(cid, lid){
     var honperc = parseFloat(document.getElementById('fel-honperc')?.value||100);
     var pNome   = document.getElementById('fel-parceiro')?.value?.trim()||'';
     var pPerc   = parseFloat(document.getElementById('fel-parc-perc')?.value||0);
-    var pVal    = pNome ? Math.round(valLiq*(pPerc/100)*100)/100 : 0;
+    var pVal    = pNome ? roundMoney(valLiq*(pPerc/100)) : 0;
     var statusV = document.getElementById('fel-status')?.value||'pendente';
     var dataV   = document.getElementById('fel-data')?.value||'';
     if(!valLiq){ showToast('Informe o valor'); return; }
@@ -11040,7 +11067,7 @@ let monteMor=[];
 try{monteMor=JSON.parse(localStorage.getItem('co_monte_mor')||'[]');}catch{}
 
 function nc(n){return{Trabalhista:'nt',Previdenciário:'np',Cível:'nc',Família:'nf',Administrativo:'na',Consultoria:'nco',Penal:'npe',Bancário:'nba'}[n]||'na';}
-function fBRL(v){return'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fBRL(v){var n=Number(v);return'R$ '+(isFinite(n)?n:0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function diasAte(dtStr){const d=new Date(dtStr);return Math.ceil((d-HOJE)/(86400000));}
 
 
