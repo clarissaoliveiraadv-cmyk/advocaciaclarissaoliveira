@@ -8016,44 +8016,73 @@ function _finTab(tab, cid, btn){
 
 // ── ABA 1: RESUMO ──
 // ── ABA 1: RESUMO ──
-function _finResumoTab(cid, c, locais, fV, hoje){
-  // Classificar lançamentos
-  var parcelas = locais.filter(function(l){
-    return !l._repasse_acordo && !l._repasse_alvara && l.tipo!=='repasse' && l.tipo!=='despesa' && l.tipo!=='despint' && l.tipo!=='despesa_reimb' && l.tipo!=='alvara';
+// ── CLASSIFICADOR CENTRAL DE LANÇAMENTOS ──
+function _finClassificar(locais){
+  var r = {
+    parcelas: [],      // dinheiro cliente→escritório (honorários fixos, entrada, parcelas)
+    sucumbencias: [],   // 100% escritório
+    valoresRecebidos: [], // principal do cliente (acordo, alvará)
+    despesas: [],       // custos do caso
+    repasses: []        // dinheiro escritório→cliente
+  };
+  locais.forEach(function(l){
+    var isRep = l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';
+    var isDesp = l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';
+    var isSucumb = l.tipo==='sucumbencia';
+    var isValorCliente = l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo&&!l._repasse_acordo);
+    if(isRep) r.repasses.push(l);
+    else if(isDesp) r.despesas.push(l);
+    else if(isSucumb) r.sucumbencias.push(l);
+    else if(isValorCliente) r.valoresRecebidos.push(l);
+    else r.parcelas.push(l);
   });
-  var despesas = locais.filter(function(l){
-    return l.tipo==='despesa' || l.tipo==='despesa_reimb';
-  });
-  var valoresRecebidos = locais.filter(function(l){
-    return l.tipo==='alvara' || (l.tipo==='acordo' && l._grupo_acordo);
-  });
-  var repasses = locais.filter(function(l){
-    return l._repasse_acordo || l._repasse_alvara || l.tipo==='repasse';
-  });
+  return r;
+}
 
-  // TOTAL CONTRATADO = soma parcelas (entrada + parcelas + honorários fixos, não êxito)
-  var totalContratado = parcelas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // PAGO AO ESCRITÓRIO = soma parcelas pagas
-  var pagoEscritorio = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // SALDO EM ABERTO = total contratado - pago
-  var saldoAberto = totalContratado - pagoEscritorio;
-
-  // DESPESAS DO CASO = soma despesas reembolsáveis + abatíveis
-  var despCaso = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // VALOR EM CUSTÓDIA = valores recebidos - repasses realizados (pagos)
-  var totalRecebido = valoresRecebidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totalRepassado = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var custodia = Math.max(0, totalRecebido - totalRepassado);
-
-  // PENDENTE REPASSE = líquido cliente - já repassado
+function _finCalcApuracao(c, cls){
   var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
-  var hon = Math.round(totalRecebido * honPerc / 100 * 100) / 100;
-  var despAbativeis = despesas.filter(function(l){return !l.reembolsado;}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var liquidoCliente = Math.max(0, totalRecebido - hon - despAbativeis);
-  var pendRepasse = Math.max(0, liquidoCliente - totalRepassado);
+  var soma = function(arr,filtro){return arr.filter(filtro||function(){return true;}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);};
+  var pago = function(l){return l.pago||l.status==='pago';};
+
+  // Valores recebidos (principal do cliente)
+  var principalRecebido = soma(cls.valoresRecebidos);
+  // Sucumbência (100% escritório)
+  var sucumbRecebida = soma(cls.sucumbencias, pago);
+  var sucumbPend = soma(cls.sucumbencias, function(l){return !pago(l);});
+  // Honorários contratuais sobre principal
+  var honContratuais = Math.round(principalRecebido * honPerc / 100 * 100) / 100;
+  // Despesas abatíveis
+  var despAbativeis = soma(cls.despesas.filter(function(l){return !l.reembolsado && l.tipo!=='despint';}));
+  // Líquido do cliente
+  var liquidoCliente = Math.max(0, principalRecebido - honContratuais - despAbativeis);
+  // Repasses
+  var jaRepassado = soma(cls.repasses, pago);
+  var saldoPendRepasse = Math.max(0, liquidoCliente - jaRepassado);
+  // Receita total escritório
+  var receitaEscritorio = sucumbRecebida + honContratuais;
+  // Custódia
+  var custodia = Math.max(0, liquidoCliente - jaRepassado);
+  // Parcelas (cliente→escritório)
+  var totalContratado = soma(cls.parcelas);
+  var pagoEscritorio = soma(cls.parcelas, pago);
+  var saldoAberto = totalContratado - pagoEscritorio;
+  var despTotal = soma(cls.despesas);
+
+  return {
+    honPerc:honPerc, principalRecebido:principalRecebido,
+    sucumbRecebida:sucumbRecebida, sucumbPend:sucumbPend,
+    honContratuais:honContratuais, despAbativeis:despAbativeis,
+    liquidoCliente:liquidoCliente, jaRepassado:jaRepassado,
+    saldoPendRepasse:saldoPendRepasse, receitaEscritorio:receitaEscritorio,
+    custodia:custodia, totalContratado:totalContratado,
+    pagoEscritorio:pagoEscritorio, saldoAberto:saldoAberto, despTotal:despTotal
+  };
+}
+
+// ── ABA 1: RESUMO ──
+function _finResumoTab(cid, c, locais, fV, hoje){
+  var cls = _finClassificar(locais);
+  var calc = _finCalcApuracao(c, cls);
 
   function card(lbl, val, cor, sub){
     return '<div style="flex:1;min-width:120px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
@@ -8064,13 +8093,13 @@ function _finResumoTab(cid, c, locais, fV, hoje){
   }
 
   return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'
-    +card('Total contratado', totalContratado, 'var(--tx)', '')
-    +card('Pago ao escrit\u00f3rio', pagoEscritorio, pagoEscritorio>0?'#4ade80':'var(--mu)', pagoEscritorio>0?'\u2713 recebido':'')
-    +card('Saldo em aberto', saldoAberto, saldoAberto>0?'#f59e0b':'var(--mu)', '')
-    +card('Despesas do caso', despCaso, despCaso>0?'#f87676':'var(--mu)', '')
-    +card('Valor em cust\u00f3dia', custodia, custodia>0?'#fb923c':'var(--mu)', '')
-    +card('Total repassado', totalRepassado, totalRepassado>0?'var(--tx)':'var(--mu)', '')
-    +card('Pendente repasse', pendRepasse, pendRepasse>0?'#c9484a':'#4ade80', pendRepasse<=0?'\u2713 quitado':'')
+    +card('Total contratado', calc.totalContratado, 'var(--tx)', '')
+    +card('Pago ao escrit\u00f3rio', calc.pagoEscritorio+calc.sucumbRecebida, (calc.pagoEscritorio+calc.sucumbRecebida)>0?'#4ade80':'var(--mu)', calc.sucumbRecebida>0?'incl. sucumb. '+fV(calc.sucumbRecebida):'')
+    +card('Saldo em aberto', calc.saldoAberto, calc.saldoAberto>0?'#f59e0b':'var(--mu)', '')
+    +card('Despesas do caso', calc.despTotal, calc.despTotal>0?'#f87676':'var(--mu)', '')
+    +card('Valor em cust\u00f3dia', calc.custodia, calc.custodia>0?'#fb923c':'var(--mu)', '')
+    +card('Total repassado', calc.jaRepassado, calc.jaRepassado>0?'var(--tx)':'var(--mu)', '')
+    +card('Pendente repasse', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', calc.saldoPendRepasse<=0?'\u2713 quitado':'')
   +'</div>'
   +'<div style="display:flex;gap:6px;margin-bottom:14px">'
     +'<button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>'
@@ -8104,9 +8133,8 @@ function _finContratoTab(cid, c){
 
 // ── ABA 3: PARCELAS ──
 function _finParcelasTab(cid, c, locais, fV, hoje){
-  var parcelas = locais.filter(function(l){
-    return !l._repasse_acordo && !l._repasse_alvara && l.tipo!=='repasse' && l.tipo!=='despesa' && l.tipo!=='despint' && l.tipo!=='despesa_reimb' && l.tipo!=='alvara';
-  });
+  var cls = _finClassificar(locais);
+  var parcelas = cls.parcelas;
   if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
   var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer;margin-bottom:10px">+ Nova parcela</button>';
   parcelas.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
@@ -8115,7 +8143,7 @@ function _finParcelasTab(cid, c, locais, fV, hoje){
     var statusLbl=pago?'\u2713 Recebido':vencido?'! Vencido':'\u23f3 Pendente';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.venc||l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago em '+fDt(l.dt_baixa):'')+'</div></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.venc||l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+cor+'">'+statusLbl+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:'+cor+'">'+fV(l.valor)+'</span>'
       +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">\u2713 Receber</button>':'')
@@ -8127,11 +8155,11 @@ function _finParcelasTab(cid, c, locais, fV, hoje){
 
 // ── ABA 4: DESPESAS DO CASO ──
 function _finDespesasTab(cid, c, locais, fV, hoje){
-  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';});
-  if(!despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
+  var cls = _finClassificar(locais);
+  if(!cls.despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
   var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer;margin-bottom:10px">+ Nova despesa</button>';
-  despesas.forEach(function(l){
-    var tipoDesp = l.tipo==='despesa'||l.tipo==='despesa_reimb' ? 'Reembols\u00e1vel / Abat\u00edvel' : 'Custo escrit\u00f3rio';
+  cls.despesas.forEach(function(l){
+    var tipoDesp = l.tipo==='despint' ? 'Custo escrit\u00f3rio' : 'Reembols\u00e1vel / Abat\u00edvel';
     var corTipo = l.tipo==='despint' ? 'var(--mu)' : '#f59e0b';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
@@ -8145,15 +8173,18 @@ function _finDespesasTab(cid, c, locais, fV, hoje){
 
 // ── ABA 5: VALORES RECEBIDOS EM NOME DO CLIENTE ──
 function _finRecebidosTab(cid, c, locais, fV, hoje){
-  var recebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo);});
-  if(!recebidos.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum valor recebido em nome do cliente.<br><br>Lan\u00e7amentos tipo Acordo ou Alvar\u00e1 aparecem aqui.</div>';
+  var cls = _finClassificar(locais);
+  var todos = cls.valoresRecebidos.concat(cls.sucumbencias);
+  if(!todos.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum valor recebido no processo.</div>';
   var html = '<div style="padding:10px 0">';
-  recebidos.forEach(function(l){
+  todos.forEach(function(l){
     var pago=l.pago||l.status==='pago';
-    var origem = l.tipo==='alvara'?'Alvar\u00e1':'Acordo';
+    var isSucumb = l.tipo==='sucumbencia';
+    var origem = isSucumb?'Sucumb\u00eancia (escrit\u00f3rio)':l.tipo==='alvara'?'Alvar\u00e1':'Acordo (principal cliente)';
+    var corOrigem = isSucumb?'#4ade80':'#fb923c';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Valor recebido')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 '+origem+(l.conta?' \u00b7 '+l.conta:'')+'</div></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 <span style="color:'+corOrigem+'">'+origem+'</span>'+(l.conta?' \u00b7 '+l.conta:'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#fb923c')+'">'+(pago?'\u2713 Recebido':'\u23f3 Pendente')+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:'+(pago?'#4ade80':'#fb923c')+'">'+fV(l.valor)+'</span>'
     +'</div>';
@@ -8161,55 +8192,56 @@ function _finRecebidosTab(cid, c, locais, fV, hoje){
   return html+'</div>';
 }
 
-// ── ABA 6: APURAÇÃO DE REPASSE ──
+// ── ABA 6: APURAÇÃO DE REPASSE (EXPANDIDA COM BLOCOS) ──
 function _finApuracaoTab(cid, c, locais, fV, hoje){
-  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
+  var cls = _finClassificar(locais);
+  var calc = _finCalcApuracao(c, cls);
+  var totalRecebido = calc.principalRecebido + calc.sucumbRecebida;
 
-  // Valores recebidos em nome do cliente
-  var recebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo&&!l._repasse_acordo);});
-  var bruto = recebidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // Honorários do escritório
-  var hon = Math.round(bruto * honPerc / 100 * 100) / 100;
-
-  // Despesas abatíveis (não reembolsadas)
-  var despAbativeis = locais.filter(function(l){return (l.tipo==='despesa'||l.tipo==='despesa_reimb')&&!l.reembolsado;});
-  var despAbat = despAbativeis.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // Líquido do cliente
-  var liquido = Math.max(0, bruto - hon - despAbat);
-
-  // Repasses já feitos
-  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
-  var jaRepassado = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var saldoPend = Math.max(0, liquido - jaRepassado);
+  function bloco(titulo, cor){
+    return '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+cor+';margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd)">'+titulo+'</div>';
+  }
+  function linha(lbl, val, cor, bold){
+    return '<div style="display:flex;justify-content:space-between;padding:5px 0"><span style="color:var(--mu)">'+lbl+'</span><span style="font-weight:'+(bold?'800':'700')+';color:'+cor+';font-size:'+(bold?'15px':'13px')+'">'+fV(val)+'</span></div>';
+  }
 
   return '<div style="padding:14px">'
-    +'<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:14px">\u2696 Mem\u00f3ria de c\u00e1lculo do repasse</div>'
-    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px">'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">Valor bruto recebido</span><span style="font-weight:700;color:var(--tx)">'+fV(bruto)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">(-) Honor\u00e1rios \u00eaxito '+honPerc+'%</span><span style="font-weight:700;color:#4ade80">'+fV(hon)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">(-) Despesas abat\u00edveis</span><span style="font-weight:700;color:#f87676">'+fV(despAbat)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--tx);font-weight:700">= L\u00edquido do cliente</span><span style="font-weight:800;color:#fb923c;font-size:15px">'+fV(liquido)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--mu)">J\u00e1 repassado</span><span style="font-weight:700;color:var(--mu)">'+fV(jaRepassado)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:'+(saldoPend>0?'#c9484a':'#4ade80')+';font-weight:700">Saldo pendente</span><span style="font-weight:800;color:'+(saldoPend>0?'#c9484a':'#4ade80')+';font-size:15px">'+fV(saldoPend)+'</span></div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:4px">\u2696 Apura\u00e7\u00e3o de Repasse</div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px">'
+      +bloco('\u2460 Recebimento', 'var(--tx)')
+      +linha('Valor total recebido', totalRecebido, 'var(--tx)', false)
+      +linha('Principal do cliente', calc.principalRecebido, '#fb923c', false)
+      +linha('Sucumb\u00eancia (100% escrit\u00f3rio)', calc.sucumbRecebida, '#4ade80', false)
+      +bloco('\u2461 C\u00e1lculo do cliente', '#fb923c')
+      +linha('Principal do cliente', calc.principalRecebido, 'var(--tx)', false)
+      +linha('(-) Honor\u00e1rios contratuais ('+calc.honPerc+'%)', calc.honContratuais, '#4ade80', false)
+      +linha('(-) Despesas abat\u00edveis', calc.despAbativeis, '#f87676', false)
+      +linha('= L\u00edquido do cliente', calc.liquidoCliente, '#fb923c', true)
+      +bloco('\u2462 Receita do escrit\u00f3rio', '#4ade80')
+      +linha('Honor\u00e1rios sucumbenciais', calc.sucumbRecebida, '#4ade80', false)
+      +linha('Honor\u00e1rios contratuais', calc.honContratuais, '#4ade80', false)
+      +linha('= Total receita escrit\u00f3rio', calc.receitaEscritorio, '#4ade80', true)
+      +bloco('\u2463 Repasse', '#c9484a')
+      +linha('L\u00edquido do cliente', calc.liquidoCliente, 'var(--tx)', false)
+      +linha('J\u00e1 repassado', calc.jaRepassado, 'var(--mu)', false)
+      +linha('Saldo pendente', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', true)
     +'</div>'
-    +'<div style="display:flex;gap:6px">'
-      +(saldoPend>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button>':'<span style="font-size:11px;color:#4ade80">\u2713 Nenhum repasse pendente</span>')
+    +'<div style="display:flex;gap:6px;margin-top:10px">'
+      +(calc.saldoPendRepasse>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button>':'<span style="font-size:11px;color:#4ade80">\u2713 Nenhum repasse pendente</span>')
     +'</div>'
   +'</div>';
 }
 
 // ── ABA 7: REPASSES ──
 function _finRepassesTab(cid, c, locais, fV, hoje){
-  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
-  if(!repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.</div>';
+  var cls = _finClassificar(locais);
+  if(!cls.repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.</div>';
   var html = '<div style="padding:10px 0">';
-  repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
+  cls.repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
     var pago=l.pago||l.status==='pago';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Repasse')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago em '+fDt(l.dt_baixa):'')+'</div></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#c9484a')+'">'+(pago?'\u2713 Pago':'\u23f3 Pendente')+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</span>'
       +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2713 Pagar</button>':'')
@@ -8220,28 +8252,20 @@ function _finRepassesTab(cid, c, locais, fV, hoje){
 
 // ── ABA 8: PRESTAÇÃO DE CONTAS ──
 function _finPrestacaoTab(cid, c, locais, fV, hoje){
-  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
-  var parcelas = locais.filter(function(l){return !l._repasse_acordo&&!l._repasse_alvara&&l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.tipo!=='alvara';});
-  var valoresRecebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo&&!l._repasse_acordo);});
-  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';});
-  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
-
-  var totalPagoEsc = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totalRecebido = valoresRecebidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var honEscritorio = Math.round(totalRecebido * honPerc / 100 * 100) / 100;
-  var totalDesp = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totalRep = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var saldo = totalRecebido - honEscritorio - totalDesp - totalRep;
+  var cls = _finClassificar(locais);
+  var calc = _finCalcApuracao(c, cls);
+  var totalRecebido = calc.principalRecebido + calc.sucumbRecebida;
 
   return '<div style="padding:14px">'
     +'<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:14px;font-family:\'Playfair Display\',serif">Presta\u00e7\u00e3o de Contas \u2014 '+escapeHtml(c.cliente)+'</div>'
     +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px">'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Valores pagos pelo cliente ao escrit\u00f3rio</span><span style="font-weight:700;color:#4ade80">'+fV(totalPagoEsc)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Valores recebidos no processo</span><span style="font-weight:700;color:var(--tx)">'+fV(totalRecebido)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Honor\u00e1rios escrit\u00f3rio ('+honPerc+'%)</span><span style="font-weight:700;color:#4ade80">'+fV(honEscritorio)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Despesas abatidas</span><span style="font-weight:700;color:#f87676">'+fV(totalDesp)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Repasses realizados</span><span style="font-weight:700;color:var(--tx)">'+fV(totalRep)+'</span></div>'
-      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px"><span style="font-weight:700">Saldo final</span><span style="font-weight:800;color:'+(saldo>=0?'#4ade80':'#c9484a')+'">'+fV(saldo)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Valores pagos pelo cliente ao escrit\u00f3rio</span><span style="font-weight:700;color:#4ade80">'+fV(calc.pagoEscritorio)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Principal recebido no processo</span><span style="font-weight:700;color:var(--tx)">'+fV(calc.principalRecebido)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>Sucumb\u00eancia recebida</span><span style="font-weight:700;color:#4ade80">'+fV(calc.sucumbRecebida)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Honor\u00e1rios contratuais ('+calc.honPerc+'%)</span><span style="font-weight:700;color:#4ade80">'+fV(calc.honContratuais)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Despesas abatidas</span><span style="font-weight:700;color:#f87676">'+fV(calc.despAbativeis)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Repasses realizados</span><span style="font-weight:700;color:var(--tx)">'+fV(calc.jaRepassado)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px"><span style="font-weight:700">Saldo pendente</span><span style="font-weight:800;color:'+(calc.saldoPendRepasse>0?'#c9484a':'#4ade80')+'">'+fV(calc.saldoPendRepasse)+'</span></div>'
     +'</div>'
     +'<div style="display:flex;gap:6px">'
       +'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Copiar para WhatsApp</button>'
@@ -8253,20 +8277,10 @@ function _finPrestacaoTab(cid, c, locais, fV, hoje){
 function _finGerarMsgPrestacao(cid){
   var c = CLIENTS.find(function(x){return x.id===cid;});
   if(!c) return;
-  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
+  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||30) : 30;
-  var parcelas = locais.filter(function(l){return !l._repasse_acordo&&l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.tipo!=='alvara';});
-  var valoresRecebidos = locais.filter(function(l){return l.tipo==='alvara'||(l.tipo==='acordo'&&l._grupo_acordo&&!l._repasse_acordo);});
-  var despesas = locais.filter(function(l){return l.tipo==='despesa'||l.tipo==='despint';});
-  var repasses = locais.filter(function(l){return l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';});
-  var totalPagoEsc = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totalRecebido = valoresRecebidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var honEsc = Math.round(totalRecebido * honPerc / 100 * 100) / 100;
-  var totalDesp = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totalRep = repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var saldo = totalRecebido - honEsc - totalDesp - totalRep;
-
+  var cls = _finClassificar(locais);
+  var calc = _finCalcApuracao(c, cls);
   var ex = (c.extra||{});
   var dadosBanco = [ex.banco,ex.ag,ex.conta,ex.pix].filter(Boolean).length>0
     ? '\nDados banc\u00e1rios:\n'+(ex.banco?'Banco: '+ex.banco+'\n':'')+(ex.ag?'Ag\u00eancia: '+ex.ag+'\n':'')+(ex.conta?'Conta: '+ex.conta+'\n':'')+(ex.pix?'PIX: '+ex.pix+'\n':'')
@@ -8276,12 +8290,13 @@ function _finGerarMsgPrestacao(cid){
     +'Cliente: '+c.cliente+'\n'
     +(c.numero?'Processo: '+c.numero+'\n':'')
     +'\n'
-    +'Valores pagos ao escrit\u00f3rio: '+fV(totalPagoEsc)+'\n'
-    +'Valores recebidos no processo: '+fV(totalRecebido)+'\n'
-    +'(-) Honor\u00e1rios escrit\u00f3rio ('+honPerc+'%): '+fV(honEsc)+'\n'
-    +'(-) Despesas abatidas: '+fV(totalDesp)+'\n'
-    +'(-) Repasses realizados: '+fV(totalRep)+'\n'
-    +'\n*Saldo: '+fV(saldo)+'*\n'
+    +'Valores pagos ao escrit\u00f3rio: '+fV(calc.pagoEscritorio)+'\n'
+    +'Principal recebido no processo: '+fV(calc.principalRecebido)+'\n'
+    +'Sucumb\u00eancia recebida: '+fV(calc.sucumbRecebida)+'\n'
+    +'(-) Honor\u00e1rios contratuais ('+calc.honPerc+'%): '+fV(calc.honContratuais)+'\n'
+    +'(-) Despesas abatidas: '+fV(calc.despAbativeis)+'\n'
+    +'(-) Repasses realizados: '+fV(calc.jaRepassado)+'\n'
+    +'\n*Saldo pendente: '+fV(calc.saldoPendRepasse)+'*\n'
     +dadosBanco
     +'\n_CO Advocacia App_';
 
