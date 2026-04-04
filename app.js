@@ -2784,6 +2784,14 @@ function _cadUpdateLanc(lancId, fields){
 }
 
 // ── A Receber (todos os meses, lista de honorários pendentes) ──
+var _vfARecFiltro = 'todos'; // todos, vencidos, avencer, cliente
+var _vfARecCliente = '';
+function vfARecFiltrar(f, cli){
+  _vfARecFiltro = f||'todos';
+  _vfARecCliente = cli||'';
+  vfRender();
+}
+
 function vfAReceber(todos){
   const hoje  = new Date(HOJE).toISOString().slice(0,10);
   const mesAt = hoje.slice(0,7);
@@ -2812,7 +2820,30 @@ function vfAReceber(todos){
       data:l.data||l.venc,status:'pendente'});
   });
 
-  if(!pend.length) return '<div style="padding:40px;text-align:center;color:var(--mu);font-style:italic">Nenhum honorário pendente</div>';
+  // Contagem por status antes de filtrar
+  var nVencidos = pend.filter(function(l){ return l.venc && l.venc < hoje; }).length;
+  var nAVencer = pend.filter(function(l){ return !l.venc || l.venc >= hoje; }).length;
+  // Clientes distintos
+  var clientesSet = {};
+  pend.forEach(function(l){ if(l.cliente && l.cliente!=='—') clientesSet[l.cliente]=1; });
+  var clientesArr = Object.keys(clientesSet).sort();
+
+  // Aplicar filtro
+  var filtro = _vfARecFiltro||'todos';
+  if(filtro==='vencidos') pend = pend.filter(function(l){ return l.venc && l.venc < hoje; });
+  else if(filtro==='avencer') pend = pend.filter(function(l){ return !l.venc || l.venc >= hoje; });
+  if(_vfARecCliente) pend = pend.filter(function(l){ return l.cliente===_vfARecCliente; });
+
+  // Barra de filtros
+  var btnStyle = function(f){ return 'font-size:10px;font-weight:700;padding:4px 12px;border-radius:5px;cursor:pointer;border:1px solid '+(filtro===f?'rgba(76,175,125,.5)':'var(--bd)')+';background:'+(filtro===f?'rgba(76,175,125,.12)':'var(--sf3)')+';color:'+(filtro===f?'#4ade80':'var(--mu)'); };
+  var filtroBar = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<button onclick="vfARecFiltrar(\'todos\')" style="'+btnStyle('todos')+'">Todos ('+( nVencidos+nAVencer)+')</button>'
+    +'<button onclick="vfARecFiltrar(\'vencidos\')" style="'+btnStyle('vencidos')+';'+(nVencidos>0?'color:#c9484a;border-color:rgba(201,72,74,.4)':'')+'">Vencidos ('+nVencidos+')</button>'
+    +'<button onclick="vfARecFiltrar(\'avencer\')" style="'+btnStyle('avencer')+'">A vencer ('+nAVencer+')</button>'
+    +(clientesArr.length>1?'<select onchange="vfARecFiltrar(\''+filtro+'\',this.value)" style="font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid var(--bd);background:var(--sf3);color:var(--mu);cursor:pointer"><option value="">Todos os clientes</option>'+clientesArr.map(function(cn){return '<option value="'+escapeHtml(cn)+'"'+(_vfARecCliente===cn?' selected':'')+'>'+escapeHtml(cn)+'</option>';}).join('')+'</select>':'')
+  +'</div>';
+
+  if(!pend.length) return filtroBar+'<div style="padding:40px;text-align:center;color:var(--mu);font-style:italic">Nenhum lançamento encontrado com esse filtro.</div>';
 
   // Group by month
   var byMes = {};
@@ -2823,11 +2854,12 @@ function vfAReceber(todos){
   });
 
   var html = '<div style="max-width:800px">';
+  html += filtroBar;
 
   // Total strip
   var totGeral = pend.reduce(function(s,l){return s+l.valor;},0);
   html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sf3);border:1px solid var(--bd);border-radius:8px;margin-bottom:14px">'
-    +'<span style="font-size:12px;color:var(--mu)">Total a receber</span>'
+    +'<span style="font-size:12px;color:var(--mu)">Total a receber'+(_vfARecCliente?' \u2014 '+escapeHtml(_vfARecCliente):'')+'</span>'
     +'<span style="font-size:16px;font-weight:700;color:#86efac">'+fmtV(totGeral)+'</span>'
   +'</div>';
 
@@ -8129,8 +8161,37 @@ function _finResumoTab(cid, c, locais, fV, hoje){
     +'</div>';
   }
 
-  return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'
-    +card('Total contratado', calc.totalContratado, 'var(--tx)', '')
+  // Barra de progresso: % pago vs contratado
+  var percPago = calc.totalContratado > 0 ? Math.min(100, Math.round(calc.pagoEscritorio / calc.totalContratado * 100)) : 0;
+  var barraProgresso = calc.totalContratado > 0
+    ? '<div style="margin:0 0 10px;background:var(--sf3);border-radius:6px;overflow:hidden;height:6px">'
+      +'<div style="width:'+percPago+'%;height:100%;background:linear-gradient(90deg,#4ade80,#22c55e);border-radius:6px;transition:width .3s"></div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--mu);margin-bottom:10px;text-align:right">'+percPago+'% recebido</div>'
+    : '';
+
+  // Alertas contextuais
+  var alertas = '';
+  var vencidos = cls.parcelas.filter(function(l){ return !l.pago && l.status!=='pago' && l.venc && l.venc < hoje; });
+  if(vencidos.length > 0){
+    var somaVenc = vencidos.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+    alertas += '<div style="background:rgba(201,72,74,.08);border:1px solid rgba(201,72,74,.3);border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">'
+      +'<span style="font-size:14px">!</span>'
+      +'<span style="font-size:11px;color:#c9484a;font-weight:600">'+vencidos.length+' parcela'+(vencidos.length>1?'s':'')+' vencida'+(vencidos.length>1?'s':'')+' ('+fV(somaVenc)+')</span>'
+      +'<button onclick="_finTab(\'parcelas\','+cid+',null)" style="font-size:10px;padding:3px 10px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer;margin-left:auto">Ver parcelas</button>'
+    +'</div>';
+  }
+  if(calc.saldoPendRepasse > 0){
+    alertas += '<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.3);border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">'
+      +'<span style="font-size:14px">$</span>'
+      +'<span style="font-size:11px;color:#fb923c;font-weight:600">Repasse pendente: '+fV(calc.saldoPendRepasse)+'</span>'
+      +'<button onclick="_finGerarRepasse('+cid+')" style="font-size:10px;padding:3px 10px;border-radius:4px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);color:#fb923c;cursor:pointer;margin-left:auto">Gerar repasse</button>'
+    +'</div>';
+  }
+
+  return alertas
+  +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'
+    +card('Total contratado', calc.totalContratado, 'var(--tx)', calc.totalContratado>0?percPago+'% recebido':'')
     +card('Pago ao escrit\u00f3rio', calc.pagoEscritorio+calc.sucumbRecebida, (calc.pagoEscritorio+calc.sucumbRecebida)>0?'#4ade80':'var(--mu)', calc.sucumbRecebida>0?'incl. sucumb. '+fV(calc.sucumbRecebida):'')
     +card('Saldo em aberto', calc.saldoAberto, calc.saldoAberto>0?'#f59e0b':'var(--mu)', '')
     +card('Despesas do caso', calc.despTotal, calc.despTotal>0?'#f87676':'var(--mu)', '')
@@ -8138,51 +8199,88 @@ function _finResumoTab(cid, c, locais, fV, hoje){
     +card('Total repassado', calc.jaRepassado, calc.jaRepassado>0?'var(--tx)':'var(--mu)', '')
     +card('Pendente repasse', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', calc.saldoPendRepasse<=0?'\u2713 quitado':'')
   +'</div>'
+  +barraProgresso
   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
     +'<button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Entrada</button>'
     +'<button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">- Sa\u00edda</button>'
-    // Botão contextual — próximo passo sugerido
-    +(calc.totalRecebido>0&&calc.saldoPendRepasse>0?'<button onclick="_finTab(\'apuracao\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u2696 Ver apura\u00e7\u00e3o \u2192</button>':'')
-    +(calc.saldoPendRepasse>0?'<button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar repasse</button>':'')
-    +(totalContratado===0?'<button onclick="_finTab(\'contrato\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:#60a5fa;cursor:pointer">\ud83d\udcdd Cadastrar contrato</button>':'')
+    +(calc.principalRecebido>0&&calc.saldoPendRepasse>0?'<button onclick="_finTab(\'apuracao\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u2696 Ver apura\u00e7\u00e3o \u2192</button>':'')
+    +(calc.totalContratado===0?'<button onclick="_finTab(\'contrato\','+cid+',null)" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:#60a5fa;cursor:pointer">\ud83d\udcdd Cadastrar contrato</button>':'')
   +'</div>';
 }
 
 // ── ABA 2: CONTRATO ──
 function _finContratoTab(cid, c){
   var hon = c._hon_contrato||{};
-  var campos = [
-    {lbl:'Tipo contrato', val:hon.tipo||'\u00caxito'},
-    {lbl:'Valor entrada', val:hon.entrada||'\u2014'},
-    {lbl:'Qtd parcelas', val:hon.qtd_parcelas||'\u2014'},
-    {lbl:'Valor parcela', val:hon.valor_parcela||'\u2014'},
-    {lbl:'Honor\u00e1rios \u00eaxito %', val:(hon.perc||30)+'%'},
-    {lbl:'Honor\u00e1rios fixos', val:hon.fixo||'\u2014'},
-    {lbl:'Data contrata\u00e7\u00e3o', val:c.data_inicio?fDt((c.data_inicio||'').slice(0,10)):'\u2014'},
-    {lbl:'Observa\u00e7\u00f5es', val:hon.obs||'\u2014'}
-  ];
+  var tipoOpts = ['Êxito','Fixo','Misto','Consultoria','Assessoria'].map(function(t){
+    return '<option'+(t===(hon.tipo||'Êxito')?' selected':'')+'>'+t+'</option>';
+  }).join('');
+
   return '<div style="padding:14px">'
     +'<div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:12px">Contrato de Honor\u00e1rios</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">'
-      +campos.map(function(f){return '<div class="ctc-field"><div class="ctc-field-lbl">'+f.lbl+'</div><div class="ctc-field-val">'+f.val+'</div></div>';}).join('')
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">'
+      +'<div><label class="fm-lbl">Tipo de contrato</label><select class="fm-inp" id="hc-tipo-'+cid+'">'+tipoOpts+'</select></div>'
+      +'<div><label class="fm-lbl">Honor\u00e1rios \u00eaxito (%)</label><input class="fm-inp" type="number" id="hc-perc-'+cid+'" value="'+(hon.perc||30)+'" min="0" max="100" step="0.5"></div>'
+      +'<div><label class="fm-lbl">Honor\u00e1rios fixos (R$)</label><input class="fm-inp" type="number" id="hc-fixo-'+cid+'" value="'+(hon.fixo||0)+'" min="0" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Valor entrada (R$)</label><input class="fm-inp" type="number" id="hc-entrada-'+cid+'" value="'+(hon.entrada||0)+'" min="0" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Qtd parcelas</label><input class="fm-inp" type="number" id="hc-qtdparc-'+cid+'" value="'+(hon.qtd_parcelas||0)+'" min="0"></div>'
+      +'<div><label class="fm-lbl">Valor parcela (R$)</label><input class="fm-inp" type="number" id="hc-vlparc-'+cid+'" value="'+(hon.valor_parcela||0)+'" min="0" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data contrata\u00e7\u00e3o</label><input class="fm-inp" type="date" id="hc-data-'+cid+'" value="'+((c.data_inicio||'').slice(0,10)||'')+'"></div>'
+      +'<div style="grid-column:1/-1"><label class="fm-lbl">Observa\u00e7\u00f5es</label><input class="fm-inp" id="hc-obs-'+cid+'" value="'+escapeHtml(hon.obs||'')+'" placeholder="Cl\u00e1usulas especiais, condi\u00e7\u00f5es..."></div>'
     +'</div>'
     +'<div style="margin-top:12px;display:flex;gap:6px">'
-      +'<button onclick="editarHonorariosPasta('+cid+')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u270f Editar contrato</button>'
+      +'<button onclick="_finSalvarContrato('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">\ud83d\udcbe Salvar contrato</button>'
     +'</div>'
   +'</div>';
+}
+
+function _finSalvarContrato(cid){
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+  if(!c._hon_contrato) c._hon_contrato = {};
+  c._hon_contrato.tipo = document.getElementById('hc-tipo-'+cid)?.value||'\u00caxito';
+  c._hon_contrato.perc = parseFloat(document.getElementById('hc-perc-'+cid)?.value)||30;
+  c._hon_contrato.fixo = parseFloat(document.getElementById('hc-fixo-'+cid)?.value)||0;
+  c._hon_contrato.entrada = parseFloat(document.getElementById('hc-entrada-'+cid)?.value)||0;
+  c._hon_contrato.qtd_parcelas = parseInt(document.getElementById('hc-qtdparc-'+cid)?.value)||0;
+  c._hon_contrato.valor_parcela = parseFloat(document.getElementById('hc-vlparc-'+cid)?.value)||0;
+  c._hon_contrato.obs = document.getElementById('hc-obs-'+cid)?.value||'';
+  var dt = document.getElementById('hc-data-'+cid)?.value||'';
+  if(dt) c.data_inicio = dt;
+  sbSet('co_clientes', CLIENTS);
+  marcarAlterado();
+  _reRenderFinPasta(cid);
+  showToast('Contrato salvo \u2713');
 }
 
 // ── ABA 3: PARCELAS ──
 function _finParcelasTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
   var parcelas = cls.parcelas;
-  if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.\n<br>Cadastre o contrato e gere as parcelas para acompanhar os pagamentos.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
-  var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer;margin-bottom:10px">+ Nova parcela</button>';
-  parcelas.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
+  if(!parcelas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma parcela cadastrada.<br>Cadastre o contrato e gere as parcelas para acompanhar os pagamentos.<br><br><button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button></div>';
+
+  // Agrupar por _grupo_acordo (accordion) e avulsos
+  var grupos = {}, avulsos = [];
+  parcelas.forEach(function(l){
+    if(l._grupo_acordo){ if(!grupos[l._grupo_acordo]) grupos[l._grupo_acordo]=[]; grupos[l._grupo_acordo].push(l); }
+    else avulsos.push(l);
+  });
+
+  // Totais gerais
+  var totalParc = parcelas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalPago = parcelas.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalVenc = parcelas.filter(function(l){return !l.pago&&l.status!=='pago'&&l.venc&&l.venc<hoje;}).length;
+
+  var html = '<div style="padding:10px 0">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
+      +'<button onclick="abrirModalFin('+cid+',\'receber\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">+ Nova parcela</button>'
+      +'<span style="font-size:11px;color:var(--mu)">'+parcelas.length+' parcela'+(parcelas.length>1?'s':'')+' \u00b7 '+fV(totalPago)+' / '+fV(totalParc)+' recebido'+(totalVenc>0?' \u00b7 <span style="color:#c9484a;font-weight:700">'+totalVenc+' vencida'+(totalVenc>1?'s':'')+'</span>':'')+'</span>'
+    +'</div>';
+
+  function renderLinha(l){
     var pago=l.pago||l.status==='pago', vencido=!pago&&l.venc&&l.venc<hoje;
     var cor=pago?'#4ade80':vencido?'#c9484a':'var(--tx)';
     var statusLbl=pago?'\u2713 Recebido':vencido?'! Vencido':'\u23f3 Pendente';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
         +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.venc||l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+cor+'">'+statusLbl+'</span>'
@@ -8190,7 +8288,40 @@ function _finParcelasTab(cid, c, locais, fV, hoje){
       +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">\u2713 Receber</button>':'')
       +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
+  }
+
+  // Render grupos (accordion)
+  Object.keys(grupos).forEach(function(gid){
+    var grp = grupos[gid].sort(function(a,b){return (a._parcela||0)-(b._parcela||0);});
+    var grpPago = grp.filter(function(l){return l.pago||l.status==='pago';}).length;
+    var grpTotal = grp.length;
+    var grpDesc = grp[0].desc ? grp[0].desc.replace(/\s*\(\d+\/\d+\)\s*$/,'') : 'Acordo';
+    var grpValor = grp.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+    var percGrp = grpTotal>0 ? Math.round(grpPago/grpTotal*100) : 0;
+    var corGrp = grpPago===grpTotal ? '#4ade80' : grp.some(function(l){return !l.pago&&l.venc&&l.venc<hoje;}) ? '#c9484a' : '#f59e0b';
+
+    html += '<div style="margin-bottom:8px;border:1px solid var(--bd);border-radius:8px;overflow:hidden">'
+      +'<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'[data-arrow]\').textContent=this.nextElementSibling.style.display===\'none\'?\'\u25b6\':\'\u25bc\'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--sf2);cursor:pointer;user-select:none">'
+        +'<span data-arrow style="font-size:10px;color:var(--mu)">\u25bc</span>'
+        +'<div style="flex:1"><span style="font-size:12px;font-weight:700;color:var(--tx)">'+escapeHtml(grpDesc)+'</span>'
+          +'<span style="font-size:10px;color:var(--mu);margin-left:8px">'+grpPago+'/'+grpTotal+' pagas \u00b7 '+fV(grpValor)+'</span></div>'
+        +'<div style="width:60px;height:4px;background:var(--sf3);border-radius:3px;overflow:hidden"><div style="width:'+percGrp+'%;height:100%;background:'+corGrp+';border-radius:3px"></div></div>'
+        +'<span style="font-size:10px;font-weight:700;color:'+corGrp+'">'+percGrp+'%</span>'
+      +'</div>'
+      +'<div style="padding:0 14px">'+grp.map(renderLinha).join('')+'</div>'
+    +'</div>';
   });
+
+  // Render avulsos
+  if(avulsos.length > 0){
+    if(Object.keys(grupos).length > 0){
+      html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin:12px 0 6px;letter-spacing:.05em">Parcelas avulsas</div>';
+    }
+    avulsos.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
+      html += renderLinha(l);
+    });
+  }
+
   return html+'</div>';
 }
 
