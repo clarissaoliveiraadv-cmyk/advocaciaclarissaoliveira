@@ -8266,15 +8266,20 @@ function _finTab(tab, cid, btn){
   if(!c){ el.innerHTML=''; return; }
   var locais = _finGetLocais(cid);
 
-  if(tab==='resumo')       el.innerHTML = _finResumoTab(cid, c, locais, fV, hoje);
-  else if(tab==='contrato') el.innerHTML = _finContratoTab(cid, c);
-  else if(tab==='parcelas') el.innerHTML = _finParcelasTab(cid, c, locais, fV, hoje);
-  else if(tab==='despesas') el.innerHTML = _finDespesasTab(cid, c, locais, fV, hoje);
-  else if(tab==='recebidos') el.innerHTML = _finRecebidosTab(cid, c, locais, fV, hoje);
-  else if(tab==='apuracao') el.innerHTML = _finApuracaoTab(cid, c, locais, fV, hoje);
-  else if(tab==='repasses') el.innerHTML = _finRepassesTab(cid, c, locais, fV, hoje);
-  else if(tab==='prestacao') el.innerHTML = _finPrestacaoTab(cid, c, locais, fV, hoje);
-  else el.innerHTML = '<div style="padding:20px;color:var(--mu)">Em desenvolvimento</div>';
+  // Renderizar de forma assíncrona para não bloquear a UI
+  requestAnimationFrame(function(){
+    var html;
+    if(tab==='resumo')       html = _finResumoTab(cid, c, locais, fV, hoje);
+    else if(tab==='contrato') html = _finContratoTab(cid, c);
+    else if(tab==='parcelas') html = _finParcelasTab(cid, c, locais, fV, hoje);
+    else if(tab==='despesas') html = _finDespesasTab(cid, c, locais, fV, hoje);
+    else if(tab==='recebidos') html = _finRecebidosTab(cid, c, locais, fV, hoje);
+    else if(tab==='apuracao') html = _finApuracaoTab(cid, c, locais, fV, hoje);
+    else if(tab==='repasses') html = _finRepassesTab(cid, c, locais, fV, hoje);
+    else if(tab==='prestacao') html = _finPrestacaoTab(cid, c, locais, fV, hoje);
+    else html = '<div style="padding:20px;color:var(--mu)">Em desenvolvimento</div>';
+    el.innerHTML = html;
+  });
 }
 
 // ── ABA 1: RESUMO ──
@@ -10919,9 +10924,8 @@ function renderFinUnificado(cid){
     honorario_pag:'Pag. parceiro', reembolso:'Reembolso', outro:'Outros'
   };
 
-  const todos = (localLanc||[])
-    .filter(function(l){ return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj; })
-    .sort(function(a,b){ return (b.data||b.venc||'').localeCompare(a.data||a.venc||''); });
+  const todos = _finGetLocais(cid)
+    .slice().sort(function(a,b){ return (b.data||b.venc||'').localeCompare(a.data||a.venc||''); });
 
   if(!todos.length)
     return '<div style="font-size:12px;color:var(--mu);padding:20px;text-align:center;font-style:italic">Nenhum lançamento. Clique em + Entrada ou + Saída.</div>';
@@ -11071,7 +11075,7 @@ function renderFinResumo(cid){
   if(!c) return;
   const fmtV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   const hoje = new Date().toISOString().slice(0,10);
-  const locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
+  const locais = _finGetLocais(cid);
 
   var honRec=0, outrosRec=0, desp=0, repassePago=0, repassePend=0;
   var repPassos=[], acordos=[];
