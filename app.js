@@ -4542,7 +4542,7 @@ function vfBaixar(id){
 // ── Recebimento simples: 100% para o escritório ──
 // ── Buscar dados bancários do cliente ──
 function getDadosBancarios(nomeCliente){
-  const c = CLIENTS.find(function(x){ return x.cliente===nomeCliente; });
+  const c = findClientByName(nomeCliente);
   if(!c) return null;
   const ex = (tasks[c.id]||{}).extra || {};
   // Também verifica campos diretos do cliente (campo 'banco' inline)
@@ -8594,13 +8594,47 @@ function _finApuracaoTab(cid, c, locais, fV, hoje){
 // ── ABA 7: REPASSES ──
 function _finRepassesTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
-  if(!cls.repasses.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.\n<br>Ap00f3s apurar o l00edquido do cliente, gere o repasse pela aba Apura00e700e3o.</div>';
+  var calc = _finCalcApuracao(c, cls);
+  var dadosBanc = getDadosBancarios(c.cliente);
+
+  // Totais
+  var totalRepassado = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalPendente = cls.repasses.filter(function(l){return !l.pago&&l.status!=='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+
+  if(!cls.repasses.length && calc.saldoPendRepasse<=0) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhum repasse registrado.<br>Ap\u00f3s apurar o l\u00edquido do cliente, gere o repasse pela aba Apura\u00e7\u00e3o.</div>';
+
   var html = '<div style="padding:10px 0">';
+
+  // Cards resumo
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'
+    +'<div style="flex:1;min-width:120px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Total repassado</div><div style="font-size:15px;font-weight:800;color:#4ade80">'+fV(totalRepassado)+'</div></div>'
+    +'<div style="flex:1;min-width:120px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Pendente repasse</div><div style="font-size:15px;font-weight:800;color:'+(calc.saldoPendRepasse>0?'#c9484a':'#4ade80')+'">'+fV(calc.saldoPendRepasse)+'</div></div>'
+    +'<div style="flex:1;min-width:120px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">L\u00edquido cliente</div><div style="font-size:15px;font-weight:800;color:#fb923c">'+fV(calc.liquidoCliente)+'</div></div>'
+  +'</div>';
+
+  // Dados bancários do cliente
+  if(dadosBanc){
+    html += '<div style="background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.2);border-radius:6px;padding:10px 12px;margin-bottom:12px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#60a5fa;margin-bottom:4px">Dados banc\u00e1rios do cliente</div>'
+      +'<div style="font-size:11px;color:var(--tx)">'
+        +(dadosBanc.nomebenef?dadosBanc.nomebenef+'<br>':'')
+        +(dadosBanc.banco?'Banco: '+dadosBanc.banco+' ':'')+(dadosBanc.ag?'Ag: '+dadosBanc.ag+' ':'')+(dadosBanc.conta?'Conta: '+dadosBanc.conta+' ':'')
+        +(dadosBanc.pix?'<br>PIX: <strong>'+escapeHtml(dadosBanc.pix)+'</strong>':'')
+      +'</div>'
+    +'</div>';
+  }
+
+  // Botão gerar repasse
+  if(calc.saldoPendRepasse > 0){
+    html += '<div style="margin-bottom:12px"><button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar novo repasse</button></div>';
+  }
+
+  // Lista de repasses
   cls.repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
     var pago=l.pago||l.status==='pago';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Repasse')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+'</div></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.conta?' \u00b7 '+l.conta:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+(l.obs?' \u00b7 '+escapeHtml(l.obs):'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#c9484a')+'">'+(pago?'\u2713 Pago':'\u23f3 Pendente')+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</span>'
       +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2713 Pagar</button>':'')
@@ -8614,6 +8648,35 @@ function _finPrestacaoTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
   var calc = _finCalcApuracao(c, cls);
   var totalRecebido = calc.principalRecebido + calc.sucumbRecebida;
+  var dadosBanc = getDadosBancarios(c.cliente);
+
+  // Histórico de repasses realizados
+  var repassesPagos = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).sort(function(a,b){return (a.data||'').localeCompare(b.data||'');});
+  var repasseHist = '';
+  if(repassesPagos.length > 0){
+    repasseHist = '<div style="margin-top:14px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px;letter-spacing:.05em">Hist\u00f3rico de repasses</div>';
+    repassesPagos.forEach(function(l){
+      repasseHist += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bd)">'
+        +'<span style="font-size:11px;color:var(--mu)">'+fDt(l.dt_baixa||l.data)+(l.conta?' \u00b7 '+l.conta:'')+(l.obs?' \u00b7 '+escapeHtml(l.obs):'')+'</span>'
+        +'<span style="font-size:12px;font-weight:700;color:#4ade80">'+fV(l.valor)+'</span>'
+      +'</div>';
+    });
+    repasseHist += '</div>';
+  }
+
+  // Dados bancários
+  var bancBlock = '';
+  if(dadosBanc){
+    bancBlock = '<div style="margin-top:14px;background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.2);border-radius:6px;padding:10px 12px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#60a5fa;margin-bottom:4px">Dados para repasse</div>'
+      +'<div style="font-size:11px;color:var(--tx)">'
+        +(dadosBanc.nomebenef?'Benefici\u00e1rio: '+dadosBanc.nomebenef+'<br>':'')
+        +(dadosBanc.cpfbenef?'CPF: '+dadosBanc.cpfbenef+'<br>':'')
+        +(dadosBanc.banco?'Banco: '+dadosBanc.banco+' ':'')+(dadosBanc.ag?'| Ag: '+dadosBanc.ag+' ':'')+(dadosBanc.conta?'| Conta: '+dadosBanc.conta+'<br>':'')
+        +(dadosBanc.pix?'PIX: <strong>'+escapeHtml(dadosBanc.pix)+'</strong>':'')
+      +'</div>'
+    +'</div>';
+  }
 
   return '<div style="padding:14px">'
     +'<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:14px;font-family:\'Playfair Display\',serif">Presta\u00e7\u00e3o de Contas \u2014 '+escapeHtml(c.cliente)+'</div>'
@@ -8626,8 +8689,11 @@ function _finPrestacaoTab(cid, c, locais, fV, hoje){
       +'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bd)"><span>(-) Repasses realizados</span><span style="font-weight:700;color:var(--tx)">'+fV(calc.jaRepassado)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px"><span style="font-weight:700">Saldo pendente</span><span style="font-weight:800;color:'+(calc.saldoPendRepasse>0?'#c9484a':'#4ade80')+'">'+fV(calc.saldoPendRepasse)+'</span></div>'
     +'</div>'
-    +'<div style="display:flex;gap:6px">'
+    +repasseHist
+    +bancBlock
+    +'<div style="display:flex;gap:6px;margin-top:14px">'
       +'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Copiar para WhatsApp</button>'
+      +(calc.saldoPendRepasse>0?'<button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar repasse</button>':'')
     +'</div>'
   +'</div>';
 }
@@ -8645,6 +8711,16 @@ function _finGerarMsgPrestacao(cid){
     ? '\nDados banc\u00e1rios:\n'+(ex.banco?'Banco: '+ex.banco+'\n':'')+(ex.ag?'Ag\u00eancia: '+ex.ag+'\n':'')+(ex.conta?'Conta: '+ex.conta+'\n':'')+(ex.pix?'PIX: '+ex.pix+'\n':'')
     : '';
 
+  // Listar repasses realizados
+  var repassesPagos = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).sort(function(a,b){return (a.data||'').localeCompare(b.data||'');});
+  var repassesTxt = '';
+  if(repassesPagos.length > 0){
+    repassesTxt = '\n*Repasses realizados:*\n';
+    repassesPagos.forEach(function(l){
+      repassesTxt += '\u2022 '+fDt(l.dt_baixa||l.data)+': '+fV(l.valor)+(l.conta?' ('+l.conta+')':'')+'\n';
+    });
+  }
+
   var msg = '*PRESTA\u00c7\u00c3O DE CONTAS*\n'
     +'Cliente: '+c.cliente+'\n'
     +(c.numero?'Processo: '+c.numero+'\n':'')
@@ -8655,6 +8731,7 @@ function _finGerarMsgPrestacao(cid){
     +'(-) Honor\u00e1rios contratuais ('+calc.honPerc+'%): '+fV(calc.honContratuais)+'\n'
     +'(-) Despesas abatidas: '+fV(calc.despAbativeis)+'\n'
     +'(-) Repasses realizados: '+fV(calc.jaRepassado)+'\n'
+    +repassesTxt
     +'\n*Saldo pendente: '+fV(calc.saldoPendRepasse)+'*\n'
     +dadosBanco
     +'\n_CO Advocacia App_';
@@ -8688,14 +8765,26 @@ function _finGerarRepasse(cid){
   var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
   var cls = _finClassificar(locais);
   var calc = _finCalcApuracao(c, cls);
-  if(calc.saldoPendRepasse <= 0){ showToast('Nenhum repasse pendente</span>'); return; }
+  if(calc.saldoPendRepasse <= 0){ showToast('Nenhum repasse pendente'); return; }
   var fV2 = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var dadosBanc = getDadosBancarios(c.cliente);
+  var bancHtml = dadosBanc
+    ? '<div style="background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.2);border-radius:6px;padding:10px 12px;margin-bottom:12px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#60a5fa;margin-bottom:4px">Dados banc\u00e1rios do cliente</div>'
+      +'<div style="font-size:11px;color:var(--tx)">'
+        +(dadosBanc.nomebenef?dadosBanc.nomebenef:'')
+        +(dadosBanc.banco?' \u00b7 '+dadosBanc.banco:'')+(dadosBanc.ag?' Ag '+dadosBanc.ag:'')+(dadosBanc.conta?' Cc '+dadosBanc.conta:'')
+        +(dadosBanc.pix?'<br>PIX: <strong>'+escapeHtml(dadosBanc.pix)+'</strong>':'')
+      +'</div></div>'
+    : '<div style="background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10px;color:#fb923c">Dados banc\u00e1rios n\u00e3o cadastrados. Cadastre na ficha do cliente \u2192 Dados Sens\u00edveis.</div>';
+
   abrirModal('\ud83d\udce4 Gerar Repasse \u2014 '+c.cliente,
     '<div style="background:var(--sf3);border-radius:8px;padding:12px;margin-bottom:12px">'
       +'<div style="font-size:11px;color:var(--mu)">L\u00edquido do cliente: <strong style="color:#fb923c">'+fV2(calc.liquidoCliente)+'</strong></div>'
       +'<div style="font-size:11px;color:var(--mu)">J\u00e1 repassado: '+fV2(calc.jaRepassado)+'</div>'
       +'<div style="font-size:11px;color:var(--mu)">Cust\u00f3dia atual: <strong style="color:#c9484a">'+fV2(calc.custodia)+'</strong></div>'
     +'</div>'
+    +bancHtml
     +'<div class="fm-row">'
       +'<div><label class="fm-lbl">Valor do repasse (R$)</label>'
         +'<input class="fm-inp" type="number" id="rep-valor" value="'+calc.saldoPendRepasse.toFixed(2)+'" min="0.01" max="'+calc.saldoPendRepasse.toFixed(2)+'" step="0.01"></div>'
@@ -8703,8 +8792,8 @@ function _finGerarRepasse(cid){
         +'<input class="fm-inp" type="date" id="rep-data" value="'+new Date().toISOString().slice(0,10)+'"></div>'
     +'</div>'
     +'<div class="fm-row" style="margin-top:8px">'
-      +'<div><label class="fm-lbl">Conta destino</label>'
-        +'<select class="fm-inp" id="rep-conta"><option>Inter</option><option>CEF</option><option>PIX</option><option>TED</option><option>Dinheiro</option></select></div>'
+      +'<div><label class="fm-lbl">Conta/forma de envio</label>'
+        +'<select class="fm-inp" id="rep-conta"><option>PIX</option><option>TED</option><option>Inter</option><option>CEF</option><option>Dep\u00f3sito</option><option>Dinheiro</option></select></div>'
       +'<div><label class="fm-lbl">Observa\u00e7\u00e3o</label>'
         +'<input class="fm-inp" id="rep-obs" placeholder="Comprovante, refer\u00eancia..."></div>'
     +'</div>',
@@ -8724,9 +8813,26 @@ function _finGerarRepasse(cid){
       _repasse_acordo: true
     });
     sbSet('co_localLanc', localLanc);
+    // Registrar andamento na pasta
+    if(!localMov[cid]) localMov[cid]=[];
+    localMov[cid].unshift({data:data, movimentacao:'[Repasse] '+fV2(val)+' via '+(conta||'\u2014')+(obs?' \u2014 '+obs:''), tipo_movimentacao:'Financeiro', origem:'repasse'});
+    sbSet('co_localMov', localMov);
     marcarAlterado(); fecharModal();
-    _finTab(_finCurTab, cid, null);
-    showToast('\u2713 Repasse de '+fV2(val)+' registrado');
+    _reRenderFinPasta(cid);
+
+    // Gerar comprovante e oferecer copiar
+    var comprovante = '*COMPROVANTE DE REPASSE*\n'
+      +'Cliente: '+c.cliente+'\n'
+      +'Data: '+fDt(data)+'\n'
+      +'Valor: '+fV2(val)+'\n'
+      +'Forma: '+(conta||'\u2014')+'\n'
+      +(obs?'Ref: '+obs+'\n':'')
+      +'\n_CO Advocacia_';
+    navigator.clipboard.writeText(comprovante).then(function(){
+      showToast('\u2713 Repasse de '+fV2(val)+' registrado. Comprovante copiado!');
+    }).catch(function(){
+      showToast('\u2713 Repasse de '+fV2(val)+' registrado');
+    });
     audit('repasse', 'financeiro', c.cliente+' \u2014 '+fV2(val));
   }, '\ud83d\udce4 Confirmar Repasse');
 }

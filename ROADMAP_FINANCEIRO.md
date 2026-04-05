@@ -28,11 +28,11 @@
 3. ✅ Custódia separada na apuração (bloco visual + aviso "não é receita")
 4. ✅ Reembolso: marcar/desmarcar via botão + data de reembolso
 
-## Etapa 3: Repasses
-1. Apuração de repasse (memória de cálculo)
-2. Histórico de repasses por cliente
-3. Prestação de contas (modelo copiável WhatsApp)
-4. Registro de transferência com conta destino
+## Etapa 3: Repasses ✅
+1. ✅ Apuração com blocos de despesas + custódia visual separada
+2. ✅ Histórico de repasses com cards (repassado/pendente/líquido) + dados bancários
+3. ✅ Prestação de contas com histórico de repasses + dados bancários + WhatsApp detalhado
+4. ✅ Gerar repasse com dados bancários + comprovante auto-copiado + andamento na pasta
 
 ## Etapa 4: Caixa + DRE + Relatórios
 1. Caixa real por conta bancária (Inter, CEF, Dinheiro)
