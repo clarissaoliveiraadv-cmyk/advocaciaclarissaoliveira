@@ -9029,16 +9029,13 @@ function renderFinLocal(cid){
 
 function finDelLanc(cid, lid){
   if(!confirm('Excluir este lançamento?')) return;
-  var cidN = Number(cid), lidN = Number(lid);
+  var cidN = Number(cid), lidS = String(lid);
   localLanc = localLanc.filter(function(l){
-    return !(Number(l.id_processo)===cidN && Number(l.id)===lidN);
+    return String(l.id)!==lidS;
   });
   sbSet('co_localLanc', localLanc);
   marcarAlterado();
-  var el = document.getElementById('finunif-'+cidN);
-  if(el) el.innerHTML = renderFinUnificado(cidN);
-  renderFinResumo(cidN);
-  vfRender();
+  _reRenderFinPasta(cidN);
   showToast('Lançamento excluído');
 }
 
