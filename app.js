@@ -8736,6 +8736,7 @@ function _finRepassesTab(cid, c, locais, fV, hoje){
       +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#c9484a')+'">'+(pago?'\u2713 Pago':'\u23f3 Pendente')+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</span>'
       +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2713 Pagar</button>':'')
+      +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
