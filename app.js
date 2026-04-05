@@ -2112,11 +2112,12 @@ function vfRender(){
   var cacheKey = tab + ':' + mesP + ':' + todos.length;
   if(!vfRender._cache) vfRender._cache = {};
   // Abas leves (dados mudam frequentemente) — sempre recalculam
-  var leve = {mes:1, receber:1, repasses:1, caixa:1, fixas:1};
+  var leve = {mes:1, receber:1, pagar:1, repasses:1, caixa:1, fixas:1};
   var htmlTab;
   if(leve[tab] || !vfRender._cache[cacheKey]){
     if(tab==='mes')              htmlTab = vfMes(todos, mesP);
     else if(tab==='receber')     htmlTab = vfAReceber(todos);
+    else if(tab==='pagar')       htmlTab = vfAPagar(todos);
     else if(tab==='repasses')    htmlTab = vfRepasses();
     else if(tab==='caixa')       htmlTab = vfCaixa();
     else if(tab==='dre')         htmlTab = vfDRE(todos);
@@ -2907,6 +2908,108 @@ function vfAReceber(todos){
       +'</tr>';
     });
 
+    html += '</tbody></table></div></div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
+// ── Contas a Pagar (despesas + obrigações pendentes) ──
+var _vfAPagFiltro = 'todos';
+function vfAPagFiltrar(f){ _vfAPagFiltro = f||'todos'; vfRender(); }
+
+function vfAPagar(todos){
+  var hoje = new Date(HOJE).toISOString().slice(0,10);
+  var mesAt = hoje.slice(0,7);
+  var fmtV = function(v){ return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var MA = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Todas as saídas pendentes (despesas fixas, despesas de caso, obrigações)
+  var pend = todos.filter(function(l){
+    return l.tipo==='pagar' && l.status!=='pago' && !l._repasse_acordo && !l._repasse_alvara && l.tipo!=='repasse';
+  });
+  // Também de localLanc (despesas de caso)
+  var seen = new Set(pend.map(function(l){return l.id;}));
+  (localLanc||[]).forEach(function(l){
+    var id='l'+l.id;
+    if(seen.has(id)) return;
+    if(l.direcao!=='pagar' && l.tipo!=='despesa' && l.tipo!=='despint') return;
+    if(l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara) return;
+    if(l.pago||l.status==='pago') return;
+    seen.add(id);
+    pend.push({id:id, tipo:'pagar', desc:l.desc||'—', cliente:l.cliente||'',
+      valor:l.valor||0, venc:l.venc||l.data, data:l.data||l.venc,
+      status:'pendente', _tipo_desp:l.tipo});
+  });
+
+  // Contagens
+  var nVenc = pend.filter(function(l){ return l.venc && l.venc < hoje; }).length;
+  var nAVenc = pend.filter(function(l){ return !l.venc || l.venc >= hoje; }).length;
+  var filtro = _vfAPagFiltro||'todos';
+  if(filtro==='vencidos') pend = pend.filter(function(l){ return l.venc && l.venc < hoje; });
+  else if(filtro==='avencer') pend = pend.filter(function(l){ return !l.venc || l.venc >= hoje; });
+
+  // Barra de filtros
+  var btnSt = function(f){ return 'font-size:10px;font-weight:700;padding:4px 12px;border-radius:5px;cursor:pointer;border:1px solid '+(filtro===f?'rgba(248,118,118,.5)':'var(--bd)')+';background:'+(filtro===f?'rgba(248,118,118,.12)':'var(--sf3)')+';color:'+(filtro===f?'#f87676':'var(--mu)'); };
+  var filtroBar = '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<button onclick="vfAPagFiltrar(\'todos\')" style="'+btnSt('todos')+'">Todos ('+(nVenc+nAVenc)+')</button>'
+    +'<button onclick="vfAPagFiltrar(\'vencidos\')" style="'+btnSt('vencidos')+';'+(nVenc>0?'color:#c9484a':'')+'">Vencidos ('+nVenc+')</button>'
+    +'<button onclick="vfAPagFiltrar(\'avencer\')" style="'+btnSt('avencer')+'">A vencer ('+nAVenc+')</button>'
+  +'</div>';
+
+  if(!pend.length) return filtroBar+'<div style="padding:40px;text-align:center;color:var(--mu);font-style:italic">Nenhuma conta a pagar pendente.</div>';
+
+  // Agrupar por mês
+  var byMes = {};
+  pend.forEach(function(l){
+    var m = (l.venc||l.data||'').slice(0,7)||'sem-data';
+    if(!byMes[m]) byMes[m]=[];
+    byMes[m].push(l);
+  });
+
+  var totGeral = pend.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var html = '<div style="max-width:800px">'+filtroBar;
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(248,118,118,.05);border:1px solid rgba(248,118,118,.3);border-radius:8px;margin-bottom:14px">'
+    +'<span style="font-size:12px;color:var(--mu)">Total a pagar</span>'
+    +'<span style="font-size:16px;font-weight:700;color:#f87676">'+fmtV(totGeral)+'</span>'
+  +'</div>';
+
+  Object.keys(byMes).sort().forEach(function(mes){
+    var itens = byMes[mes];
+    var totMes = itens.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+    var isVenc = mes!=='sem-data' && mes < mesAt;
+    var isCurr = mes === mesAt;
+    var mesLbl = mes==='sem-data'?'Sem data':(MA[parseInt(mes.slice(5))-1]+'/'+mes.slice(0,4));
+    var aId = 'apag-'+mes.replace('-','');
+    var isOpen = isCurr || isVenc;
+    var corMes = isVenc?'#c9484a':isCurr?'#f87676':'var(--tx)';
+
+    html += '<div style="border:1px solid '+(isVenc?'rgba(201,72,74,.3)':'var(--bd)')+';border-radius:8px;overflow:hidden;margin-bottom:8px">';
+    html += '<div onclick="var c=document.getElementById(\''+aId+'\');c.style.display=c.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.apag-arr\').textContent=c.style.display===\'none\'?\'\u203a\':\'\u2228\'" '
+      +'style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:'+(isVenc?'rgba(201,72,74,.05)':isCurr?'rgba(248,118,118,.04)':'var(--sf3)')+'">'
+      +'<span class="apag-arr" style="font-size:14px;color:var(--mu);min-width:14px">'+(isOpen?'\u2228':'\u203a')+'</span>'
+      +'<span style="flex:1;font-size:13px;font-weight:700;color:'+corMes+'">'+mesLbl+(isVenc?' !':'')+'</span>'
+      +'<span style="font-size:10px;color:var(--mu);margin-right:8px">'+itens.length+' item'+(itens.length!==1?'s':'')+'</span>'
+      +'<span style="font-size:14px;font-weight:700;color:#f87676">'+fmtV(totMes)+'</span>'
+    +'</div>';
+
+    html += '<div id="'+aId+'" style="display:'+(isOpen?'block':'none')+'">';
+    html += '<table style="width:100%;border-collapse:collapse"><tbody>';
+    itens.sort(function(a,b){return (a.venc||a.data||'').localeCompare(b.venc||b.data||'');}).forEach(function(l){
+      var venc = l.venc && l.venc < hoje;
+      var tipoLbl = (l._tipo_desp==='despint'||l.cat==='Custo escritório')?'Custo interno':'Despesa caso';
+      html += '<tr style="border-bottom:1px solid var(--bd)">'
+        +'<td style="padding:8px 14px;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(l.venc||l.data)+'</td>'
+        +'<td style="padding:8px 8px;font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'—')+'</td>'
+        +'<td style="padding:8px 8px;font-size:10px;color:var(--mu)">'+escapeHtml(l.cliente||'')+'</td>'
+        +'<td style="padding:8px 8px;font-size:10px;color:var(--mu)">'+tipoLbl+'</td>'
+        +'<td style="padding:8px 8px;font-size:13px;font-weight:700;color:'+(venc?'#c9484a':'#f87676')+';text-align:right;white-space:nowrap">'+fmtV(l.valor)+'</td>'
+        +'<td style="padding:8px 8px;text-align:right;white-space:nowrap">'
+          +'<button onclick="vfBaixar(\''+l.id+'\')" style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;background:rgba(248,118,118,.1);border:1px solid rgba(248,118,118,.25);color:#f87676;cursor:pointer">\u2713 Pagar</button>'
+        +'</td>'
+      +'</tr>';
+    });
     html += '</tbody></table></div></div>';
   });
 
@@ -8137,6 +8240,13 @@ function _finCalcApuracao(c, cls){
   var saldoAberto = totalContratado - pagoEscritorio;
   var despTotal = soma(cls.despesas);
 
+  // Despesas internas (custo do escritório, NÃO abatíveis)
+  var despInternas = soma(cls.despesas.filter(function(l){return l.tipo==='despint';}));
+  // Despesas já reembolsadas
+  var despReembolsadas = soma(cls.despesas.filter(function(l){return l.reembolsado;}));
+  // Total recebido (principal + sucumb)
+  var totalRecebido = principalRecebido + sucumbRecebida;
+
   return {
     honPerc:honPerc, principalRecebido:principalRecebido,
     sucumbRecebida:sucumbRecebida, sucumbPend:sucumbPend,
@@ -8144,7 +8254,9 @@ function _finCalcApuracao(c, cls){
     liquidoCliente:liquidoCliente, jaRepassado:jaRepassado,
     saldoPendRepasse:saldoPendRepasse, receitaEscritorio:receitaEscritorio,
     custodia:custodia, totalContratado:totalContratado,
-    pagoEscritorio:pagoEscritorio, saldoAberto:saldoAberto, despTotal:despTotal
+    pagoEscritorio:pagoEscritorio, saldoAberto:saldoAberto, despTotal:despTotal,
+    despInternas:despInternas, despReembolsadas:despReembolsadas,
+    totalRecebido:totalRecebido
   };
 }
 
@@ -8328,19 +8440,84 @@ function _finParcelasTab(cid, c, locais, fV, hoje){
 // ── ABA 4: DESPESAS DO CASO ──
 function _finDespesasTab(cid, c, locais, fV, hoje){
   var cls = _finClassificar(locais);
-  if(!cls.despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.\n<br>Registre custas, dilig00eancias e outros custos do caso.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
-  var html = '<div style="padding:10px 0"><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer;margin-bottom:10px">+ Nova despesa</button>';
+  if(!cls.despesas.length) return '<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa registrada.<br>Registre custas, dilig\u00eancias e outros custos do caso.<br><br><button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button></div>';
+
+  // Totalizadores
+  var totalDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalReemb = cls.despesas.filter(function(l){return l.reembolsado;}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalAbativel = cls.despesas.filter(function(l){return !l.reembolsado && l.tipo!=='despint';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totalInterno = cls.despesas.filter(function(l){return l.tipo==='despint';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+
+  var html = '<div style="padding:10px 0">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
+      +'<button onclick="abrirModalFin('+cid+',\'pagar\')" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:5px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova despesa</button>'
+    +'</div>'
+    // Cards de resumo
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'
+      +'<div style="flex:1;min-width:100px;padding:8px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Total</div><div style="font-size:14px;font-weight:800;color:#f87676">'+fV(totalDesp)+'</div></div>'
+      +'<div style="flex:1;min-width:100px;padding:8px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Abat\u00edvel no repasse</div><div style="font-size:14px;font-weight:800;color:#f59e0b">'+fV(totalAbativel)+'</div></div>'
+      +'<div style="flex:1;min-width:100px;padding:8px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">J\u00e1 reembolsado</div><div style="font-size:14px;font-weight:800;color:#4ade80">'+fV(totalReemb)+'</div></div>'
+      +(totalInterno>0?'<div style="flex:1;min-width:100px;padding:8px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:6px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Custo interno</div><div style="font-size:14px;font-weight:800;color:var(--mu)">'+fV(totalInterno)+'</div></div>':'')
+    +'</div>';
+
   cls.despesas.forEach(function(l){
-    var tipoDesp = l.tipo==='despint' ? 'Custo escrit\u00f3rio' : 'Reembols\u00e1vel / Abat\u00edvel';
-    var corTipo = l.tipo==='despint' ? 'var(--mu)' : '#f59e0b';
+    var isDespInt = l.tipo==='despint';
+    var tipoDesp = isDespInt ? 'Custo escrit\u00f3rio' : (l.reembolsado ? 'Reembolsado' : 'Reembols\u00e1vel / Abat\u00edvel');
+    var corTipo = isDespInt ? 'var(--mu)' : l.reembolsado ? '#4ade80' : '#f59e0b';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 <span style="color:'+corTipo+'">'+tipoDesp+'</span>'+(l.reembolsado?' \u00b7 <span style="color:#4ade80">\u2713 Reembolsado</span>':'')+'</div></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 <span style="color:'+corTipo+'">'+tipoDesp+'</span>'
+          +(l.reembolsado&&l.dt_reembolso?' em '+fDt(l.dt_reembolso):'')
+        +'</div></div>'
       +'<span style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</span>'
+      // Botão toggle reembolso (só para despesas do caso, não internas)
+      +(!isDespInt&&!l.reembolsado
+        ?'<button onclick="_finMarcarReembolso('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer" title="Marcar como reembolsado">\u2713 Reimb.</button>'
+        :'')
+      +(!isDespInt&&l.reembolsado
+        ?'<button onclick="_finDesmarcarReembolso('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);color:#fb923c;cursor:pointer" title="Desfazer reembolso">\u21a9</button>'
+        :'')
+      // Botão toggle tipo (reembolsável ↔ custo interno)
+      +'<button onclick="_finToggleTipoDesp('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer" title="Alternar: reembols\u00e1vel / custo interno">'+(isDespInt?'\u2191 Reimb.':'\u2193 Interno')+'</button>'
       +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
+}
+
+// Marcar despesa como reembolsada
+function _finMarcarReembolso(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1) return;
+  localLanc[i].reembolsado = true;
+  localLanc[i].dt_reembolso = new Date(HOJE).toISOString().slice(0,10);
+  sbSet('co_localLanc', localLanc);
+  marcarAlterado();
+  _reRenderFinPasta(cid);
+  showToast('Despesa marcada como reembolsada \u2713');
+}
+
+// Desmarcar reembolso
+function _finDesmarcarReembolso(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1) return;
+  delete localLanc[i].reembolsado;
+  delete localLanc[i].dt_reembolso;
+  sbSet('co_localLanc', localLanc);
+  marcarAlterado();
+  _reRenderFinPasta(cid);
+  showToast('Reembolso desfeito');
+}
+
+// Alternar tipo: despesa (reembolsável) ↔ despint (custo interno)
+function _finToggleTipoDesp(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1) return;
+  localLanc[i].tipo = localLanc[i].tipo==='despint' ? 'despesa' : 'despint';
+  sbSet('co_localLanc', localLanc);
+  marcarAlterado();
+  _reRenderFinPasta(cid);
+  showToast('Tipo alterado para '+(localLanc[i].tipo==='despint'?'custo interno':'reembols\u00e1vel'));
 }
 
 // ── ABA 5: VALORES RECEBIDOS EM NOME DO CLIENTE ──
@@ -8393,10 +8570,20 @@ function _finApuracaoTab(cid, c, locais, fV, hoje){
       +linha('Honor\u00e1rios sucumbenciais', calc.sucumbRecebida, '#4ade80', false)
       +linha('Honor\u00e1rios contratuais', calc.honContratuais, '#4ade80', false)
       +linha('= Total receita escrit\u00f3rio', calc.receitaEscritorio, '#4ade80', true)
-      +bloco('\u2463 Repasse', '#c9484a')
+      +bloco('\u2463 Despesas do caso', '#f87676')
+      +linha('Despesas abat\u00edveis (j\u00e1 descontadas acima)', calc.despAbativeis, '#f87676', false)
+      +(calc.despInternas>0?linha('Custos internos do escrit\u00f3rio', calc.despInternas, 'var(--mu)', false):'')
+      +(calc.despReembolsadas>0?linha('J\u00e1 reembolsadas', calc.despReembolsadas, '#4ade80', false):'')
+      +bloco('\u2464 Repasse', '#c9484a')
       +linha('L\u00edquido do cliente', calc.liquidoCliente, 'var(--tx)', false)
       +linha('J\u00e1 repassado', calc.jaRepassado, 'var(--mu)', false)
       +linha('Saldo pendente', calc.saldoPendRepasse, calc.saldoPendRepasse>0?'#c9484a':'#4ade80', true)
+      +(calc.custodia>0?bloco('\u2465 Cust\u00f3dia', '#fb923c')
+        +'<div style="background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px 12px;margin-top:4px">'
+          +'<div style="font-size:10px;color:#fb923c;font-weight:700;margin-bottom:4px">Valor em cust\u00f3dia do escrit\u00f3rio</div>'
+          +'<div style="font-size:18px;font-weight:800;color:#fb923c">'+fV(calc.custodia)+'</div>'
+          +'<div style="font-size:9px;color:var(--mu);margin-top:4px">Cust\u00f3dia N\u00c3O \u00e9 receita operacional. \u00c9 dinheiro do cliente sob guarda do escrit\u00f3rio.</div>'
+        +'</div>':'')
     +'</div>'
     +'<div style="display:flex;gap:6px;margin-top:10px">'
       +(calc.saldoPendRepasse>0?'<button onclick="_finGerarMsgPrestacao('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#4ade80;cursor:pointer">\ud83d\udcf2 Gerar mensagem WhatsApp</button> <button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar Repasse</button>':'<span style="font-size:11px;color:#4ade80">\u2713 Nenhum repasse pendente</span></span>')

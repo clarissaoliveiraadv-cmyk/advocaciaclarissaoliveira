@@ -11,22 +11,22 @@
 
 ## Bugs Conhecidos
 - [x] Receber não funcionava (aspas no onclick — corrigido v40)
-- [ ] Duplicação ocasional ao salvar acordo (investigar double-click)
+- [x] Duplicação ocasional ao salvar acordo (double-click guard — finGuard)
 - [ ] Conciliação bancária precisa ser redesenhada
 
 ---
 
-## Etapa 1: Estabilização (Próxima sessão)
-1. Resumo financeiro do cliente com cards corretos
-2. Contrato de honorários integrado ao lançamento
-3. Parcelas: accordion funcional, receber por parcela
-4. Contas a receber geral: listagem com filtros
+## Etapa 1: Estabilização ✅
+1. ✅ Resumo financeiro com barra de progresso + alertas contextuais + bug fix
+2. ✅ Contrato de honorários inline editável com salvamento direto
+3. ✅ Parcelas: accordion por acordo + progresso visual + receber individual
+4. ✅ Contas a receber geral: filtros (todos/vencidos/a vencer) + por cliente
 
-## Etapa 2: Despesas + Custódia
-1. Despesas do cliente com flag reembolsável/abatível
-2. Contas a pagar geral
-3. Custódia de clientes (separar de receita operacional)
-4. Reembolso: despesa gera receita automática
+## Etapa 2: Despesas + Custódia ✅
+1. ✅ Despesas com flag reembolsável/abatível + toggle tipo + cards resumo
+2. ✅ Contas a pagar geral (nova aba VF com filtros)
+3. ✅ Custódia separada na apuração (bloco visual + aviso "não é receita")
+4. ✅ Reembolso: marcar/desmarcar via botão + data de reembolso
 
 ## Etapa 3: Repasses
 1. Apuração de repasse (memória de cálculo)
