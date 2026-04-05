@@ -8240,6 +8240,17 @@ function fmSalvar(cid){
 
 var _finCurTab = 'resumo';
 
+// Cache de lançamentos por cliente — evita reprocessar a cada troca de aba
+var _finLocaisCache = {};
+var _finLocaisCacheVer = 0;
+function _finGetLocais(cid){
+  var ver = (localLanc||[]).length;
+  if(_finLocaisCache._cid===cid && _finLocaisCache._ver===ver) return _finLocaisCache._data;
+  var data = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
+  _finLocaisCache = {_cid:cid, _ver:ver, _data:data};
+  return data;
+}
+
 function _finTab(tab, cid, btn){
   _finCurTab = tab;
   // Toggle buttons
@@ -8253,7 +8264,7 @@ function _finTab(tab, cid, btn){
   var hoje = new Date().toISOString().slice(0,10);
   var c = CLIENTS.find(function(x){return x.id===cid;});
   if(!c){ el.innerHTML=''; return; }
-  var locais = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
+  var locais = _finGetLocais(cid);
 
   if(tab==='resumo')       el.innerHTML = _finResumoTab(cid, c, locais, fV, hoje);
   else if(tab==='contrato') el.innerHTML = _finContratoTab(cid, c);
@@ -8616,6 +8627,8 @@ function _finRecebidosTab(cid, c, locais, fV, hoje){
         +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 <span style="color:'+corOrigem+'">'+origem+'</span>'+(l.conta?' \u00b7 '+l.conta:'')+'</div></div>'
       +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#fb923c')+'">'+(pago?'\u2713 Recebido':'\u23f3 Pendente')+'</span>'
       +'<span style="font-size:13px;font-weight:700;color:'+(pago?'#4ade80':'#fb923c')+'">'+fV(l.valor)+'</span>'
+      +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">\u2713 Receber</button>':'')
+      +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
@@ -17020,6 +17033,7 @@ function cadastrarColaboradorModal(){
 
 
 function _reRenderFinPasta(cid){
+  _finLocaisCache = {}; // invalidar cache ao alterar dados
   const c = CLIENTS.find(function(x){return x.id===cid;});
   // 1. resumo de cards
   renderFinResumo(cid);
