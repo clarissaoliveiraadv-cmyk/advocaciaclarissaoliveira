@@ -2124,6 +2124,7 @@ function vfRender(){
     else if(tab==='fixas')       htmlTab = vfDespesasFixas();
     else if(tab==='extrato')     htmlTab = vfExtrato();
     else if(tab==='inadimplencia')htmlTab = vfInadimplencia(todos);
+    else if(tab==='logfin')      htmlTab = vfLogFinanceiro();
     else if(tab==='fluxo')       htmlTab = vfFluxo(todos);
     else                         htmlTab = vfMes(todos, mesP);
     // Cache abas pesadas (dre, extrato, inadimplencia, fluxo)
@@ -3413,6 +3414,47 @@ function vfListaDespClientes(todos){
   return html;
 }
 
+// ─── ABA: LOG FINANCEIRO ──────────────────────────────────────
+function vfLogFinanceiro(){
+  var finAcoes = ['baixa','repasse','edicao','exclusao','lancamento'];
+  var logs = (_auditLog||[]).filter(function(e){
+    return finAcoes.indexOf(e.acao)!==-1 || (e.entidade||'').toLowerCase().indexOf('financ')!==-1
+      || (e.detalhes||'').toLowerCase().indexOf('r$')!==-1;
+  });
+  if(!logs.length) return '<div style="padding:40px;text-align:center;color:var(--mu);font-style:italic">Nenhuma altera\u00e7\u00e3o financeira registrada.</div>';
+
+  var fmtDt = function(ts){
+    if(!ts) return '\u2014';
+    var d = new Date(ts);
+    return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  };
+  var corAcao = function(a){
+    if(a==='baixa') return '#4ade80';
+    if(a==='repasse') return '#c9484a';
+    if(a==='exclusao') return '#f87676';
+    if(a==='edicao') return '#f59e0b';
+    return '#60a5fa';
+  };
+
+  var html = '<div style="max-width:860px"><div style="font-size:10px;color:var(--mu);margin-bottom:12px">'+logs.length+' altera\u00e7\u00f5es financeiras registradas</div>';
+  html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--sf3)">'
+    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Data/hora</th>'
+    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">A\u00e7\u00e3o</th>'
+    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Usu\u00e1rio</th>'
+    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Detalhes</th>'
+  +'</tr></thead><tbody>';
+  logs.slice(0,100).forEach(function(e){
+    html += '<tr style="border-bottom:1px solid var(--bd)">'
+      +'<td style="padding:7px 12px;font-size:11px;color:var(--mu);white-space:nowrap">'+fmtDt(e.ts)+'</td>'
+      +'<td style="padding:7px 12px;font-size:11px;font-weight:700;color:'+corAcao(e.acao)+'">'+escapeHtml(e.acao||'\u2014')+'</td>'
+      +'<td style="padding:7px 12px;font-size:11px;color:var(--mu)">'+escapeHtml(e.usuario||'sistema')+'</td>'
+      +'<td style="padding:7px 12px;font-size:11px;color:var(--tx)">'+escapeHtml((e.detalhes||'')+(e.entidade?' \u2014 '+e.entidade:''))+'</td>'
+    +'</tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
 // ─── ABA: DESPESAS FIXAS ──────────────────────────────────────
 function vfDespesasFixas(){
   const hoje    = new Date(HOJE).toISOString().slice(0,10);
@@ -3974,6 +4016,29 @@ function vfDRE(todos){
   const nomeMes = MA[parseInt(mes.slice(5))-1]+'/'+mes.slice(0,4);
   const fmtV2   = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
 
+  // Comparação com mês anterior
+  var dMesAnt = new Date(mes+'-15');
+  dMesAnt.setMonth(dMesAnt.getMonth()-1);
+  var mesAnt = dMesAnt.toISOString().slice(0,7);
+  var itensAnt = todos.filter(function(l){return (l.data||l.venc||'').startsWith(mesAnt);});
+  var recAnt = soma(itensAnt.filter(function(l){return l.tipo==='receber'&&!isRep(l);}));
+  var despAnt = soma(itensAnt.filter(function(l){return l.tipo==='pagar'&&!isRep(l);}));
+  var resAnt = recAnt-despAnt;
+  var varRec = recAnt>0?Math.round((totRec-recAnt)/recAnt*100):0;
+  var varDesp = despAnt>0?Math.round((totDesp-despAnt)/despAnt*100):0;
+  var varRes = resAnt!==0?Math.round((res-resAnt)/Math.abs(resAnt)*100):0;
+  var seta = function(v){ return v>0?'\u2191 +'+v+'%':v<0?'\u2193 '+v+'%':'\u2192 0%'; };
+  var corVar = function(v, inv){ return v>0?(inv?'#f87676':'#4ade80'):v<0?(inv?'#4ade80':'#f87676'):'var(--mu)'; };
+
+  // Receita por cliente
+  var recPorCli = {};
+  receitas.forEach(function(l){
+    var cli = l.cliente||'Escrit\u00f3rio';
+    if(!recPorCli[cli]) recPorCli[cli]=0;
+    recPorCli[cli] += parseFloat(l.valor)||0;
+  });
+  var cliRanking = Object.entries(recPorCli).sort(function(a,b){return b[1]-a[1];});
+
   // Group receitas
   var rGrupos={};
   receitas.forEach(function(l){
@@ -4041,17 +4106,32 @@ function vfDRE(todos){
       +'<div style="border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:12px;background:rgba(76,175,125,.05)">'
         +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#4ade80;margin-bottom:4px">Receitas</div>'
         +'<div style="font-size:22px;font-weight:800;color:#4ade80">'+fmtV2(totRec)+'</div>'
+        +(recAnt>0?'<div style="font-size:10px;color:'+corVar(varRec,false)+';margin-top:3px">'+seta(varRec)+' vs m\u00eas ant.</div>':'')
       +'</div>'
       +'<div style="border:1px solid rgba(201,72,74,.25);border-radius:8px;padding:12px;background:rgba(201,72,74,.05)">'
         +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#f87676;margin-bottom:4px">Despesas</div>'
         +'<div style="font-size:22px;font-weight:800;color:#f87676">'+fmtV2(totDesp)+'</div>'
+        +(despAnt>0?'<div style="font-size:10px;color:'+corVar(varDesp,true)+';margin-top:3px">'+seta(varDesp)+' vs m\u00eas ant.</div>':'')
       +'</div>'
       +'<div style="border:1px solid '+(res>=0?'rgba(76,175,125,.25)':'rgba(201,72,74,.25)')+';border-radius:8px;padding:12px;background:'+(res>=0?'rgba(76,175,125,.05)':'rgba(201,72,74,.05)')+'">'
-        +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:'+(res>=0?'#4ade80':'#c9484a')+';margin-bottom:4px">Resultado · '+margem+'%</div>'
+        +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:'+(res>=0?'#4ade80':'#c9484a')+';margin-bottom:4px">Resultado \u00b7 '+margem+'%</div>'
         +'<div style="font-size:22px;font-weight:800;color:'+(res>=0?'#4ade80':'#c9484a')+'">'+(res>=0?'+':'')+fmtV2(res)+'</div>'
-        +(totCust>0?'<div style="font-size:10px;color:#fb923c;margin-top:3px">Custódia: '+fmtV2(totCust)+'</div>':'')
+        +(totCust>0?'<div style="font-size:10px;color:#fb923c;margin-top:3px">Cust\u00f3dia: '+fmtV2(totCust)+'</div>':'')
       +'</div>'
     +'</div>'
+    // Receita por cliente (ranking)
+    +(cliRanking.length>1?'<div style="margin-bottom:16px;border:1px solid var(--bd);border-radius:8px;overflow:hidden">'
+      +'<div style="padding:8px 16px;background:var(--sf3);font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);letter-spacing:.06em">Receita por cliente \u2014 '+nomeMes+'</div>'
+      +cliRanking.slice(0,10).map(function(e){
+        var perc = totRec>0?Math.round(e[1]/totRec*100):0;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--bd)">'
+          +'<div style="flex:1;font-size:11px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(e[0]).replace(/'/g,"\\'")+'\')">'+escapeHtml(e[0])+'</div>'
+          +'<div style="width:80px;height:4px;background:var(--sf3);border-radius:3px;overflow:hidden"><div style="width:'+perc+'%;height:100%;background:#4ade80;border-radius:3px"></div></div>'
+          +'<div style="font-size:10px;color:var(--mu);min-width:30px;text-align:right">'+perc+'%</div>'
+          +'<div style="font-size:12px;font-weight:700;color:#4ade80;min-width:100px;text-align:right">'+fmtV2(e[1])+'</div>'
+        +'</div>';
+      }).join('')
+    +'</div>':'')
     +'<div style="border:1px solid var(--bd);border-radius:8px;overflow:hidden">'
       +'<div style="display:flex;justify-content:space-between;padding:10px 16px;background:rgba(76,175,125,.08);border-bottom:1px solid rgba(76,175,125,.2)">'
         +'<span style="font-size:12px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:.06em">📥 Receitas</span>'
@@ -12213,6 +12293,31 @@ function renderHomeWeek(){
   var vmBtn = hw.querySelector('.hw-ver-mais');
   if(vmBtn) vmBtn.onclick = function(){ goView('va', document.getElementById('nav-agenda')); };
 }
+
+// ── AUTO-STATUS: marcar lançamentos vencidos como "vencido" ──
+function _finAutoStatusVencidos(){
+  var hoje = new Date(HOJE).toISOString().slice(0,10);
+  var alterados = 0;
+  (localLanc||[]).forEach(function(l){
+    if(!l.pago && l.status!=='pago' && l.status!=='vencido' && l.venc && l.venc < hoje){
+      l.status = 'vencido';
+      alterados++;
+    }
+  });
+  (finLancs||[]).forEach(function(l){
+    if(!l.pago && l.status!=='pago' && l.status!=='vencido' && l.venc && l.venc < hoje){
+      l.status = 'vencido';
+      alterados++;
+    }
+  });
+  if(alterados > 0){
+    sbSet('co_localLanc', localLanc);
+    sbSet('co_fin', finLancs);
+  }
+}
+
+// Executar auto-status ao carregar
+try { _finAutoStatusVencidos(); } catch(e){}
 
 function atualizarStats(){
   const hoje = HS;

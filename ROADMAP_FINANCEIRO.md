@@ -34,12 +34,12 @@
 3. ✅ Prestação de contas com histórico de repasses + dados bancários + WhatsApp detalhado
 4. ✅ Gerar repasse com dados bancários + comprovante auto-copiado + andamento na pasta
 
-## Etapa 4: Caixa + DRE + Relatórios
-1. Caixa real por conta bancária (Inter, CEF, Dinheiro)
-2. DRE gerencial com plano de contas real
-3. Relatórios: inadimplência, receita por cliente/área, fluxo
-4. Logs de alterações financeiras
-5. Automações (despesa recorrente, status automático por vencimento)
+## Etapa 4: Caixa + DRE + Relatórios ✅
+1. ✅ Caixa real já implementado com saldo corrido + extrato Inter
+2. ✅ DRE com comparação mês anterior (% variação) + receita por cliente (ranking)
+3. ✅ Inadimplência com aging buckets já implementado + fluxo de caixa projetado
+4. ✅ Log financeiro (nova aba VF) — filtra audit log por ações financeiras
+5. ✅ Auto-status: lançamentos vencidos marcados automaticamente ao abrir app
 
 ---
 
