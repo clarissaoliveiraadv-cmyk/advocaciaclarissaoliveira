@@ -8659,6 +8659,71 @@ function _finRepassesBancoTab(cid, c, locais, fV, hoje){
   return html+'</div>';
 }
 
+// ── GERAR REPASSE ──
+function _finGerarRepasse(cid){
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+  var locais = _finGetLocais(cid);
+  var cls = _finClassificar2(locais);
+  var totCli = 0;
+  cls.honorarios.forEach(function(l){
+    var calc = _finCalcLanc(l);
+    if(l.recebido||l.pago||l.status==='pago') totCli += calc.valor_cliente;
+  });
+  var jaRep = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var saldo = roundMoney(Math.max(0, totCli - jaRep));
+  if(saldo <= 0){ showToast('Nenhum repasse pendente'); return; }
+  var fV2 = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var dadosBanc = getDadosBancarios(c.cliente);
+  var bancHtml = dadosBanc
+    ? '<div style="background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.2);border-radius:6px;padding:10px 12px;margin-bottom:12px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#60a5fa;margin-bottom:4px">Dados banc\u00e1rios</div>'
+      +'<div style="font-size:11px;color:var(--tx)">'
+        +(dadosBanc.nomebenef||'')+(dadosBanc.banco?' \u00b7 '+dadosBanc.banco:'')+(dadosBanc.pix?'<br>PIX: <strong>'+escapeHtml(dadosBanc.pix)+'</strong>':'')
+      +'</div></div>'
+    : '';
+  abrirModal('\ud83d\udce4 Gerar Repasse \u2014 '+escapeHtml(c.cliente),
+    '<div style="background:var(--sf3);border-radius:8px;padding:12px;margin-bottom:12px">'
+      +'<div style="font-size:11px;color:var(--mu)">Valor do cliente (recebido): <strong style="color:#60a5fa">'+fV2(totCli)+'</strong></div>'
+      +'<div style="font-size:11px;color:var(--mu)">J\u00e1 repassado: '+fV2(jaRep)+'</div>'
+      +'<div style="font-size:11px;color:var(--mu)">Saldo a repassar: <strong style="color:#c9484a">'+fV2(saldo)+'</strong></div>'
+    +'</div>'
+    +bancHtml
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor do repasse (R$)</label><input class="fm-inp" type="number" id="rep-valor" value="'+saldo.toFixed(2)+'" min="0.01" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="rep-data" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Forma de envio</label><select class="fm-inp" id="rep-conta"><option>PIX</option><option>TED</option><option>Dep\u00f3sito</option><option>Dinheiro</option></select></div>'
+      +'<div><label class="fm-lbl">Observa\u00e7\u00e3o</label><input class="fm-inp" id="rep-obs" placeholder="Comprovante, refer\u00eancia..."></div>'
+    +'</div>',
+  function(){
+    var val = parseFloat(document.getElementById('rep-valor')?.value)||0;
+    var data = document.getElementById('rep-data')?.value||new Date().toISOString().slice(0,10);
+    var conta = document.getElementById('rep-conta')?.value||'';
+    var obs = (document.getElementById('rep-obs')?.value||'').trim();
+    if(val <= 0){ showToast('Informe o valor'); return; }
+    if(val > saldo + 0.01){ showToast('Valor excede o saldo ('+fV2(saldo)+')'); return; }
+    localLanc.push({
+      id: genId(), tipo:'repasse', direcao:'pagar',
+      id_processo: cid, cliente: c.cliente,
+      desc:'Repasse ao cliente', valor: roundMoney(val),
+      data:data, venc:data, status:'pago', pago:true, dt_baixa:data,
+      forma:conta, conta:conta, obs:obs, _repasse_acordo:true
+    });
+    sbSet('co_localLanc', localLanc);
+    marcarAlterado(); fecharModal();
+    _finLocaisCache = {};
+    _reRenderFinPasta(cid);
+    var comprovante = '*COMPROVANTE DE REPASSE*\nCliente: '+c.cliente+'\nData: '+fDt(data)+'\nValor: '+fV2(val)+'\nForma: '+(conta||'\u2014')+'\n'+(obs?'Ref: '+obs+'\n':'')+'\n_CO Advocacia_';
+    navigator.clipboard.writeText(comprovante).then(function(){
+      showToast('\u2713 Repasse de '+fV2(val)+' registrado. Comprovante copiado!');
+    }).catch(function(){
+      showToast('\u2713 Repasse de '+fV2(val)+' registrado');
+    });
+  }, '\ud83d\udce4 Confirmar Repasse');
+}
+
 // ── SALVAR DADOS BANCÁRIOS ──
 function _finSalvarBanco(cid){
   var c = CLIENTS.find(function(x){return x.id===cid;});
