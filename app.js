@@ -8329,7 +8329,8 @@ function _finToggleRecebido(cid, lid){
 // ── PREVIEW HONORÁRIO (MODAL) ──
 function _finPreviewHon(){
   var vi = parseFloat(document.getElementById('fh-vi')?.value)||0;
-  var vp = parseFloat(document.getElementById('fh-vp')?.value)||0;
+  var nparc = parseInt(document.getElementById('fh-nparc')?.value)||1;
+  var vp = nparc > 1 ? roundMoney(vi / nparc) : 0;
   var ress = parseFloat(document.getElementById('fh-ress')?.value)||0;
   var perc = parseFloat(document.getElementById('fh-perc')?.value)||0;
   var pn = (document.getElementById('fh-pnome')?.value||'').trim();
@@ -8338,13 +8339,21 @@ function _finPreviewHon(){
   var fmt = function(v){return 'R$ '+(isFinite(v)?v:0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var el = document.getElementById('fh-preview');
   if(!el) return;
-  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">'
-    +'<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">Base c\u00e1lculo</div><div style="font-size:12px;font-weight:700;color:var(--tx)">'+fmt(calc.base_calculo)+'</div></div>'
-    +'<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">Honor\u00e1rios</div><div style="font-size:12px;font-weight:700;color:#D4AF37">'+fmt(calc.honorarios_contratuais)+'</div></div>'
-    +(pn?'<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">Parceiro</div><div style="font-size:12px;font-weight:700;color:#fb923c">'+fmt(calc.valor_parceiro)+'</div></div>':'')
-    +'<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">L\u00edq. escrit\u00f3rio</div><div style="font-size:12px;font-weight:700;color:#4ade80">'+fmt(calc.honorarios_liquidos_escritorio)+'</div></div>'
-    +'<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">Valor cliente</div><div style="font-size:12px;font-weight:700;color:#60a5fa">'+fmt(calc.valor_cliente)+'</div></div>'
-  +'</div>';
+  var pcard = function(lbl,val,cor){ return '<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">'+lbl+'</div><div style="font-size:12px;font-weight:700;color:'+cor+'">'+fmt(val)+'</div></div>'; };
+  el.innerHTML = (nparc>1?'<div style="font-size:10px;color:#D4AF37;font-weight:700;margin-bottom:6px">'+nparc+' parcelas de '+fmt(vp)+' (total '+fmt(vi)+')</div>':'')
+    +'<div style="font-size:9px;color:var(--mu);margin-bottom:4px">'+(nparc>1?'Valores por parcela:':'')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">'
+    +pcard('Base c\u00e1lculo',calc.base_calculo,'var(--tx)')
+    +pcard('Honor\u00e1rios ('+perc+'%)',calc.honorarios_contratuais,'#D4AF37')
+    +(pn?pcard('Parceiro',calc.valor_parceiro,'#fb923c'):'')
+    +pcard('L\u00edq. escrit\u00f3rio',calc.honorarios_liquidos_escritorio,'#4ade80')
+    +pcard('Valor cliente',calc.valor_cliente,'#60a5fa')
+  +'</div>'
+  +(nparc>1?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bd)">'
+    +pcard('TOTAL honor\u00e1rios',roundMoney(calc.honorarios_contratuais*nparc),'#D4AF37')
+    +pcard('TOTAL l\u00edq. escrit.',roundMoney(calc.honorarios_liquidos_escritorio*nparc),'#4ade80')
+    +pcard('TOTAL cliente',roundMoney(calc.valor_cliente*nparc),'#60a5fa')
+  +'</div>':'');
   // show/hide parceiro fields
   var pf = document.getElementById('fh-pfields');
   if(pf) pf.style.display = pn ? 'block' : 'none';
@@ -8362,7 +8371,7 @@ function _finNovoHonorario(cid){
     +'</div>'
     +'<div class="fm-row">'
       +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="fh-vi" min="0" step="0.01" oninput="_finPreviewHon()"></div>'
-      +'<div><label class="fm-lbl">Valor parcela (R$)</label><input class="fm-inp" type="number" id="fh-vp" min="0" step="0.01" placeholder="Prioridade sobre integral" oninput="_finPreviewHon()"></div>'
+      +'<div><label class="fm-lbl">N\u00ba de parcelas</label><input class="fm-inp" type="number" id="fh-nparc" min="1" max="120" value="1" placeholder="1 = \u00e0 vista" oninput="_finPreviewHon()"></div>'
       +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="fh-ress" min="0" step="0.01" value="0" oninput="_finPreviewHon()"></div>'
     +'</div>'
     +'<div class="fm-row">'
@@ -8382,7 +8391,8 @@ function _finNovoHonorario(cid){
   function(){
     var desc = (document.getElementById('fh-desc')?.value||'').trim();
     var vi = parseFloat(document.getElementById('fh-vi')?.value)||0;
-    var vp = parseFloat(document.getElementById('fh-vp')?.value)||0;
+    var nparc = parseInt(document.getElementById('fh-nparc')?.value)||1;
+    var vp = nparc > 1 ? roundMoney(vi / nparc) : 0;
     var ress = parseFloat(document.getElementById('fh-ress')?.value)||0;
     var perc = parseFloat(document.getElementById('fh-perc')?.value)||0;
     var pnome = (document.getElementById('fh-pnome')?.value||'').trim();
@@ -8392,25 +8402,35 @@ function _finNovoHonorario(cid){
     var recebido = document.getElementById('fh-recebido')?.checked||false;
     var obs = (document.getElementById('fh-obs')?.value||'').trim();
     if(!desc){ showToast('Informe a descri\u00e7\u00e3o'); return; }
-    if(!vi && !vp){ showToast('Informe o valor integral ou da parcela'); return; }
+    if(!vi){ showToast('Informe o valor integral'); return; }
     if(perc <= 0){ showToast('Informe o % de honor\u00e1rios'); return; }
     if(pnome && pperc <= 0){ showToast('Informe o % do parceiro'); return; }
-    var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
-    localLanc.push({
-      id: genId(), tipo:'honorario', direcao:'receber',
-      id_processo: cid, cliente: c.cliente,
-      desc:desc, valor_integral:vi, valor_parcela:vp, valor:calc.base_calculo,
-      ressarcimento:ress, percentual_honorarios:perc,
-      parceiro_nome:pnome, parceiro_percentual:pperc,
-      data:data, forma:forma, recebido:recebido,
-      status: recebido?'pago':'pendente', pago:recebido,
-      dt_baixa: recebido?data:'', obs:obs
-    });
+    var grupoId = nparc > 1 ? genId() : null;
+    for(var p = 0; p < nparc; p++){
+      var descP = nparc > 1 ? desc+' ('+(p+1)+'/'+nparc+')' : desc;
+      var dtP = data;
+      if(nparc > 1 && p > 0){
+        var d = new Date(data+'T12:00:00');
+        d.setMonth(d.getMonth()+p);
+        dtP = d.toISOString().slice(0,10);
+      }
+      var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
+      localLanc.push({
+        id: genId(), tipo:'honorario', direcao:'receber',
+        id_processo: cid, cliente: c.cliente,
+        desc:descP, valor_integral:vi, valor_parcela:vp, valor:calc.base_calculo,
+        ressarcimento:ress, percentual_honorarios:perc,
+        parceiro_nome:pnome, parceiro_percentual:pperc,
+        data:dtP, forma:forma, recebido:false,
+        status:'pendente', pago:false, dt_baixa:'', obs:obs,
+        _grupo: grupoId, _parcela:p+1, _total_parc:nparc
+      });
+    }
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
     _finLocaisCache = {};
     _reRenderFinPasta(cid);
-    showToast('Honor\u00e1rio lan\u00e7ado \u2713');
+    showToast(nparc > 1 ? nparc+' parcelas lan\u00e7adas \u2713' : 'Honor\u00e1rio lan\u00e7ado \u2713');
   }, '\ud83d\udcbe Salvar honor\u00e1rio');
   setTimeout(_finPreviewHon, 100);
 }
