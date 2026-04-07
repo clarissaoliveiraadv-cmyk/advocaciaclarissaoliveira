@@ -527,14 +527,15 @@ function ctcAbrirFicha(id){
   const telLink  = c.tel  ? `<a href="tel:${c.tel}">${c.tel}</a>` : '';
   const mailLink = c.email? `<a href="mailto:${c.email}">${c.email}</a>` : '';
 
-  const secIdent = `
-    <div class="ctc-sec">👤 Identificação</div>
+  var secIdent = `
+    <div class="ctc-sec">\ud83d\udc64 Identifica\u00e7\u00e3o</div>
     <div class="ctc-grid">
-      ${field('CPF', c.cpf)}
+      ${field('CPF/CNPJ', c.doc||c.cpf||'')}
+      ${c.pis?field('PIS/PASEP/NIT', c.pis):''}
       ${field('Data de nascimento', ex.nasc)}
       ${field('Naturalidade', ex.natural)}
       ${field('Estado civil', ex.ecivil)}
-      ${field('Nome da mãe', ex.mae)}
+      ${field('Nome da m\u00e3e', ex.mae)}
     </div>`;
 
   const secContato = `
@@ -547,13 +548,18 @@ function ctcAbrirFicha(id){
       ${field('CEP', ex.cep)}
     </div>`;
 
-  const secProf = (ex.prof||ex.nit||ex.ctps) ? `
-    <div class="ctc-sec">💼 Profissional</div>
+  var pisVal = c.pis||ex.nit||ex.pis||'';
+  var secProf = (ex.prof||pisVal||ex.ctps) ? `
+    <div class="ctc-sec">\ud83d\udcbc Profissional</div>
     <div class="ctc-grid">
-      ${field('Profissão', ex.prof)}
-      ${field('NIT / PIS', ex.nit)}
+      ${field('Profiss\u00e3o', ex.prof)}
+      ${field('PIS / PASEP / NIT', pisVal)}
       ${field('CTPS', ex.ctps)}
-    </div>` : '';
+    </div>` : (c.pis ? `
+    <div class="ctc-sec">\ud83d\udcbc Profissional</div>
+    <div class="ctc-grid">
+      ${field('PIS / PASEP / NIT', c.pis)}
+    </div>` : '');
 
   // Dados bancários — ocultos por padrão
   const hasBanco = ex.banco||ex.ag||ex.conta||ex.pix;
@@ -11777,21 +11783,28 @@ function novoContato(){
         <input class="fm-inp" id="nc-tel" placeholder="(00) 00000-0000">
       </div>
     </div>
-    <div style="margin-bottom:10px">
-      <label class="fm-lbl">E-mail</label>
-      <input class="fm-inp" id="nc-email" type="email" placeholder="email@exemplo.com">
+    <div id="nc-pis-row" style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1">
+        <label class="fm-lbl">PIS/PASEP/NIT</label>
+        <input class="fm-inp" id="nc-pis" placeholder="000.00000.00-0">
+      </div>
+      <div style="flex:1">
+        <label class="fm-lbl">E-mail</label>
+        <input class="fm-inp" id="nc-email" type="email" placeholder="email@exemplo.com">
+      </div>
     </div>
     <div style="margin-bottom:10px">
       <label class="fm-lbl">Observações</label>
       <input class="fm-inp" id="nc-obs" placeholder="Cargo, relação, notas...">
     </div>
   `, async ()=>{
-    const nome = document.getElementById('nc-nome')?.value.trim();
+    var nome = document.getElementById('nc-nome')?.value.trim();
     if(!nome){ showToast('Informe o nome'); return; }
-    const tipo = document.getElementById('ctc-pj-btn')?.classList.contains('on') ? 'pj' : 'pf';
-    const novoCtc = {
-      id:'ctc'+Date.now(), nome,
-      tipo, doc: document.getElementById('nc-doc')?.value||'',
+    var tipo = document.getElementById('ctc-pj-btn')?.classList.contains('on') ? 'pj' : 'pf';
+    var novoCtc = {
+      id:'ctc'+genId(), nome:nome,
+      tipo:tipo, doc: document.getElementById('nc-doc')?.value||'',
+      pis: document.getElementById('nc-pis')?.value||'',
       tel:  document.getElementById('nc-tel')?.value||'',
       email:document.getElementById('nc-email')?.value||'',
       obs:  document.getElementById('nc-obs')?.value||''
@@ -12395,18 +12408,21 @@ function editarMovimentacao(cid, idx){
 
 function novoConsulta(){ novoAtendimento(); }
 function setCtcTipo(tipo){
-  const pfBtn = document.getElementById('ctc-pf-btn');
-  const pjBtn = document.getElementById('ctc-pj-btn');
-  const lbl = document.getElementById('ctc-doc-lbl');
-  const inp = document.getElementById('nc-doc');
+  var pfBtn = document.getElementById('ctc-pf-btn');
+  var pjBtn = document.getElementById('ctc-pj-btn');
+  var lbl = document.getElementById('ctc-doc-lbl');
+  var inp = document.getElementById('nc-doc');
+  var pisRow = document.getElementById('nc-pis-row');
   if(tipo==='pf'){
     pfBtn?.classList.add('on'); pjBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CPF';
     if(inp) inp.placeholder='000.000.000-00';
+    if(pisRow) pisRow.style.display='flex';
   } else {
     pjBtn?.classList.add('on'); pfBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CNPJ';
     if(inp) inp.placeholder='00.000.000/0000-00';
+    if(pisRow) pisRow.style.display='none';
   }
 }
 
