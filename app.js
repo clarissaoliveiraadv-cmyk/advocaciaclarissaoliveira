@@ -3440,7 +3440,7 @@ function vfFluxo(todos){
     +'<div style="font-size:10px;color:var(--mu);margin-top:3px">Pendente de recebimento →</div>'
   +'</div>';
   // Vencidos
-  html += '<div style="background:var(--sf2);border:1px solid '+(totVenc>0?'rgba(201,72,74,.4)':'var(--bd)')+';border-radius:8px;padding:14px;cursor:pointer" onclick="vfSetTab(\'inadimplencia\',null)">'
+  html += '<div style="background:var(--sf2);border:1px solid '+(totVenc>0?'rgba(201,72,74,.4)':'var(--bd)')+';border-radius:8px;padding:14px;cursor:pointer" onclick="vfSetTab(\'recebimentos\',null)">'
     +'<div style="font-size:10px;color:'+(totVenc>0?'#c9484a':'var(--mu)')+';text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin-bottom:4px">'+(totVenc>0?'⚠ ':'')+'Vencidos</div>'
     +'<div style="font-size:22px;font-weight:800;color:'+(totVenc>0?'#c9484a':'var(--mu)')+'">'+fmtV(totVenc)+'</div>'
     +'<div style="font-size:10px;color:var(--mu);margin-top:3px">'+vencidos.length+' lançamento'+(vencidos.length!==1?'s':'')+' →</div>'
@@ -9395,9 +9395,9 @@ function renderHomeAlerts(){
 
   if(prazos.length)    alertasHtml += alerta('color-mix(in srgb,#f59e0b 8%,var(--sf2))','#7c4a00','#f59e0b','⚠',`<strong>${prazos.length} prazo${prazos.length>1?'s':''}</strong> nos próximos 7 dias`,'Ver agenda →','goView(\'va\',document.querySelector(\'.hnav-btn:nth-child(2)\'))');
   if(audiencias.length) alertasHtml += alerta('color-mix(in srgb,#f87676 8%,var(--sf2))','#7c1a1a','#f87676','🏛',`<strong>${audiencias.length} audiência${audiencias.length>1?'s':''}</strong> nos próximos 7 dias`,'Ver agenda →','goView(\'va\',document.querySelector(\'.hnav-btn:nth-child(2)\'))');
-  if(totalVenc>0)       alertasHtml += alerta('color-mix(in srgb,#c9484a 6%,var(--sf2))','#7f1d1d','#c9484a','💸',`<strong>${fBRL(totalVenc)}</strong> em recebimentos vencidos — ${vencidos.length} lançamento${vencidos.length>1?'s':''}  `,'Cobrar →','goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'inadimplencia\',null);},100)');
+  if(totalVenc>0)       alertasHtml += alerta('color-mix(in srgb,#c9484a 6%,var(--sf2))','#7f1d1d','#c9484a','💸',`<strong>${fBRL(totalVenc)}</strong> em recebimentos vencidos — ${vencidos.length} lançamento${vencidos.length>1?'s':''}  `,'Cobrar →','goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'recebimentos\',null);},100)');
   if(totalRepasse>0)    alertasHtml += alerta('color-mix(in srgb,#D4AF37 6%,var(--sf2))','#7c5a00','#D4AF37','📤',`<strong>${fBRL(totalRepasse)}</strong> em repasses pendentes — ${repassesPend.length} cliente${repassesPend.length>1?'s':''}`,'Pagar →','goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'pagar\',null);},100)');
-  if(despVencer.length) alertasHtml += alerta('color-mix(in srgb,#f87676 5%,var(--sf2))','#5a1a1a','#f87676','🏢',`<strong>${fBRL(totalDesp)}</strong> em despesas vencem em 7 dias`,'Ver →','goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'fixas\',null);},100)');
+  if(despVencer.length) alertasHtml += alerta('color-mix(in srgb,#f87676 5%,var(--sf2))','#5a1a1a','#f87676','🏢',`<strong>${fBRL(totalDesp)}</strong> em despesas vencem em 7 dias`,'Ver →','goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'despesas\',null);},100)');
 
   // Notificação financeira no título da aba
   if(typeof atualizarStats==='function') atualizarStats();
@@ -9658,7 +9658,7 @@ function renderFinDash(){
         style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--mu);padding:0 4px">${olho}</button>
     </div>
     <div class="fin-dash-cards">
-      ${custodia>0?`<div class="fin-card" style="background:rgba(251,146,60,.07);border:1px solid rgba(251,146,60,.4);border-radius:8px;padding:8px 12px;cursor:pointer" onclick="vfTab('pagar')">
+      ${custodia>0?`<div class="fin-card" style="background:rgba(251,146,60,.07);border:1px solid rgba(251,146,60,.4);border-radius:8px;padding:8px 12px;cursor:pointer" onclick="vfSetTab('despesas')">
         <div class="fin-card-lbl" style="color:#fb923c;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">💼 Custódia clientes</div>
         <div class="fin-card-val" style="color:#fb923c">${mascara(custodia)}</div>
         <div style="font-size:9px;color:#fb923c;opacity:.7;margin-top:2px">Dinheiro de clientes em caixa</div>
@@ -17166,7 +17166,7 @@ function wfRodar(){
     var fV2 = function(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
     alertas.push({tipo:'fin', titulo:'💰 '+honVenc+' honorário'+(honVenc>1?'s':'')+' vencido'+(honVenc>1?'s':''),
       corpo:'Total: '+fV2(honTot), tag:'hon-vencidos',
-      onclick: function(){ goFin(); vfSetTab('receber'); }});
+      onclick: function(){ goFin(); vfSetTab('recebimentos'); }});
   }
 
   // 4. Repasses pendentes urgentes (vencendo em 3 dias ou vencidos)
@@ -17195,7 +17195,7 @@ function wfRodar(){
     var totCob=cobrar2.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
     alertas.push({tipo:'cobrar', titulo:'📣 '+cobrar2.length+' cobrança'+(cobrar2.length>1?'s':'')+' para fazer',
       corpo:fV5(totCob)+' vencem nos próximos 2 dias', tag:'cobrar',
-      onclick: function(){ goFin(); vfSetTab('receber'); }});
+      onclick: function(){ goFin(); vfSetTab('recebimentos'); }});
   }
 
   // Disparar (máx 5, priorizados)
