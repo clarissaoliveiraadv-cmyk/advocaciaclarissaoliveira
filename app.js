@@ -12137,6 +12137,44 @@ function _finAutoStatusVencidos(){
 // Executar auto-status ao carregar
 try { _finAutoStatusVencidos(); } catch(e){}
 
+// ── Limpeza: remover registros de teste de todos os módulos ──
+(function _limparTestes(){
+  var testRe = /\bteste?\b/i;
+  var changed = false;
+
+  // localLanc (honorários, despesas, repasses da pasta)
+  var llAntes = (localLanc||[]).length;
+  localLanc = (localLanc||[]).filter(function(l){ return !testRe.test(l.desc||''); });
+  if(localLanc.length < llAntes){ sbSet('co_localLanc', localLanc); changed=true; }
+
+  // finLancs (financeiro global)
+  var flAntes = (finLancs||[]).length;
+  finLancs = (finLancs||[]).filter(function(l){ return !testRe.test(l.desc||'') && !testRe.test(l.cliente||''); });
+  if(finLancs.length < flAntes){ sbSet('co_fin', finLancs); changed=true; }
+
+  // localAg (compromissos/prazos)
+  var agAntes = (localAg||[]).length;
+  localAg = (localAg||[]).filter(function(l){ return !testRe.test(l.titulo||'') && !testRe.test(l.descricao||''); });
+  if(localAg.length < agAntes){ sbSet('co_ag', localAg); invalidarAllPend(); changed=true; }
+
+  // vkTasks (tarefas)
+  var tkAntes = (vkTasks||[]).length;
+  vkTasks = (vkTasks||[]).filter(function(t){ return !testRe.test(t.titulo||''); });
+  if(vkTasks.length < tkAntes){ vkSalvar(); changed=true; }
+
+  // localMov (andamentos) — por cid
+  if(localMov && typeof localMov==='object'){
+    Object.keys(localMov).forEach(function(cid){
+      var antes = (localMov[cid]||[]).length;
+      localMov[cid] = (localMov[cid]||[]).filter(function(m){ return !testRe.test(m.movimentacao||''); });
+      if(localMov[cid].length < antes) changed=true;
+    });
+    if(changed) sbSet('co_localMov', localMov);
+  }
+
+  if(changed) _finLocaisCache={};
+})();
+
 function atualizarStats(){
   const hoje = HS;
   const semFim = new Date(HOJE); semFim.setDate(semFim.getDate()+7);
