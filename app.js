@@ -1550,6 +1550,46 @@ function _renderTarefasPasta(cid){
   return html;
 }
 
+// ── Criar tarefa a partir de andamento ──
+function _criarTarefaDeAndamento(cid, idx){
+  var c = findClientById(cid);
+  if(!c) return;
+  var movs = (localMov[cid]||[]).concat((c.movimentacoes||[]).map(function(m){return {data:m.data,movimentacao:m.desc||m.movimentacao};}));
+  var m = movs[idx];
+  if(!m) return;
+  var txt = (m.movimentacao||m.desc||m.descricao||'').slice(0,120);
+  var titulo = 'Providenciar: '+txt;
+
+  abrirModal('\ud83d\udccb Criar Tarefa do Andamento',
+    '<div style="background:var(--sf3);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--mu)">'
+      +'<strong>Andamento:</strong> '+escapeHtml(txt)
+    +'</div>'
+    +'<div><label class="fm-lbl">T\u00edtulo da tarefa</label>'
+      +'<input class="fm-inp" id="tma-titulo" value="'+escapeHtml(titulo)+'"></div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Prazo</label><input class="fm-inp" type="date" id="tma-prazo"></div>'
+      +'<div><label class="fm-lbl">Prioridade</label><select class="fm-inp" id="tma-prior"><option value="alta">Alta</option><option value="media" selected>M\u00e9dia</option><option value="baixa">Baixa</option></select></div>'
+      +'<div><label class="fm-lbl">Respons\u00e1vel</label><select class="fm-inp" id="tma-resp"><option>Clarissa</option><option>Assistente</option><option>Estagi\u00e1rio 1</option><option>Estagi\u00e1rio 2</option></select></div>'
+    +'</div>',
+  function(){
+    var tit = document.getElementById('tma-titulo')?.value.trim();
+    if(!tit){ showToast('Informe o t\u00edtulo'); return; }
+    vkTasks.push({
+      id:'vk'+genId(), titulo:tit, tipo:'tarefa',
+      prioridade: document.getElementById('tma-prior')?.value||'media',
+      responsavel: document.getElementById('tma-resp')?.value||'Clarissa',
+      prazo: document.getElementById('tma-prazo')?.value||'',
+      cliente: c.cliente, processo: cid,
+      status:'todo', obs:'Criada a partir de andamento: '+txt.slice(0,60),
+      origem:'andamento'
+    });
+    vkSalvar(); fecharModal(); marcarAlterado();
+    var el = document.getElementById('tp7-list-'+cid);
+    if(el) el.innerHTML = _renderTarefasPasta(cid);
+    showToast('Tarefa criada a partir do andamento \u2713');
+  }, '\ud83d\udccb Criar tarefa');
+}
+
 function vkDeletarPasta(id, cid){
   if(!confirm('Excluir esta tarefa?')) return;
   vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
@@ -15881,10 +15921,11 @@ function renderFicha(c, grp=null){
               </div>
               <div class="pj-mov-body">
                 <span class="pj-mov-date">${fmtDataBR(dtDisplay)}</span> — ${escapeHtml(txtDisplay)}
-                ${isLocal?`<div style="display:flex;gap:6px;margin-top:4px">
-                  <button class="pj-mov-actbtn" onclick="editarMovimentacao(${c.id},${i})">✏ editar</button>
-                  <button class="pj-mov-actbtn pj-mov-actbtn-del" onclick="excluirMovimentacao(${c.id},${i})">🗑 excluir</button>
-                </div>`:''}
+                <div style="display:flex;gap:6px;margin-top:4px">
+                  ${isLocal?`<button class="pj-mov-actbtn" onclick="editarMovimentacao(${c.id},${i})">✏ editar</button>
+                  <button class="pj-mov-actbtn pj-mov-actbtn-del" onclick="excluirMovimentacao(${c.id},${i})">🗑 excluir</button>`:''}
+                  <button class="pj-mov-actbtn" onclick="_criarTarefaDeAndamento(${c.id},${i})" title="Criar tarefa a partir deste andamento">📋 tarefa</button>
+                </div>
               </div>
             </div>`;}).join(''):`<div class="fempty">Nenhum andamento</div>`}
         </div>
