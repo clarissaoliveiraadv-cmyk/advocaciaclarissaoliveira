@@ -1373,6 +1373,25 @@ const VK_RESP_COR = {
   'Estagiário 2':'#713f12',
 };
 
+// ── Helpers de status unificados ──
+const VK_ETAPA_LABEL = {todo:'A Fazer', andamento:'Fazendo', done:'Concluído', concluido:'Concluído'};
+const VK_ETAPA_COR = {todo:'var(--mu)', andamento:'#f59e0b', done:'#4ade80', concluido:'#4ade80'};
+function isDone(t){ return t.status==='done'||t.status==='concluido'; }
+
+// ── Cache de pasta por cid para render de lista ──
+var _pastaLblCache = {};
+var _pastaLblVer = 0;
+function getPastaLbl(t){
+  if(!t.processo) return t.cliente==='Escritório'?'Esc.':'—';
+  var ver = (CLIENTS||[]).length;
+  if(ver!==_pastaLblVer){ _pastaLblCache={}; _pastaLblVer=ver; }
+  if(_pastaLblCache[t.processo]!==undefined) return _pastaLblCache[t.processo];
+  var c = findClientById(t.processo);
+  var lbl = c ? (c.pasta||c.cliente||'—') : '—';
+  _pastaLblCache[t.processo] = lbl;
+  return lbl;
+}
+
 function vkSalvar(){
   sbSet('co_vktasks', vkTasks);
 }
@@ -1390,14 +1409,13 @@ function vkFiltrados(){
   const fresp = document.getElementById('vk-fresp')?.value||'';
   const fprior= document.getElementById('vk-fprior')?.value||'';
 
-  // Manter tarefas concluídas por 7 dias
-  const hojeVk = new Date(HOJE).toISOString().slice(0,10);
+  // Filtrar concluídas com mais de 7 dias (sem mutar vkTasks)
   var seteDiasAtras = new Date(new Date(HOJE).getTime()-7*86400000).toISOString().slice(0,10);
-  vkTasks = vkTasks.filter(t=>{
-    if(t.status!=='done'&&t.status!=='concluido') return true;
+  var hojeVk = new Date(HOJE).toISOString().slice(0,10);
+  const base = vkTasks.filter(function(t){
+    if(!isDone(t)) return true;
     return (t.concluido_em||hojeVk)>=seteDiasAtras;
   });
-  const base = [...vkTasks];
 
   return base.filter(t=>{
     const okQ    = !q || (t.titulo||'').toLowerCase().includes(q) || (t.cliente||'').toLowerCase().includes(q);
@@ -1425,10 +1443,9 @@ function vkRender(){
 // ── KANBAN ──
 function vkRenderKanban(tasks){
   const cols = VK_COLUNAS.map(col=>{
-    const itens = tasks.filter(t=>{
-      var s=t.status||'todo';
-      if(col.id==='done') return s==='done'||s==='concluido';
-      return s===col.id;
+    const itens = tasks.filter(function(t){
+      if(col.id==='done') return isDone(t);
+      return (t.status||'todo')===col.id;
     });
     // Limitar concluídos a 10 no kanban
     const visivel = col.id==='done' ? itens.slice(0,10) : itens;
@@ -1456,15 +1473,10 @@ function vkRenderKanban(tasks){
 // ── VIEW LISTA ──
 function vkRenderLista(tasks){
   var hoje = new Date(HOJE).toISOString().slice(0,10);
-  var etapaLabel = {todo:'A Fazer', andamento:'Fazendo', done:'Concluído', concluido:'Concluído'};
-  var etapaCor = {todo:'var(--mu)', andamento:'#f59e0b', done:'#4ade80', concluido:'#4ade80'};
-  var priorLabel = {alta:'Alta', media:'Média', baixa:'Baixa'};
-  var priorCor = {alta:'#f87676', media:'#f59e0b', baixa:'#4ade80'};
-
   // Ordenar: pendentes primeiro (por prazo), depois concluídas
   var sorted = tasks.slice().sort(function(a,b){
-    var aD = (a.status==='done'||a.status==='concluido') ? 1 : 0;
-    var bD = (b.status==='done'||b.status==='concluido') ? 1 : 0;
+    var aD = isDone(a) ? 1 : 0;
+    var bD = isDone(b) ? 1 : 0;
     if(aD!==bD) return aD-bD;
     return (a.prazo||'9999').localeCompare(b.prazo||'9999');
   });
@@ -1478,21 +1490,21 @@ function vkRenderLista(tasks){
   +'</tr></thead><tbody>';
 
   sorted.forEach(function(t){
-    var isDone = t.status==='done'||t.status==='concluido';
-    var vencido = !isDone && t.prazo && t.prazo < hoje;
-    var pastaLbl = t.processo ? (function(){ var c=findClientById(t.processo); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Esc.':'—');
-    var etapaCls = isDone?'#4ade80':t.status==='andamento'?'#f59e0b':'var(--mu)';
+    var done = isDone(t);
+    var vencido = !done && t.prazo && t.prazo < hoje;
+    var pastaLbl = getPastaLbl(t);
+    var etapaCls = done?'#4ade80':t.status==='andamento'?'#f59e0b':'var(--mu)';
 
-    html += '<tr class="vk-lista-row'+(isDone?' vk-lista-done':'')+'">'
+    html += '<tr class="vk-lista-row'+(done?' vk-lista-done':'')+'">'
       +'<td>'
-        +'<div class="vk-lista-titulo'+(isDone?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'</div>'
+        +'<div class="vk-lista-titulo'+(done?' vk-lista-riscado':'')+'">'+escapeHtml(t.titulo||'—')+'</div>'
         +'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(t.cliente||'')+'</div>'
       +'</td>'
       +'<td style="font-size:11px;color:var(--ouro);font-weight:600">'+pastaLbl+'</td>'
-      +'<td><span style="font-size:10px;font-weight:700;color:'+etapaCls+'">'+(etapaLabel[t.status]||'A Fazer')+'</span></td>'
+      +'<td><span style="font-size:10px;font-weight:700;color:'+etapaCls+'">'+(VK_ETAPA_LABEL[t.status]||'A Fazer')+'</span></td>'
       +'<td style="font-size:11px;color:'+(vencido?'#f87676':'var(--mu)')+'">'+( t.prazo?fDt(t.prazo):'—')+(vencido?' <span style="font-size:8px;color:#f87676">!</span>':'')+'</td>'
       +'<td style="white-space:nowrap">'
-        +(isDone
+        +(done
           ?'<button onclick="vkToggleLista(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">↩ Reabrir</button> '
           :'<button onclick="vkToggleLista(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">✅ Concluir</button> ')
         +'<button onclick="vkEditar(\''+t.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✏</button> '
@@ -1512,20 +1524,18 @@ function _renderTarefasPasta(cid){
   var tarefas = vkTasks.filter(function(t){ return t.processo===cid; });
   if(!tarefas.length) return '<div style="padding:16px;font-size:12px;color:var(--mu);font-style:italic">Nenhuma tarefa vinculada a este processo.</div>';
 
-  var pend = tarefas.filter(function(t){ return t.status!=='done'&&t.status!=='concluido'; });
-  var done = tarefas.filter(function(t){ return t.status==='done'||t.status==='concluido'; });
-  var etapaLabel = {todo:'A Fazer', andamento:'Fazendo', done:'Concluído', concluido:'Concluído'};
-  var etapaCor = {todo:'var(--mu)', andamento:'#f59e0b', done:'#4ade80', concluido:'#4ade80'};
+  var pend = tarefas.filter(function(t){ return !isDone(t); });
+  var done = tarefas.filter(isDone);
 
   function row(t){
-    var isDone = t.status==='done'||t.status==='concluido';
-    var vencido = !isDone && t.prazo && t.prazo < hoje;
-    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd)'+(isDone?';opacity:.6':'')+'">'
-      +'<input type="checkbox" '+(isDone?'checked':'')+' onchange="vkTogglePasta(\''+t.id+'\','+cid+')" style="width:16px;height:16px;cursor:pointer">'
+    var _done = isDone(t);
+    var vencido = !_done && t.prazo && t.prazo < hoje;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd)'+(_done?';opacity:.6':'')+'">'
+      +'<input type="checkbox" '+(_done?'checked':'')+' onchange="vkTogglePasta(\''+t.id+'\','+cid+')" style="width:16px;height:16px;cursor:pointer">'
       +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:12px;font-weight:600;color:var(--tx)'+(isDone?';text-decoration:line-through;color:var(--mu)':'')+'">'+escapeHtml(t.titulo)+'</div>'
+        +'<div style="font-size:12px;font-weight:600;color:var(--tx)'+(_done?';text-decoration:line-through;color:var(--mu)':'')+'">'+escapeHtml(t.titulo)+'</div>'
         +'<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">'
-          +'<span style="font-size:9px;font-weight:700;color:'+(etapaCor[t.status]||'var(--mu)')+'">'+( etapaLabel[t.status]||'A Fazer')+'</span>'
+          +'<span style="font-size:9px;font-weight:700;color:'+(VK_ETAPA_COR[t.status]||'var(--mu)')+'">'+( VK_ETAPA_LABEL[t.status]||'A Fazer')+'</span>'
           +(t.prazo?'<span style="font-size:9px;color:'+(vencido?'#f87676':'var(--mu)')+'">📅 '+fDt(t.prazo)+(vencido?' (atrasado)':'')+'</span>':'')
           +(t.responsavel?'<span style="font-size:9px;color:var(--mu)">👤 '+t.responsavel+'</span>':'')
         +'</div>'
@@ -1556,7 +1566,7 @@ function vkDeletarPasta(id, cid){
 function vkTogglePasta(id, cid){
   var t = vkTasks.find(function(x){return String(x.id)===String(id);});
   if(!t) return;
-  var wasDone = t.status==='done'||t.status==='concluido';
+  var wasDone = isDone(t);
   t.status = wasDone ? 'todo' : 'done';
   if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
   else delete t.concluido_em;
@@ -1599,7 +1609,7 @@ function vkNovaTaskPasta(cid){
 function vkToggleLista(id){
   var t = vkTasks.find(function(x){return String(x.id)===String(id);});
   if(!t) return;
-  var wasDone = t.status==='done'||t.status==='concluido';
+  var wasDone = isDone(t);
   t.status = wasDone ? 'todo' : 'done';
   if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
   else delete t.concluido_em;
