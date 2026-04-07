@@ -9604,7 +9604,7 @@ function renderFinDash(){
     var repAlert = repVenc.length>0
       ? '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:rgba(201,72,74,.08);border-bottom:1px solid rgba(201,72,74,.2)">'
           +'<span style="font-size:10px;font-weight:700;color:#c9484a">⚠️ '+repVenc.length+' repasse'+(repVenc.length>1?'s':'')+' venc'+(repVenc.length>1?'endo':'endo')+' — '+fBRL2(repVencTotal)+'</span>'
-          +'<button onclick="vfTab(\'pagar\')" style="font-size:10px;padding:2px 8px;border-radius:4px;border:none;background:#c9484a;color:#fff;cursor:pointer">Ver</button>'
+          +'<button onclick="goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'repasses\',null);},100)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:none;background:#c9484a;color:#fff;cursor:pointer">Ver</button>'
         +'</div>'
       : '';
     // Receitas e Despesas previstas para HOJE
