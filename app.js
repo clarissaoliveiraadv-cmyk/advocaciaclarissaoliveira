@@ -27,6 +27,36 @@ const _SB_SYNC = new Set([
 let _sbOnline = false;
 let _sbUsuario = localStorage.getItem('co_usuario')||'clarissa';
 
+// ── Debounce de sbSet por chave (evita 186+ writes redundantes) ──
+var _sbSetTimers = {};
+var _sbSetPending = {};
+function sbSetDebounced(chave, valor){
+  _sbSetPending[chave] = valor;
+  clearTimeout(_sbSetTimers[chave]);
+  _sbSetTimers[chave] = setTimeout(function(){ sbSet(chave, _sbSetPending[chave]); delete _sbSetPending[chave]; }, 300);
+}
+
+// ── Monitoramento de quota localStorage ──
+function _sbCheckQuota(){
+  try {
+    var total = 0;
+    for(var i=0; i<localStorage.length; i++){
+      var k = localStorage.key(i);
+      total += (localStorage.getItem(k)||'').length;
+    }
+    if(total > 4000000){ // 4MB de 5MB
+      console.warn('[Storage] Uso alto: '+(total/1024/1024).toFixed(1)+'MB de ~5MB');
+      // Limpar timestamps antigos
+      for(var j=0; j<localStorage.length; j++){
+        var key = localStorage.key(j);
+        if(key && key.startsWith('_ts_')) localStorage.removeItem(key);
+      }
+    }
+  } catch(e){}
+}
+// Verificar a cada 5 minutos
+setInterval(_sbCheckQuota, 300000);
+
 function _sbH(){
   return {
     'Content-Type':'application/json',
@@ -59,34 +89,36 @@ async function sbGet(chave){
 }
 
 async function sbSet(chave, valor){
-  localStorage.setItem(chave, JSON.stringify(valor));
-  localStorage.setItem('_ts_'+chave, new Date().toISOString());
+  try {
+    localStorage.setItem(chave, JSON.stringify(valor));
+    localStorage.setItem('_ts_'+chave, new Date().toISOString());
+  } catch(qe){
+    console.error('[Storage] Quota excedida:', chave);
+    _sbCheckQuota();
+  }
   if(!_SB_SYNC.has(chave)) return;
-  if(!_sbOnline){
-    showToast('⚠ Offline — salvo localmente');
-    return;
-  }
-  try{
-    const r = await fetch(`${_SB_URL}/rest/v1/${_SB_TBL}`, {
-      method:'POST',
-      headers:{..._sbH(),'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body: JSON.stringify({chave, valor,
-        updated_at: new Date().toISOString(),
-        updated_by: _sbUsuario
-      })
-    });
-    if(r.ok){
-      showToast('☁ ' + chave + ' salvo na nuvem ✓');
-    } else {
-      const txt = await r.text();
-      showToast('⚠ Erro '+r.status+': '+txt.slice(0,60));
-      console.error('sbSet erro:', r.status, txt);
+  if(!_sbOnline){ return; }
+  // Retry com backoff (max 2 tentativas)
+  for(var _retry=0; _retry<2; _retry++){
+    try{
+      var r = await fetch(_SB_URL+'/rest/v1/'+_SB_TBL, {
+        method:'POST',
+        headers:Object.assign({}, _sbH(), {'Prefer':'resolution=merge-duplicates,return=minimal'}),
+        body: JSON.stringify({chave:chave, valor:valor,
+          updated_at: new Date().toISOString(),
+          updated_by: _sbUsuario
+        })
+      });
+      if(r.ok) return; // sucesso silencioso
+      var txt = await r.text();
+      console.warn('sbSet erro:', r.status, txt.slice(0,100));
+      if(r.status < 500) return; // erro do cliente, não retentar
+    }catch(e){
+      console.warn('sbSet tentativa '+ (_retry+1) +':', e.message);
+      if(_retry===0) await new Promise(function(ok){setTimeout(ok, 1000);}); // esperar 1s
     }
-  }catch(e){
-    _sbStatus(false);
-    showToast('⚠ Erro de conexão: '+e.message);
-    console.error('sbSet exception:', e);
   }
+  _sbStatus(false);
 }
 
 async function sbCarregarTudo(){
@@ -104,12 +136,16 @@ async function sbCarregarTudo(){
       // Se o local é mais novo (usuário salvou offline), não sobrescrever
       if(tsLocal && tsLocal > tsRemoto){
         // Dado local mais recente — não sobrescrever, mas sincronizar ao Supabase
-        const localVal = localStorage.getItem(row.chave);
-        if(localVal) sbSet(row.chave, JSON.parse(localVal)); // re-sync para nuvem
+        var localVal = localStorage.getItem(row.chave);
+        if(localVal){
+          try { sbSet(row.chave, JSON.parse(localVal)); } catch(pe){ console.warn('[Sync] JSON parse erro em '+row.chave, pe); }
+        }
         return;
       }
-      localStorage.setItem(row.chave, JSON.stringify(row.valor));
-      localStorage.setItem('_ts_'+row.chave, tsRemoto);
+      try {
+        localStorage.setItem(row.chave, JSON.stringify(row.valor));
+        localStorage.setItem('_ts_'+row.chave, tsRemoto);
+      } catch(qe){ console.error('[Storage] Quota excedida ao salvar '+row.chave); }
     });
     _sbStatus(true);
     return true;
