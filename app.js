@@ -12594,6 +12594,32 @@ _SB_SYNC.add('co_prazos');
 
 function prazosSalvar(){
   sbSet('co_prazos', prazos);
+  sbSet('co_td', prazos); // sync legado
+}
+
+// ── Helpers de prazo ──
+var _hojeTs = new Date(_HOJE_STR).getTime();
+function prazoDiasAte(p){
+  if(!p.data) return null;
+  return Math.ceil((new Date(p.data).getTime() - _hojeTs) / 86400000);
+}
+function prazoIsVencido(p){ var d=prazoDiasAte(p); return d!==null && d<0 && !p.cumprido; }
+function prazoIsHoje(p){ return prazoDiasAte(p)===0 && !p.cumprido; }
+function prazoStatusLbl(p){
+  if(p.cumprido) return 'Concluido';
+  var d=prazoDiasAte(p);
+  if(d===null) return 'Pendente';
+  if(d<0) return 'Vencido';
+  if(d===0) return 'Hoje';
+  if(d===1) return 'Amanha';
+  return 'Pendente';
+}
+function prazoStatusCor(p){
+  if(p.cumprido) return 'var(--mu)';
+  var d=prazoDiasAte(p);
+  if(d!==null&&d<0) return '#ef4444';
+  if(d!==null&&d<=1) return '#f59e0b';
+  return 'var(--mu)';
 }
 
 function editarPrazo(cid,pid){
@@ -12618,8 +12644,8 @@ function editarPrazo(cid,pid){
     const tipo=document.getElementById('ep-tipo')?.value;
     const obs=document.getElementById('ep-obs')?.value.trim()||'';
     const idx=(prazos[cid]||[]).findIndex(x=>x.id===pid||String(x.id)===String(pid));
-    if(idx>=0) prazos[cid][idx]={...prazos[cid][idx],titulo,data,tipo,obs};
-    sbSet('co_td',prazos); marcarAlterado(); fecharModal();
+    if(idx>=0) prazos[cid][idx]={...prazos[cid][idx],titulo:titulo,data:data,tipo:tipo,obs:obs};
+    prazosSalvar(); marcarAlterado(); fecharModal();
     const wrap=document.getElementById('prazo-'+cid+'-'+pid)?.closest('.prazos-wrap')?.parentElement;
     if(wrap) wrap.innerHTML=renderPrazos(cid);
     showToast('Prazo atualizado');
@@ -12636,14 +12662,14 @@ function renderPrazos(cid){
     'pericia':'Pericia','recurso':'Recurso','contestacao':'Contestacao','outro':'Outro'};
   const row=p=>{
     const isDone=!!p.cumprido;
-    const diff=isDone?null:Math.ceil((new Date(p.data)-new Date(hoje))/86400000);
-    const isV=!isDone&&diff<0, isH=!isDone&&diff===0;
-    const sLbl=isDone?'Concluido':isV?'Vencido':isH?'Hoje':diff===1?'Amanha':'Pendente';
-    const sCls=isDone?'comp-st-done':isV?'comp-st-venc':(isH||diff===1)?'comp-st-hoje':'comp-st-pend';
+    const diff=prazoDiasAte(p);
+    const isV=prazoIsVencido(p), isH=prazoIsHoje(p);
+    const sLbl=prazoStatusLbl(p);
+    const sCls=isDone?'comp-st-done':isV?'comp-st-venc':(isH||(diff===1&&!isDone))?'comp-st-hoje':'comp-st-pend';
     const dp=(p.data||'').split('-');
     const calCls=isDone?'comp-cal-done':isV?'comp-cal-venc':isH?'comp-cal-hoje':'';
-    const diffTxt=isDone?('Cumprido '+fD(p.cumprido_em)):isV?('Vencido ha '+(-diff)+'d'):isH?'HOJE':(diff+'d');
-    const dColor=isDone?'var(--mu)':isV?'#ef4444':isH?'#f59e0b':'var(--mu)';
+    const diffTxt=isDone?('Cumprido '+fD(p.cumprido_em)):isV?('Vencido ha '+(-diff)+'d'):isH?'HOJE':(diff!==null?diff+'d':'\u2014');
+    const dColor=prazoStatusCor(p);
     const pidQ=isNaN(p.id)?('\''+p.id+'\''):p.id;
     const onSt=isDone?('togglePrazo('+cid+','+pidQ+')'):'prazosConcluirComDesfecho('+cid+','+pidQ+')';
     const obsHtml=p.obs?(' <span title="'+p.obs.replace(/"/g,'&quot;')+'">&#x1F4AC;</span>'):'';
@@ -16932,8 +16958,11 @@ function abrirModalPrazo(cid){
     if(!titulo){ showToast('Informe a descrição'); return; }
     if(!data)  { showToast('Informe a data'); return; }
     if(!prazos[cid]) prazos[cid]=[];
-    prazos[cid].push({ id:'p'+Date.now(), titulo, data, tipo, obs, cumprido:false });
-    sbSet('co_td', prazos);
+    // Dedup: não permitir prazo idêntico (mesmo título + data)
+    var dup = prazos[cid].some(function(x){ return x.titulo===titulo && x.data===data && !x.cumprido; });
+    if(dup){ showToast('Prazo j\u00e1 cadastrado com mesma descri\u00e7\u00e3o e data'); return; }
+    prazos[cid].push({ id:'p'+genId(), titulo:titulo, data:data, tipo:tipo, obs:obs, cumprido:false });
+    prazosSalvar();
     marcarAlterado();
     fecharModal();
     // Re-renderizar
