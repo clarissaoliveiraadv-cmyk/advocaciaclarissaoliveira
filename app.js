@@ -10070,39 +10070,70 @@ function toggleAtAssuntoCustom(){
   if(wrap) wrap.style.display = v==='outros' ? 'block' : 'none';
 }
 function atBuscaCliente(q){
-  const lista = document.getElementById('at-busca-lista');
-  const inp   = document.getElementById('at-busca-inp');
+  var lista = document.getElementById('at-busca-lista');
   if(!lista) return;
-  const sel = document.getElementById('at-cliente-id')?.value;
+  var sel = document.getElementById('at-cliente-id')?.value;
   if(sel){ lista.style.display='none'; return; }
-  const term = (q||'').toLowerCase().trim();
+  var term = (q||'').toLowerCase().trim();
   if(!term){ lista.style.display='none'; return; }
-  const matches = CLIENTS
-    .filter(c => c.cliente && c.cliente.toLowerCase().includes(term))
-    .slice(0,10);
-  if(!matches.length){
-    const qEsc = (q||'').replace(/'/g,"\\'");
-    lista.innerHTML = `
-      <div style="padding:9px 13px;font-size:12px;color:var(--mu);font-style:italic">Nenhum cliente encontrado</div>
-      <div onclick="atMostrarNovoCliente('${qEsc}')"
-        style="padding:9px 13px;cursor:pointer;border-top:1px solid var(--bd);
-               font-size:12px;color:var(--ouro);font-weight:600;display:flex;align-items:center;gap:6px"
-        onmouseover="this.style.background='var(--sf3)'" onmouseout="this.style.background=''">
-        ＋ Cadastrar <b>${q}</b> como novo cliente
-      </div>`;
+
+  // Buscar em CLIENTS (processos)
+  var matchesProc = CLIENTS
+    .filter(function(c){ return c.cliente && c.cliente.toLowerCase().includes(term); })
+    .slice(0,8);
+
+  // Buscar em contatos (localContatos)
+  var matchesCtc = ctcTodos()
+    .filter(function(c){ return (c.nome||'').toLowerCase().includes(term) || (c.tel||'').includes(term); })
+    .slice(0,5);
+
+  if(!matchesProc.length && !matchesCtc.length){
+    var qEsc = (q||'').replace(/'/g,"\\'");
+    lista.innerHTML = '<div style="padding:9px 13px;font-size:12px;color:var(--mu);font-style:italic">Nenhum cliente ou contato encontrado</div>'
+      +'<div onclick="atMostrarNovoCliente(\''+qEsc+'\')" style="padding:9px 13px;cursor:pointer;border-top:1px solid var(--bd);font-size:12px;color:var(--ouro);font-weight:600" onmouseover="this.style.background=\'var(--sf3)\'" onmouseout="this.style.background=\'\'">\uff0b Cadastrar <b>'+escapeHtml(q)+'</b> como novo cliente</div>';
     lista.style.display='block';
     return;
   }
-  lista.innerHTML = matches.map(c => `
-    <div onclick="atSelecionarCliente(${c.id},'${c.cliente.replace(/'/g,"\\'")}','${c.pasta||''}')"
-      style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--bd);
-             font-size:12px;color:var(--of);transition:background .1s"
-      onmouseover="this.style.background='var(--sf3)'"
-      onmouseout="this.style.background=''">
-      <div style="font-weight:600">${c.cliente}</div>
-      <div style="font-size:10px;color:var(--mu)">Pasta ${c.pasta||'—'} · ${c.natureza||''}</div>
-    </div>`).join('');
+
+  var html = '';
+  // Processos existentes
+  matchesProc.forEach(function(c){
+    html += '<div onclick="atSelecionarCliente('+c.id+',\''+c.cliente.replace(/'/g,"\\'")+'\',\''+( c.pasta||'')+'\')" style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--bd);font-size:12px;color:var(--of)" onmouseover="this.style.background=\'var(--sf3)\'" onmouseout="this.style.background=\'\'">'
+      +'<div style="font-weight:600">'+escapeHtml(c.cliente)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu)">Pasta '+(c.pasta||'\u2014')+' \u00b7 '+(c.natureza||'')+'</div>'
+    +'</div>';
+  });
+
+  // Contatos (com badge "Contato")
+  if(matchesCtc.length){
+    html += '<div style="padding:5px 13px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);letter-spacing:.05em;background:var(--sf3)">Contatos</div>';
+    matchesCtc.forEach(function(c){
+      var nomeEsc = (c.nome||'').replace(/'/g,"\\'");
+      html += '<div onclick="atSelecionarContato(\''+c.id+'\',\''+nomeEsc+'\')" style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--bd);font-size:12px;color:var(--of)" onmouseover="this.style.background=\'var(--sf3)\'" onmouseout="this.style.background=\'\'">'
+        +'<div style="display:flex;align-items:center;gap:6px"><span style="font-weight:600">'+escapeHtml(c.nome)+'</span><span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(168,130,255,.15);color:#a78bfa">Contato</span></div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+(c.tel||'')+(c.tel&&c.email?' \u00b7 ':'')+(c.email||'')+'</div>'
+      +'</div>';
+    });
+  }
+
+  lista.innerHTML = html;
   lista.style.display='block';
+}
+
+// Selecionar contato existente → auto-preencher campos do novo cliente
+function atSelecionarContato(ctcId, nome){
+  var c = ctcTodos().find(function(x){return String(x.id)===String(ctcId);});
+  if(!c) return;
+  // Mostrar form de novo cliente com dados preenchidos
+  atMostrarNovoCliente(c.nome||'');
+  setTimeout(function(){
+    var inp = document.getElementById('atnc-nome'); if(inp) inp.value = c.nome||'';
+    var tel = document.getElementById('atnc-tel'); if(tel) tel.value = c.tel||'';
+    var email = document.getElementById('atnc-email'); if(email) email.value = c.email||'';
+    var obs = document.getElementById('atnc-obs'); if(obs && c.obs) obs.value = c.obs;
+  }, 50);
+  var lista = document.getElementById('at-busca-lista');
+  if(lista) lista.style.display='none';
 }
 function atLimparCliente(){
   document.getElementById('at-cliente-id').value = '';
