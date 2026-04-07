@@ -9193,8 +9193,38 @@ function atAlterarStatus(id, novoStatus){
   }
 }
 
+// ── Timestamp de última atualização do dashboard ──
+var _dshLastUpdate = null;
+function _dshUpdateTimestamp(){
+  _dshLastUpdate = new Date();
+  var el = document.getElementById('dsc-lastupd');
+  if(el) el.textContent = _dshLastUpdate.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function _dshRefresh(){
+  invalidarAllPend();
+  _finLocaisCache = {};
+  _clientByIdCache = {};
+  renderHomeAlerts();
+  renderChecklist();
+  renderHomeWeek();
+  if(typeof renderFinDash==='function') renderFinDash();
+  if(typeof atualizarStats==='function') atualizarStats();
+  showToast('\u2713 Dashboard atualizado');
+}
+// Atualizar timestamp a cada 60s para mostrar "há X min"
+setInterval(function(){
+  if(!_dshLastUpdate) return;
+  var el = document.getElementById('dsc-lastupd');
+  if(!el) return;
+  var diff = Math.round((new Date()-_dshLastUpdate)/60000);
+  if(diff < 1) el.textContent = 'Agora';
+  else if(diff < 60) el.textContent = 'h\u00e1 '+diff+'min';
+  else el.textContent = _dshLastUpdate.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}, 30000);
+
 function renderHomeAlerts(){
-  const el = document.getElementById('home-alerts');
+  _dshUpdateTimestamp();
+  var el = document.getElementById('home-alerts');
   if(!el) return;
   const hoje = new Date(HOJE).toISOString().slice(0,10);
   const encIds = getEncIds();
