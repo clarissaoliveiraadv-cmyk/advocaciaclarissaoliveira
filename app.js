@@ -411,6 +411,64 @@ function invalidarCtcCache(){ _ctcCache=null; }
 function ctcRender(){
   ctcRenderLista();
   if(_ctcSel) ctcAbrirFicha(_ctcSel);
+  else renderCtcEmpty();
+}
+
+function renderCtcEmpty(){
+  var el = document.getElementById('ctc-empty-dashboard');
+  if(!el) return;
+  var todos = ctcTodos();
+  var pf = todos.filter(function(c){return c.tipo!=='pj';}).length;
+  var pj = todos.filter(function(c){return c.tipo==='pj';}).length;
+  var semTel = todos.filter(function(c){return !c.tel;});
+  var semEmail = todos.filter(function(c){return !c.email;});
+  var ultimos = todos.slice().sort(function(a,b){return (b.id||'').localeCompare(a.id||'');}).slice(0,5);
+
+  function card(lbl,val,cor){
+    return '<div style="padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;text-align:center">'
+      +'<div style="font-size:22px;font-weight:800;color:'+cor+'">'+val+'</div>'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-top:2px">'+lbl+'</div>'
+    +'</div>';
+  }
+
+  var html = '<div style="text-align:center;margin-bottom:16px">'
+    +'<div style="font-size:28px;margin-bottom:4px">\ud83d\udc64</div>'
+    +'<div style="font-size:14px;font-weight:700;color:var(--tx)">Contatos</div>'
+    +'<div style="font-size:11px;color:var(--mu)">Selecione um contato ou veja o resumo</div>'
+  +'</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">'
+    +card('Total', todos.length, 'var(--tx)')
+    +card('Pessoa F\u00edsica', pf, '#60a5fa')
+    +card('Pessoa Jur\u00eddica', pj, '#D4AF37')
+  +'</div>';
+
+  // Incompletos
+  if(semTel.length||semEmail.length){
+    html += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#f59e0b">'
+      +(semTel.length?'\ud83d\udcf1 <strong>'+semTel.length+'</strong> sem telefone':'')
+      +(semTel.length&&semEmail.length?' \u00b7 ':'')
+      +(semEmail.length?'\ud83d\udce7 <strong>'+semEmail.length+'</strong> sem email':'')
+    +'</div>';
+  }
+
+  // Últimos adicionados
+  if(ultimos.length){
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px;letter-spacing:.05em">\u00daltimos adicionados</div>';
+    ultimos.forEach(function(c){
+      var iniciais = (c.nome||'?').split(' ').map(function(p){return p[0];}).slice(0,2).join('').toUpperCase();
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);cursor:pointer" onclick="ctcAbrirFicha(\''+c.id+'\')">'
+        +'<div style="width:28px;height:28px;border-radius:50%;background:var(--vinho);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">'+iniciais+'</div>'
+        +'<div style="flex:1">'
+          +'<div style="font-size:11px;font-weight:600;color:var(--tx)">'+escapeHtml(c.nome||'\u2014')+'</div>'
+          +'<div style="font-size:9px;color:var(--mu)">'+(c.tel||c.email||c.tipo||'')+'</div>'
+        +'</div>'
+        +'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--sf3);color:var(--mu)">'+(c.tipo==='pj'?'PJ':'PF')+'</span>'
+      +'</div>';
+    });
+  }
+
+  el.innerHTML = html;
 }
 
 function ctcRenderLista(){
