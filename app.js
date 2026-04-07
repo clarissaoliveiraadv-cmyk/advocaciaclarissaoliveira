@@ -10238,12 +10238,30 @@ function atToggleProc(sim){
   document.getElementById('at-proc-nao').classList.toggle('on', !sim);
 }
 function salvarAtendimento(){
-  const clienteIdSel = document.getElementById('at-cliente-id')?.value;
-  const clienteMatch = clienteIdSel ? CLIENTS.find(c=>String(c.id)===String(clienteIdSel)) : null;
-  const nomeVal = clienteMatch ? clienteMatch.cliente
+  var clienteIdSel = document.getElementById('at-cliente-id')?.value;
+  var clienteMatch = clienteIdSel ? CLIENTS.find(function(c){return String(c.id)===String(clienteIdSel);}) : null;
+  var nomeVal = clienteMatch ? clienteMatch.cliente
     : (document.getElementById('at-busca-inp')?.value.trim()||'');
 
-  if(!nomeVal || !clienteIdSel){ showToast('Selecione ou cadastre o cliente'); return; }
+  if(!nomeVal){ showToast('Informe o nome do cliente'); return; }
+
+  // Se não encontrou em CLIENTS, criar entrada (contato → cliente)
+  if(!clienteMatch && nomeVal){
+    var novoId = genId();
+    var novoCliente = {
+      id: novoId, cliente: nomeVal, pasta: '',
+      tipo: 'consulta', status_consulta: 'consulta',
+      natureza: '', data_inicio: getTodayKey()
+    };
+    CLIENTS.push(novoCliente);
+    _clientByIdCache = {};
+    _clientByNameCache = {};
+    if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
+    sbSet('co_clientes', CLIENTS);
+    clienteIdSel = String(novoId);
+    clienteMatch = novoCliente;
+    showToast('Cliente "'+nomeVal+'" criado automaticamente');
+  }
 
   const assunto    = document.getElementById('ns-assunto')?.value||'consultoria';
   const assuntoTxt = assunto==='outros'
