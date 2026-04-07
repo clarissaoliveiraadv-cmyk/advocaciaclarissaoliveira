@@ -221,7 +221,7 @@ function sbAplicar(chave, valor, quem){
     return true;
   });
   if(localAg.length < antes){
-    sbSet('co_ag', localAg);
+    sbSet('co_ag', localAg); invalidarAllPend();
     console.log('[Cleanup] Duplicatas agenda removidas: '+(antes-localAg.length));
   }
 })();
@@ -9807,8 +9807,8 @@ function renderHomeAlerts(){
   const em7str = em7.toISOString().slice(0,10);
   const todos = vfTodos();
 
-  const prazos    = allPend().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='prazo'; });
-  const audiencias= allPend().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='audiencia'; });
+  const prazos    = allPendCached().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='prazo'; });
+  const audiencias= allPendCached().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='audiencia'; });
   const dormentes = ativos.filter(c=>c.ultima_mov_dias>=365);
   const vencidos  = todos.filter(l=>l.tipo==='receber'&&l.status==='vencido');
   const totalVenc = vencidos.reduce((s,l)=>s+l.valor,0);
@@ -9887,7 +9887,7 @@ function gerarResumoWpp(){
   });
 
   // 3. COMPROMISSOS — eventos de hoje incluindo ranges
-  var compHj=allPend().filter(function(p){
+  var compHj=allPendCached().filter(function(p){
     return !p.realizado&&eventoNoDia(p,hoje);
   }).map(function(p){
     var titulo=p.tipo_compromisso||p.titulo||'Compromisso';
@@ -10745,7 +10745,7 @@ function salvarAtendimento(){
     dt_raw: dataAt, inicio: dataAt+'T09:00',
     realizado: true, origem: 'atendimento'
   });
-  sbSet('co_ag', localAg);
+  sbSet('co_ag', localAg); invalidarAllPend();
 
   // Honorários
   if(honRaw){
@@ -11857,7 +11857,7 @@ function importarDados(){
         sbSet('co_tasks', tasks);
         sbSet('co_encerrados', encerrados);
         sbSet('co_notes', notes);
-        sbSet('co_localAg', localAg);
+        sbSet('co_localAg', localAg); invalidarAllPend();
         sbSet('co_localMov', localMov);
         sbSet('co_localLanc', localLanc);
         sbSet('co_ctc', localContatos);
@@ -12163,9 +12163,9 @@ function _abrirModalCompromisso(cid_fixo){
         id_processo: cid||null,
         realizado: false, cumprido: 'Não',
         recorrente: !!recorr, recorr_grupo: recGrupo,
-        natureza: CLIENTS.find(c=>c.id===cid)?.natureza||''
+        natureza: (findClientById(cid)||{}).natureza||''
       };
-      localAg.push(ev);
+      localAg.push(ev); invalidarAllPend();
       // Andamento na pasta
       if(cid){
         if(!localMov[cid]) localMov[cid]=[];
@@ -12383,7 +12383,7 @@ function renderHomeWeek(){
   for(var d=1;d<=ultDia;d++){
     const isHoje = d===diaHoje;
     const ds2 = ano+'-'+String(mes+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const temEvt = allPend().some(function(p){return eventoNoDia(p,ds2)&&!p.realizado;});
+    const temEvt = allPendCached().some(function(p){return eventoNoDia(p,ds2)&&!p.realizado;});
     calHtml+='<div style="font-size:10px;padding:4px 2px;border-radius:4px;cursor:default;'
       +(isHoje?'background:#D4AF37;color:#111;font-weight:700;'
                :(temEvt?'color:#E0E0E0;font-weight:600;':'color:#9E9E9E;'))
@@ -12393,7 +12393,7 @@ function renderHomeWeek(){
 
   // Events for today
   const TIPO_DOT = {audiencia:'#f87676',prazo:'#c9484a',compromisso:'#c9484a',tarefa:'#D4AF37',reuniao:'#60a5fa'};
-  const evts = allPend()
+  const evts = allPendCached()
     .filter(function(p){return !p.realizado && eventoNoDia(p, HS);})
     .sort(function(a,b){return (a.inicio||a.dt_raw||'').localeCompare(b.inicio||b.dt_raw||'');});
 
@@ -12453,7 +12453,7 @@ function atualizarStats(){
   const hoje = HS;
   const semFim = new Date(HOJE); semFim.setDate(semFim.getDate()+7);
   const semFimStr = semFim.toISOString().slice(0,10);
-  const _allP = allPend(); // cache — evita 4 chamadas redundantes
+  const _allP = allPendCached(); // cache — evita 4 chamadas redundantes
   const fut  = _allP.filter(p=>!p.realizado&&p.cumprido!=='Sim'&&(p.dt_fim||p.dt_raw||'')>=hoje);
   const sem  = fut.filter(p=>p.dt_raw<=semFimStr);
   const pass = _allP.filter(p=>(p.dt_fim||p.dt_raw||'')<hoje&&p.cumprido!=='Sim'&&!p.realizado);
@@ -12688,7 +12688,7 @@ function renderPrazos(cid){
 
 function renderAgendaProc(cid){
   const hoje=getTodayKey();
-  const todos=allPend().filter(p=>
+  const todos=allPendCached().filter(p=>
     String(p.id_processo)===String(cid)
     && p.tipo_compromisso!=='Atendimento'
     && p.origem!=='atendimento'
@@ -12838,7 +12838,7 @@ function editarAgCliente(agId,cid){
     const idxL=(localAg||[]).findIndex(a=>String(a.id)===raw||String(a.id_agenda)===raw);
     if(idxL>=0) localAg[idxL]=updated;
     else{if(!localAg)localAg=[];localAg.push({...updated,id:raw,id_agenda:raw});}
-    sbSet('co_ag',localAg); marcarAlterado(); fecharModal();
+    sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado(); fecharModal();
     const el=document.getElementById('tp-agenda-proc-'+cid);
     if(el) el.innerHTML=renderAgendaProc(cid);
     showToast('Compromisso atualizado');
@@ -13049,7 +13049,7 @@ function gerarRelatorioAgPDF(){
     const fim = document.getElementById('pdf-fim')?.value;
     const filtro = document.getElementById('pdf-filtro')?.value;
     const cli = document.getElementById('pdf-cli')?.value.trim().toLowerCase();
-    let lista = allPend().filter(p=>{
+    let lista = allPendCached().filter(p=>{
       const dt = (p.dt_raw||'').slice(0,10);
       if(ini && dt < ini) return false;
       if(fim && dt > fim) return false;
@@ -14472,7 +14472,7 @@ function _filtrarEvt(todos){
 
 function _atualizarStats(){
   const hoje   = getTodayKey();
-  const todos  = allPend();
+  const todos  = allPendCached();
   const em7    = new Date(); em7.setDate(em7.getDate()+7);
   const em7str = em7.toISOString().slice(0,10);
   const mesFim = hoje.slice(0,7)+'-31';
@@ -14487,7 +14487,7 @@ function renderCal(){
   const grid = document.getElementById('ag-cal-grid'); if(!grid) return;
   const hoje = getTodayKey();
   const ano  = _calDate.getFullYear(), mes = _calDate.getMonth();
-  const todos = _filtrarEvt(allPend());
+  const todos = _filtrarEvt(allPendCached());
   const primeiroDia = new Date(ano,mes,1).getDay();
   const diasNoMes   = new Date(ano,mes+1,0).getDate();
 
@@ -14520,7 +14520,7 @@ function renderCal(){
 function renderSem(){
   const grid = document.getElementById('ag-sem-grid'); if(!grid) return;
   const hoje = getTodayKey();
-  const todos = _filtrarEvt(allPend());
+  const todos = _filtrarEvt(allPendCached());
   const ini = new Date(_calDate); ini.setDate(ini.getDate()-ini.getDay());
   let out = '';
   for(let i=0;i<7;i++){
@@ -14551,7 +14551,7 @@ function renderAgDia(){
   const diasNm = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   const isHoje = dt === hoje;
 
-  const evts = _filtrarEvt(allPend()).filter(p => eventoNoDia(p, dt))
+  const evts = _filtrarEvt(allPendCached()).filter(p => eventoNoDia(p, dt))
     .sort((a,b)=>(a.inicio||a.dt_raw||'').localeCompare(b.dt_raw||''));
 
   const COR = {audiencia:'#7c3aed',prazo:'var(--vinho)',compromisso:'var(--vinho)',tarefa:'var(--ouro)',reuniao:'#0ea5e9',outro:'var(--mu)'};
@@ -14638,7 +14638,7 @@ function agDiaHoje(){
 function renderAgLista(){
   const el = document.getElementById('agbody'); if(!el) return;
   const hoje = getTodayKey();
-  const todos = _filtrarEvt(allPend());
+  const todos = _filtrarEvt(allPendCached());
   // Ativos: começou antes de hoje mas ainda não terminou (em andamento), ou começa hoje/futuro
   const emAndamento = todos.filter(p=>!p.realizado
     && (p.dt_raw||'')<hoje
@@ -14693,7 +14693,7 @@ function renderAg(){ _render_agenda_all(); }
 
 function calEvtClick(id){
   if(!id) return;
-  const ev = allPend().find(p=>String(p.id||p.id_agenda)===String(id));
+  const ev = allPendCached().find(p=>String(p.id||p.id_agenda)===String(id));
   if(ev?.id_processo){ const c=CLIENTS.find(x=>x.id===ev.id_processo); if(c){ openC(c.id); return; } }
   if(ev) showToast(ev.tipo_compromisso||ev.titulo||'Compromisso');
 }
@@ -14753,6 +14753,18 @@ async function init(){
 
 
 // Combina compromissos do Projuris + locais
+// ── Cache de allPendCached() — invalidado por mudanças em PEND/localAg ──
+var _allPendCache = null;
+var _allPendVer = 0;
+function allPendCached(){
+  var ver = (PEND||[]).length * 1000 + (localAg||[]).length;
+  if(_allPendCache && _allPendVer===ver) return _allPendCache;
+  _allPendCache = allPend();
+  _allPendVer = ver;
+  return _allPendCache;
+}
+function invalidarAllPend(){ _allPendCache=null; }
+
 function allPend(){
   // Build localAg index first — both by id and by _origem_pend
   const localIdx  = new Map();
@@ -15151,7 +15163,7 @@ var _rlCf={};
 
 function renderList(lst, isEncView=false){
   const cf={};
-  allPend().filter(p=>p.dt_raw>=HS).forEach(p=>{
+  allPendCached().filter(p=>p.dt_raw>=HS).forEach(p=>{
     if(p.id_processo&&p.id_processo!==0) cf[p.id_processo]=(cf[p.id_processo]||0)+1;
   });
   _rlCf=cf;
@@ -15159,7 +15171,7 @@ function renderList(lst, isEncView=false){
   const sbTxt = document.getElementById('sb-stats-txt');
   if(sbTxt){
     const total = lst.length;
-    const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPend().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
+    const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPendCached().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
     sbTxt.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
   }
   // View tabela
@@ -15860,7 +15872,7 @@ function renderFicha(c, grp=null){
   f.classList.add('on');
   
   // Agenda futura deste cliente
-  const agFut=allPend().filter(p=>p.id_processo===c.id&&(p.dt_raw>=HS||(p.dt_fim&&p.dt_fim>=HS))).sort((a,b)=>a.dt_raw.localeCompare(b.dt_raw));
+  const agFut=allPendCached().filter(p=>p.id_processo===c.id&&(p.dt_raw>=HS||(p.dt_fim&&p.dt_fim>=HS))).sort((a,b)=>a.dt_raw.localeCompare(b.dt_raw));
   const cTasks=tasks[c.id]||[];
   const note=notes[c.id]||'';
   const movProjuris=[...(c.movimentacoes||[]),...(MOV_INDEX[String(c.id)]||[])];
@@ -16786,7 +16798,7 @@ function calcAdicionarAgenda(){
     obs: _calcUltimo.trib.toUpperCase()+' · '+_calcUltimo.estado+' · '+_calcUltimo.tipoDef.obs,
     cliente: _calcUltimo.pasta||'',
   };
-  localAg.push(novo);
+  localAg.push(novo); invalidarAllPend();
   sbSet('co_ag', localAg);
   marcarAlterado();
   atualizarStats();
@@ -17088,7 +17100,7 @@ function agendaConcluirComDesfecho(agId, cid){
       dt_conclusao: new Date().toISOString().slice(0,10),
       obs_conclusao: obs
     };
-    sbSet('co_ag', localAg);
+    sbSet('co_ag', localAg); invalidarAllPend();
     // Andamento na pasta
     if(cid){
       if(!localMov[cid]) localMov[cid]=[];
