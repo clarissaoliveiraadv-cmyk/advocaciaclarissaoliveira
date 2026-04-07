@@ -9801,19 +9801,29 @@ function renderHomeAlerts(){
   const el = document.getElementById('home-alerts');
   if(!el) return;
   const hoje = new Date(HOJE).toISOString().slice(0,10);
-  const encIds = new Set(Object.keys(encerrados).map(Number));
-  const ativos = CLIENTS.filter(c=>!encIds.has(c.id));
+  const encIds = getEncIds();
   const em7 = new Date(HOJE); em7.setDate(em7.getDate()+7);
   const em7str = em7.toISOString().slice(0,10);
   const todos = vfTodos();
 
-  const prazos    = allPendCached().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='prazo'; });
-  const audiencias= allPendCached().filter(p=>{ return !p.realizado&&eventoNoDia(p,hoje)||(p.dt_raw>=hoje&&p.dt_raw<=em7str)&&agTipo(p)==='audiencia'; });
-  const dormentes = ativos.filter(c=>c.ultima_mov_dias>=365);
-  const vencidos  = todos.filter(l=>l.tipo==='receber'&&l.status==='vencido');
-  const totalVenc = vencidos.reduce((s,l)=>s+l.valor,0);
-  const despVencer= todos.filter(l=>l.tipo==='pagar'&&l.status==='pendente'&&(l.data||'')>=hoje&&(l.data||'')<=em7str);
-  const totalDesp = despVencer.reduce((s,l)=>s+l.valor,0);
+  // Cache único de allPend para todo o dashboard
+  const _ap = allPendCached();
+  var prazos=[], audiencias=[];
+  _ap.forEach(function(p){
+    if(p.realizado) return;
+    var emRange = (p.dt_raw>=hoje&&p.dt_raw<=em7str)||eventoNoDia(p,hoje);
+    if(!emRange) return;
+    var tp = agTipo(p);
+    if(tp==='prazo') prazos.push(p);
+    else if(tp==='audiencia') audiencias.push(p);
+  });
+
+  // Single-pass para vencidos e despesas
+  var vencidos=[], despVencer=[], totalVenc=0, totalDesp=0;
+  todos.forEach(function(l){
+    if(l.tipo==='receber'&&l.status==='vencido'){ vencidos.push(l); totalVenc+=l.valor; }
+    if(l.tipo==='pagar'&&l.status==='pendente'&&(l.data||'')>=hoje&&(l.data||'')<=em7str){ despVencer.push(l); totalDesp+=l.valor; }
+  });
 
   // KPI cards
   const kpi = (cor, ico, lbl, val, sub, click) => `
@@ -12453,47 +12463,54 @@ function atualizarStats(){
   const hoje = HS;
   const semFim = new Date(HOJE); semFim.setDate(semFim.getDate()+7);
   const semFimStr = semFim.toISOString().slice(0,10);
-  const _allP = allPendCached(); // cache — evita 4 chamadas redundantes
-  const fut  = _allP.filter(p=>!p.realizado&&p.cumprido!=='Sim'&&(p.dt_fim||p.dt_raw||'')>=hoje);
-  const sem  = fut.filter(p=>p.dt_raw<=semFimStr);
-  const pass = _allP.filter(p=>(p.dt_fim||p.dt_raw||'')<hoje&&p.cumprido!=='Sim'&&!p.realizado);
-  const ativos = CLIENTS.filter(c=>!(encerrados[c.id]||encerrados[String(c.id)])&&!encerrados[String(c.id)]&&c.tipo!=='consulta'&&c.status_consulta!=='consulta');
-  const el1=document.getElementById('st1'); if(el1) el1.textContent=ativos.length;
-  const el2=document.getElementById('st2'); if(el2) el2.textContent=sem.length;
-  const el3=document.getElementById('st3'); if(el3) el3.textContent=pass.length;
-  const bfut=document.getElementById('bfut'); if(bfut) bfut.textContent=fut.length;
-  const dscAt=document.getElementById('dsc-ativos'); if(dscAt) dscAt.textContent=ativos.length;
-  const dscV=document.getElementById('dsc-vencidos'); if(dscV) dscV.textContent=pass.length;
-  const dscH=document.getElementById('dsc-hoje'); if(dscH) dscH.textContent=_allP.filter(function(p){return p.dt_raw===HS&&!p.realizado&&p.cumprido!=='Sim';}).length;
+  const _allP = allPendCached();
+  // Single-pass: classificar futuros, semana, passados
+  var fut=[], sem=[], pass=[], hojeCount=0;
+  _allP.forEach(function(p){
+    if(p.realizado||p.cumprido==='Sim') return;
+    var dt = p.dt_fim||p.dt_raw||'';
+    if(dt>=hoje){ fut.push(p); if(p.dt_raw<=semFimStr) sem.push(p); }
+    else pass.push(p);
+    if(p.dt_raw===hoje) hojeCount++;
+  });
+  var encIds2 = getEncIds();
+  var ativosCount = 0;
+  (CLIENTS||[]).forEach(function(c){ if(!encIds2.has(c.id)&&c.tipo!=='consulta'&&c.status_consulta!=='consulta') ativosCount++; });
+  var el1=document.getElementById('st1'); if(el1) el1.textContent=ativosCount;
+  var el2=document.getElementById('st2'); if(el2) el2.textContent=sem.length;
+  var el3=document.getElementById('st3'); if(el3) el3.textContent=pass.length;
+  var bfutEl=document.getElementById('bfut'); if(bfutEl) bfutEl.textContent=fut.length;
+  var dscAt=document.getElementById('dsc-ativos'); if(dscAt) dscAt.textContent=ativosCount;
+  var dscV=document.getElementById('dsc-vencidos'); if(dscV) dscV.textContent=pass.length;
+  var dscH=document.getElementById('dsc-hoje'); if(dscH) dscH.textContent=hojeCount;
 
   // Atualizar KPI financeiro no dashboard
   try {
-    const todosF = vfTodos();
-    const hoje3 = new Date(HOJE).toISOString().slice(0,10);
-    const mesHoje = hoje3.slice(0,7);
-    const aRecF = todosF.filter(function(l){return l.tipo==='receber'&&l.status!=='pago';}).reduce(function(s,l){return s+l.valor;},0);
-    const vencF = todosF.filter(function(l){return l.tipo==='receber'&&l.status==='vencido';}).length;
-    const fK = function(v){ return v>=1000?'R$ '+(v/1000).toFixed(0)+'k':'R$ '+Math.round(v); };
+    var todosF = vfTodos();
+    // Single-pass para KPIs financeiros
+    var aRecF=0, vencF=0, vencFVal=0;
+    todosF.forEach(function(l){
+      if(l.tipo==='receber'&&l.status!=='pago') aRecF+=l.valor;
+      if(l.tipo==='receber'&&l.status==='vencido'){ vencF++; vencFVal+=l.valor; }
+    });
+    var fK = function(v){ return v>=1000?'R$ '+(v/1000).toFixed(0)+'k':'R$ '+Math.round(v); };
     var dF=document.getElementById('dsc-fin');
-    if(dF) dF.textContent=fK(aRecF)+(vencF>0?' ⚠':'');
-    // Update vfKPI bar if visible
+    if(dF) dF.textContent=fK(aRecF)+(vencF>0?' \u26a0':'');
     var k1=document.getElementById('vfkpi-rec'); if(k1) k1.textContent=fK(aRecF);
-    var k3=document.getElementById('vfkpi-inad'); if(k3) k3.textContent=fK(todosF.filter(function(l){return l.tipo==='receber'&&l.status==='vencido';}).reduce(function(s,l){return s+l.valor;},0));
+    var k3=document.getElementById('vfkpi-inad'); if(k3) k3.textContent=fK(vencFVal);
     // Badge no botão de Financeiro
     var badge=document.getElementById('fin-badge');
     if(badge){ badge.style.display=vencF>0?'inline':'none'; if(vencF>0) badge.textContent=vencF; }
   } catch(e){}
 
-  // Notificacao no titulo da aba
-  const vencidos2 = pass.length;
-  const hoje2     = HS;
-  const vencHoje2 = _allP.filter(p=>p.dt_raw===hoje2&&p.cumprido!=='Sim'&&!p.realizado).length;
-  const dt3       = new Date(new Date(HOJE).getTime()+3*86400000).toISOString().slice(0,10);
-  const venc3dias2= _allP.filter(p=>p.dt_raw>=hoje2&&p.dt_raw<=dt3&&p.cumprido!=='Sim'&&!p.realizado).length;
+  // Notificacao no titulo da aba (reusar hojeCount já calculado)
+  var vencidos2 = pass.length;
+  var dt3 = new Date(new Date(HOJE).getTime()+3*86400000).toISOString().slice(0,10);
+  var venc3dias2 = _allP.filter(function(p){return p.dt_raw>=hoje&&p.dt_raw<=dt3&&p.cumprido!=='Sim'&&!p.realizado;}).length;
   if(vencidos2>0){
     document.title = '\u26a0\ufe0f '+vencidos2+' vencido'+(vencidos2>1?'s':'')+' \u2014 CO Advocacia';
-  } else if(vencHoje2>0){
-    document.title = '\ud83d\udfe1 HOJE: '+vencHoje2+' prazo'+(vencHoje2>1?'s':'')+' \u2014 CO Advocacia';
+  } else if(hojeCount>0){
+    document.title = '\ud83d\udfe1 HOJE: '+hojeCount+' prazo'+(hojeCount>1?'s':'')+' \u2014 CO Advocacia';
   } else if(venc3dias2>0){
     document.title = '\ud83d\udfe0 '+venc3dias2+' prazo'+(venc3dias2>1?'s':'')+' em 3 dias \u2014 CO Advocacia';
   } else {
