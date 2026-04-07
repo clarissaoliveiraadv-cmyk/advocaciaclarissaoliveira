@@ -1489,7 +1489,7 @@ function toggleTarefa(key, idx){
 // ══ MÓDULO KANBAN / GESTÃO DE TAREFAS ══
 // ═══════════════════════════════════════════════════════════════
 
-let vkTasks = [];
+var vkTasks = [];
 try { const _vk = JSON.parse(lsGet('co_vktasks')||'[]'); vkTasks = Array.isArray(_vk) ? _vk : []; } catch{}
 
 let _vkTab = 'kanban';
@@ -11129,7 +11129,7 @@ function toggleTema(){
 
 
 // Dados carregados do servidor (dados.json)
-let CLIENTS=[], ALL_LANC=[], PEND=[], FIN_XLSX=[];
+var CLIENTS=[], ALL_LANC=[], PEND=[], FIN_XLSX=[];
 const MOV_INDEX={};
 
 // ── Salvar CLIENTS no Supabase ──
@@ -11258,19 +11258,19 @@ function invalidarCacheVfTodos(){ _vfTodosInvalido = true; _vfTodosCache = null;
 
 let CLIENTES_AGRUPADOS=[];
 let tasks={}, notes={}, localAg=[], localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
-let localAtend=[];
+var localAtend=[];
 try{ localAtend=JSON.parse(lsGet('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
 
 // Carregar comentários do localStorage
-let comentarios = {};
+var comentarios = {};
 try { const _c = JSON.parse(lsGet('co_coments')||'null'); comentarios = (_c&&typeof _c==='object'&&!Array.isArray(_c)) ? _c : {}; } catch{}
 
 let modalCb=null, mvVisto={}, finTab='pagar';
-let finLancs=[];
+var finLancs=[];
 try{finLancs=JSON.parse(lsGet('co_fin')||'[]');}catch{}
 
 // Fluxo de caixa global (Monte Mor) — co_monte_mor
-let monteMor=[];
+var monteMor=[];
 try{monteMor=JSON.parse(lsGet('co_monte_mor')||'[]');}catch{}
 
 function nc(n){return{Trabalhista:'nt',Previdenciário:'np',Cível:'nc',Família:'nf',Administrativo:'na',Consultoria:'nco',Penal:'npe',Bancário:'nba'}[n]||'na';}
@@ -12156,7 +12156,7 @@ function sbEscolherUsuario(){
 // ══════════════════════════════════════════════════
 // ══ PRAZOS DA PASTA ══
 // ══════════════════════════════════════════════════
-let prazos = {};
+var prazos = {};
 try { const _p = JSON.parse(lsGet('co_prazos')||'null'); prazos = (_p&&typeof _p==='object'&&!Array.isArray(_p)) ? _p : {}; } catch{}
 
 const _SB_SYNC_OLD = _SB_SYNC;
@@ -16789,7 +16789,7 @@ function _reRenderFinPasta(cid){
 }
 
 // LOG DE AUDITORIA
-let _auditLog = [];
+var _auditLog = [];
 
 function _auditInit(){
   try { const s=localStorage.getItem('co_audit'); _auditLog=s?JSON.parse(s):[]; if(!Array.isArray(_auditLog)) _auditLog=[]; }
