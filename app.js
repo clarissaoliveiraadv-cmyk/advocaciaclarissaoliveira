@@ -8084,8 +8084,109 @@ function _finResumoTab2(cid, c, locais, fV, hoje){
       +'<button onclick="_finNovoHonorario('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">+ Lan\u00e7ar Honor\u00e1rio</button>'
       +'<button onclick="_finNovaDespesa('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Despesa</button>'
       +'<button onclick="_finGerarRepasse('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\ud83d\udce4 Gerar Repasse</button>'
+      +'<button onclick="_finRelatorioPDF('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:#60a5fa;cursor:pointer">\ud83d\udcc4 Relat\u00f3rio PDF</button>'
     +'</div>'
   +'</div>';
+}
+
+// ── RELATÓRIO PDF DA PASTA DO CLIENTE ──
+function _finRelatorioPDF(cid){
+  var c = findClientById(cid);
+  if(!c) return;
+  var locais = _finGetLocais(cid);
+  var cls = _finClassificar2(locais);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var hoje = getTodayKey();
+
+  // Totais do resumo
+  var totHon=0, totParc=0, totLiq=0, totCli=0, totRec=0, totPend=0;
+  cls.honorarios.forEach(function(l){
+    var calc = _finCalcLanc(l);
+    totHon += calc.honorarios_contratuais;
+    totParc += calc.valor_parceiro;
+    totLiq += calc.honorarios_liquidos_escritorio;
+    totCli += calc.valor_cliente;
+    if(isRec(l)) totRec += calc.base_calculo; else totPend += calc.base_calculo;
+  });
+  var totDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totRepPago = cls.repasses.filter(isRec).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+
+  // Linhas de honorários
+  var honRows = cls.honorarios.map(function(l){
+    var calc = _finCalcLanc(l);
+    return '<tr>'
+      +'<td>'+fDt(l.data)+'</td>'
+      +'<td>'+escapeHtml(l.desc||'\u2014')+'</td>'
+      +'<td class="r">'+fV(calc.base_calculo)+'</td>'
+      +'<td class="r">'+(l.percentual_honorarios||0)+'%</td>'
+      +'<td class="r">'+fV(calc.honorarios_contratuais)+'</td>'
+      +'<td class="r">'+fV(calc.valor_parceiro)+'</td>'
+      +'<td class="r">'+fV(calc.honorarios_liquidos_escritorio)+'</td>'
+      +'<td class="r">'+fV(calc.valor_cliente)+'</td>'
+      +'<td>'+(isRec(l)?'\u2713 Recebido':'Pendente')+'</td>'
+    +'</tr>';
+  }).join('');
+
+  // Linhas de despesas
+  var despRows = cls.despesas.map(function(l){
+    return '<tr><td>'+fDt(l.data)+'</td><td>'+escapeHtml(l.desc||'\u2014')+'</td><td class="r">'+fV(l.valor)+'</td><td>'+(l.tipo==='despint'?'Interno':'Reembols\u00e1vel')+'</td></tr>';
+  }).join('');
+
+  // Linhas de repasses
+  var repRows = cls.repasses.map(function(l){
+    return '<tr><td>'+fDt(l.dt_baixa||l.data)+'</td><td>'+escapeHtml(l.desc||'Repasse')+'</td><td class="r">'+fV(l.valor)+'</td><td>'+(l.forma||l.conta||'')+'</td><td>'+(isRec(l)?'\u2713 Pago':'Pendente')+'</td></tr>';
+  }).join('');
+
+  // Dados bancários
+  var dadosBanc = getDadosBancarios(c.cliente);
+  var bancHtml = dadosBanc
+    ? '<h2>\ud83c\udfe6 Dados Banc\u00e1rios</h2><p>'
+      +(dadosBanc.nomebenef?'Benefici\u00e1rio: '+dadosBanc.nomebenef+'<br>':'')
+      +(dadosBanc.banco?'Banco: '+dadosBanc.banco+' ':'')+(dadosBanc.ag?'Ag: '+dadosBanc.ag+' ':'')+(dadosBanc.conta?'Conta: '+dadosBanc.conta+'<br>':'')
+      +(dadosBanc.pix?'PIX: <strong>'+escapeHtml(dadosBanc.pix)+'</strong>':'')
+    +'</p>' : '';
+
+  var win = window.open('','_blank');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8">'
+    +'<title>Relat\u00f3rio Financeiro \u2014 '+escapeHtml(c.cliente)+'</title>'
+    +'<style>'
+      +'body{font-family:Calibri,sans-serif;font-size:11px;color:#111;padding:24px;max-width:900px;margin:0 auto}'
+      +'h1{font-size:16px;color:#510f10;margin-bottom:2px}'
+      +'h2{font-size:13px;color:#510f10;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}'
+      +'.sub{font-size:11px;color:#666;margin-bottom:16px}'
+      +'.cards{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}'
+      +'.card{border:1px solid #ddd;border-radius:6px;padding:8px 12px;min-width:100px;text-align:center}'
+      +'.card-v{font-size:16px;font-weight:700}'
+      +'.card-l{font-size:8px;font-weight:700;text-transform:uppercase;color:#666;margin-top:2px}'
+      +'.grn{color:#16a34a}.red{color:#dc2626}.org{color:#9a3412}.blu{color:#1d4ed8}'
+      +'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+      +'th{background:#510f10;color:#fff;padding:4px 6px;text-align:left;font-size:9px;text-transform:uppercase}'
+      +'td{padding:4px 6px;border-bottom:1px solid #eee;font-size:10px}'
+      +'tr:nth-child(even) td{background:#f9f9f9}'
+      +'.r{text-align:right}'
+      +'.footer{margin-top:20px;font-size:9px;color:#999;border-top:1px solid #eee;padding-top:8px}'
+      +'@media print{body{padding:12px}}'
+    +'</style></head><body>'
+    +'<h1>Relat\u00f3rio Financeiro</h1>'
+    +'<div class="sub">'+escapeHtml(c.cliente)+(c.numero?' \u00b7 '+c.numero:'')+' \u00b7 Gerado em '+fDt(hoje)+'</div>'
+    +'<div class="cards">'
+      +'<div class="card"><div class="card-v">'+fV(totHon)+'</div><div class="card-l">Honor\u00e1rios</div></div>'
+      +'<div class="card"><div class="card-v org">'+fV(totParc)+'</div><div class="card-l">Parceiro</div></div>'
+      +'<div class="card"><div class="card-v grn">'+fV(totLiq)+'</div><div class="card-l">L\u00edq. escrit\u00f3rio</div></div>'
+      +'<div class="card"><div class="card-v blu">'+fV(totCli)+'</div><div class="card-l">Valor cliente</div></div>'
+      +'<div class="card"><div class="card-v grn">'+fV(totRec)+'</div><div class="card-l">Recebido</div></div>'
+      +'<div class="card"><div class="card-v org">'+fV(totPend)+'</div><div class="card-l">Pendente</div></div>'
+      +'<div class="card"><div class="card-v red">'+fV(totDesp)+'</div><div class="card-l">Despesas</div></div>'
+      +'<div class="card"><div class="card-v">'+fV(totRepPago)+'</div><div class="card-l">Repasses</div></div>'
+    +'</div>'
+    +(honRows?'<h2>\ud83d\udcb0 Honor\u00e1rios</h2><table><tr><th>Data</th><th>Descri\u00e7\u00e3o</th><th class="r">Base</th><th class="r">%</th><th class="r">Honor.</th><th class="r">Parceiro</th><th class="r">L\u00edq.</th><th class="r">Cliente</th><th>Status</th></tr>'+honRows+'</table>':'')
+    +(despRows?'<h2>\ud83d\udcdd Despesas</h2><table><tr><th>Data</th><th>Descri\u00e7\u00e3o</th><th class="r">Valor</th><th>Tipo</th></tr>'+despRows+'</table>':'')
+    +(repRows?'<h2>\ud83d\udce4 Repasses</h2><table><tr><th>Data</th><th>Descri\u00e7\u00e3o</th><th class="r">Valor</th><th>Forma</th><th>Status</th></tr>'+repRows+'</table>':'')
+    +bancHtml
+    +'<div class="footer">CO Advocacia \u00b7 Clarissa Oliveira \u00b7 Gerado automaticamente</div>'
+    +'</body></html>');
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 500);
 }
 
 // ── ABA HONORÁRIOS ──
