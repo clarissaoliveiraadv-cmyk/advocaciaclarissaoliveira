@@ -14358,7 +14358,99 @@ function getEncIds(){
   return _encIdsCache;
 }
 
+// ── Painel resumo na área vazia de clientes ──
+function renderVclEmpty(){
+  var el = document.getElementById('vcl-empty-dashboard');
+  if(!el) return;
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var hoje = getTodayKey();
+  var encIds = getEncIds();
+
+  // Stats rápidos
+  var totalAtivos = 0;
+  (CLIENTS||[]).forEach(function(c){ if(!encIds.has(c.id)&&c.tipo!=='consulta') totalAtivos++; });
+
+  var _ap = allPendCached();
+  var prazosHoje=0, prazos7d=0, audiencias7d=0;
+  var em7 = new Date(HOJE); em7.setDate(em7.getDate()+7); var em7s=em7.toISOString().slice(0,10);
+  _ap.forEach(function(p){
+    if(p.realizado) return;
+    if(p.dt_raw===hoje) prazosHoje++;
+    if(p.dt_raw>=hoje&&p.dt_raw<=em7s){
+      var tp=agTipo(p);
+      if(tp==='prazo') prazos7d++;
+      else if(tp==='audiencia') audiencias7d++;
+    }
+  });
+
+  // Tarefas pendentes
+  var tarefasPend = vkTasks.filter(function(t){ return !isDone(t); }).length;
+  var tarefasAtrasadas = vkTasks.filter(function(t){ return !isDone(t)&&t.prazo&&t.prazo<hoje; }).length;
+
+  // Financeiro
+  var cons = {saldo:0, totEntrou:0, totHon:0};
+  try { cons = _vfConsolidar(hoje.slice(0,7)); } catch(e){}
+
+  // Próximos compromissos
+  var prox = _ap.filter(function(p){ return !p.realizado&&p.dt_raw>=hoje&&p.dt_raw<=em7s; })
+    .sort(function(a,b){return (a.dt_raw||'').localeCompare(b.dt_raw||'');}).slice(0,5);
+
+  function card(lbl,val,cor){
+    return '<div style="padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;text-align:center">'
+      +'<div style="font-size:20px;font-weight:800;color:'+cor+'">'+val+'</div>'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-top:2px">'+lbl+'</div>'
+    +'</div>';
+  }
+
+  var html = '<div style="text-align:center;margin-bottom:16px">'
+    +'<div style="font-size:28px;margin-bottom:4px">\u2696</div>'
+    +'<div style="font-size:14px;font-weight:700;color:var(--tx)">Clarissa Oliveira Advocacia</div>'
+    +'<div style="font-size:11px;color:var(--mu)">Selecione um cliente ou veja o resumo abaixo</div>'
+  +'</div>';
+
+  // KPIs grid
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
+    +card('Processos ativos', totalAtivos, 'var(--tx)')
+    +card('Tarefas pendentes', tarefasPend, tarefasAtrasadas>0?'#f59e0b':'var(--tx)')
+    +card('Prazos 7 dias', prazos7d, prazos7d>0?'#f59e0b':'var(--mu)')
+    +card('Audiências 7d', audiencias7d, audiencias7d>0?'#f87676':'var(--mu)')
+  +'</div>';
+
+  // Financeiro resumo
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">'
+    +card('Entrou no m\u00eas', fV(cons.totEntrou), 'var(--tx)')
+    +card('Receita escrit.', fV(cons.totHon), '#4ade80')
+    +card('Saldo', fV(cons.saldo), cons.saldo>=0?'#4ade80':'#c9484a')
+  +'</div>';
+
+  // Alertas
+  if(tarefasAtrasadas>0){
+    html += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#f59e0b">'
+      +'\u26a0 <strong>'+tarefasAtrasadas+' tarefa'+(tarefasAtrasadas>1?'s':'')+' atrasada'+(tarefasAtrasadas>1?'s':'')+'</strong> \u2014 '
+      +'<span style="cursor:pointer;text-decoration:underline" onclick="goView(\'vk\',document.getElementById(\'nav-tasks\'));vkRender()">Ver kanban</span>'
+    +'</div>';
+  }
+
+  // Próximos compromissos
+  if(prox.length){
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px;letter-spacing:.05em">Pr\u00f3ximos compromissos</div>';
+    prox.forEach(function(p){
+      var diasAte = Math.ceil((new Date(p.dt_raw)-new Date(hoje))/86400000);
+      var diasLbl = diasAte===0?'HOJE':diasAte===1?'Amanh\u00e3':diasAte+'d';
+      var corD = diasAte<=1?'#f87676':diasAte<=3?'#f59e0b':'var(--mu)';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd)">'
+        +'<span style="font-size:10px;font-weight:800;color:'+corD+';min-width:40px">'+diasLbl+'</span>'
+        +'<span style="flex:1;font-size:11px;color:var(--tx)">'+escapeHtml(p.titulo||p.tipo_compromisso||'\u2014')+'</span>'
+        +'<span style="font-size:9px;color:var(--mu)">'+escapeHtml(p.cliente||'')+'</span>'
+      +'</div>';
+    });
+  }
+
+  el.innerHTML = html;
+}
+
 function doSearch(){
+  renderVclEmpty(); // Preencher painel vazio com resumo
   const q=document.getElementById('srch').value.toLowerCase();
   const encIds=getEncIds();
   if(filtro==='dormentes'){
