@@ -17714,44 +17714,89 @@ function djConsultar(numero, callback){
   });
 }
 
-// Sincronizar movimentações de um processo com o app
+// Verificar tribunal — modal flutuante sem salvar nada
 function djSincronizar(cid){
   var c = findClientById(cid);
-  if(!c || !c.numero){ showToast('Processo sem número cadastrado'); return; }
+  if(!c || !c.numero){ showToast('Processo sem n\u00famero cadastrado'); return; }
 
-  showToast('🔍 Consultando DataJud...');
+  abrirModal('\ud83d\udd0d Verificando Tribunal', '<div style="text-align:center;padding:20px"><div style="font-size:24px;margin-bottom:8px">\u23f3</div><div style="color:var(--mu)">Consultando DataJud...</div><div style="font-size:10px;color:var(--mu);margin-top:4px">'+escapeHtml(c.numero)+'</div></div>', null, null);
 
   djConsultar(c.numero, function(proc, erro){
-    if(erro){ showToast('❌ ' + erro); return; }
+    fecharModal();
+    if(erro){ abrirModal('\u274c Erro na consulta', '<div style="padding:12px;color:#f87676">'+escapeHtml(erro)+'</div>', null, 'Fechar'); return; }
 
-    var movs = proc.movimentos || [];
-    if(!movs.length){ showToast('Nenhuma movimentação no tribunal'); return; }
+    var movsTrib = (proc.movimentos||[]).sort(function(a,b){ return (b.dataHora||'').localeCompare(a.dataHora||''); });
+    if(!movsTrib.length){ abrirModal('\ud83d\udd0d Resultado', '<div style="padding:12px;color:var(--mu)">Nenhuma movimenta\u00e7\u00e3o encontrada no tribunal.</div>', null, 'Fechar'); return; }
 
-    // Atualizar data da última movimentação
-    var ultDt = movs.reduce(function(max,m){
-      var d=(m.dataHora||'').slice(0,10); return d>max?d:max;
-    },'');
-    var hoje = new Date().toISOString().slice(0,10);
-    if(ultDt){
-      c.ultima_mov = ultDt;
-      c.ultima_mov_dias = Math.ceil((new Date(hoje) - new Date(ultDt)) / 86400000);
-    }
+    // Comparar com movimentações locais
+    var movsLocais = new Set();
+    var cMovs = (localMov[cid]||[]).concat(c.movimentacoes||[]);
+    cMovs.forEach(function(m){
+      var dt = (m.data_movimentacao||m.data||'').slice(0,10);
+      var txt = (m.movimentacao||m.desc||m.descricao||'').toLowerCase().slice(0,40);
+      movsLocais.add(dt+'|'+txt);
+    });
 
-    // Enriquecer dados do processo
-    if(proc.classe && proc.classe.nome && !c.natureza) c.natureza = proc.classe.nome;
-    if(proc.orgaoJulgador && proc.orgaoJulgador.nome) c._vara_datajud = proc.orgaoJulgador.nome;
-    if(proc.assuntos && proc.assuntos.length) c._assuntos_datajud = proc.assuntos.map(function(a){ return a.nome; });
-    if(proc.dataAjuizamento && !c.data_inicio) c.data_inicio = proc.dataAjuizamento.slice(0,10);
+    var novidades = 0;
+    var vara = proc.orgaoJulgador ? proc.orgaoJulgador.nome : '';
+    var classe = proc.classe ? proc.classe.nome : '';
 
-    sbSalvarClientes();
-    marcarAlterado();
-    if(AC && AC.id === cid) renderFicha(AC, AC_PROC);
+    var html = '<div style="margin-bottom:12px;background:var(--sf3);border-radius:6px;padding:10px 12px">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--tx)">'+escapeHtml(c.cliente)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(c.numero)+(vara?' \u00b7 '+escapeHtml(vara):'')+(classe?' \u00b7 '+escapeHtml(classe):'')+'</div>'
+    +'</div>';
 
-    // Toast informativo
-    var diasStr = c.ultima_mov_dias === 0 ? 'hoje' : c.ultima_mov_dias + ' dias atrás';
-    var vara = c._vara_datajud ? ' · ' + c._vara_datajud : '';
-    showToast('✓ Última mov: ' + fDt(ultDt) + ' (' + diasStr + ')' + vara);
-    audit('datajud_sync', 'processo', c.cliente + ' — ' + fDt(ultDt));
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px;letter-spacing:.05em">\u00daltimas movimenta\u00e7\u00f5es do tribunal ('+movsTrib.length+')</div>';
+    html += '<div style="max-height:350px;overflow-y:auto">';
+
+    movsTrib.slice(0,30).forEach(function(m){
+      var dt = (m.dataHora||'').slice(0,10);
+      var nome = m.nome||'';
+      var compl = (m.complementosTabelados||[]).map(function(c2){return c2.nome||'';}).join(', ');
+      var txtFull = nome+(compl?' \u2014 '+compl:'');
+      var txtCheck = dt+'|'+txtFull.toLowerCase().slice(0,40);
+      var isNova = !movsLocais.has(txtCheck);
+      if(isNova) novidades++;
+
+      html += '<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)'+(isNova?';background:rgba(245,158,11,.08);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:4px':'')+'">'
+        +'<div style="min-width:70px;font-size:10px;color:var(--mu);font-weight:600">'+fDt(dt)+'</div>'
+        +'<div style="flex:1">'
+          +'<div style="font-size:11px;color:var(--tx)">'+escapeHtml(nome)+'</div>'
+          +(compl?'<div style="font-size:10px;color:var(--mu)">'+escapeHtml(compl)+'</div>':'')
+        +'</div>'
+        +(isNova?'<span style="font-size:8px;padding:2px 6px;border-radius:3px;background:rgba(245,158,11,.2);color:#f59e0b;font-weight:700;align-self:center">NOVA</span>':'')
+      +'</div>';
+    });
+    html += '</div>';
+
+    // Resumo
+    var resumo = novidades > 0
+      ? '<div style="margin-top:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#f59e0b;font-weight:700">\u26a0 '+novidades+' movimenta\u00e7\u00e3o'+(novidades>1?'\u00f5es':'')+' nova'+(novidades>1?'s':'')+' que n\u00e3o est\u00e3o na pasta</div>'
+      : '<div style="margin-top:12px;background:rgba(76,175,125,.08);border:1px solid rgba(76,175,125,.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#4ade80;font-weight:700">\u2713 Pasta atualizada \u2014 nenhuma novidade</div>';
+
+    abrirModal('\ud83d\udd0d Tribunal \u2014 '+escapeHtml(c.cliente), html+resumo, novidades>0?function(){
+      // Importar novidades
+      var importados = 0;
+      movsTrib.forEach(function(m){
+        var dt = (m.dataHora||'').slice(0,10);
+        var nome = m.nome||'';
+        var compl = (m.complementosTabelados||[]).map(function(c2){return c2.nome||'';}).join(', ');
+        var txtFull = nome+(compl?' \u2014 '+compl:'');
+        var txtCheck = dt+'|'+txtFull.toLowerCase().slice(0,40);
+        if(!movsLocais.has(txtCheck)){
+          if(!localMov[cid]) localMov[cid]=[];
+          localMov[cid].unshift({data:dt, movimentacao:'[DataJud] '+txtFull, tipo_movimentacao:'DataJud', origem:'datajud'});
+          importados++;
+        }
+      });
+      if(importados>0){
+        sbSet('co_localMov', localMov);
+        marcarAlterado();
+        if(AC && AC.id===cid) renderFicha(AC, AC_PROC);
+      }
+      fecharModal();
+      showToast('\u2713 '+importados+' movimenta\u00e7\u00e3o'+(importados>1?'\u00f5es':'')+' importada'+(importados>1?'s':''));
+    }:null, novidades>0?'\ud83d\udce5 Importar novidades':'Fechar');
   });
 }
 
