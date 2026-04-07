@@ -8106,7 +8106,7 @@ var _fmSaving = false;
 function fmSalvar(cid){
   if(_fmSaving) return; _fmSaving = true;
   setTimeout(function(){ _fmSaving = false; }, 1000);
-  const c = CLIENTS.find(x=>x.id===cid);
+  const c = findClientById(cid);
   if(!c){ _fmSaving=false; return; }
 
   const desc    = fmVal('desc');
@@ -10868,7 +10868,7 @@ function delPend(cid,pid){
 }
 
 function converterEmProcesso(cid){
-  const c = CLIENTS.find(x=>x.id===cid);
+  const c = findClientById(cid);
   if(!c) return;
 
   const inp = (id,ph='',cls='') =>
@@ -11642,7 +11642,7 @@ function carregarDadosObj(d){
   // Adicionar consultas locais aos clientes
   try{
     const consultas = JSON.parse(localStorage.getItem('co_consultas')||'[]');
-    consultas.forEach(c=>{ if(!CLIENTS.find(x=>x.id===c.id)) CLIENTS.push(c); });
+    consultas.forEach(c=>{ if(!findClientById(c.id)) CLIENTS.push(c); });
   }catch{}
   // Montar CLIENTES_AGRUPADOS por nome
   montarClientesAgrupados();
@@ -11672,7 +11672,7 @@ const MESFIM = new Date(2026,2,31);
 let AC=null, AC_PROC=null, _grupoAtual=null, filtro='todos', agF='todos';
 
 // ── PERF: índice de clientes por id (O(1) lookup) ─────────────────────
-// Substitui CLIENTS.find(x=>x.id===id) chamado em loops — de O(n) para O(1)
+// Substitui findClientById(id) chamado em loops — de O(n) para O(1)
 let _clientsById = new Map();
 function _rebuildClientsIndex(){
   _clientsById = new Map();
@@ -11717,7 +11717,7 @@ function diasAte(dtStr){const d=new Date(dtStr);return Math.ceil((d-HOJE)/(86400
 
 // ── EXCLUIR PROCESSO ──
 function excluirProcesso(cid){
-  const c=CLIENTS.find(x=>x.id===cid);
+  const c=findClientById(cid);
   if(!c)return;
   abrirModal(`Excluir — ${c.cliente}`,
     `<div style="color:var(--mu);font-size:12px;line-height:1.8">
@@ -14694,7 +14694,7 @@ function renderAg(){ _render_agenda_all(); }
 function calEvtClick(id){
   if(!id) return;
   const ev = allPendCached().find(p=>String(p.id||p.id_agenda)===String(id));
-  if(ev?.id_processo){ const c=CLIENTS.find(x=>x.id===ev.id_processo); if(c){ openC(c.id); return; } }
+  if(ev?.id_processo){ const c=findClientById(ev.id_processo); if(c){ openC(c.id); return; } }
   if(ev) showToast(ev.tipo_compromisso||ev.titulo||'Compromisso');
 }
 
@@ -14899,9 +14899,20 @@ function setFiltro(btn, nome){
   doSearch();
 }
 
+// ── Cache de encIds — evita recriar Set a cada busca ──
+var _encIdsCache = null;
+var _encIdsVer = 0;
+function getEncIds(){
+  var ver = Object.keys(encerrados||{}).length;
+  if(_encIdsCache && _encIdsVer===ver) return _encIdsCache;
+  _encIdsCache = new Set([...Object.keys(encerrados).map(Number),...Object.keys(encerrados)]);
+  _encIdsVer = ver;
+  return _encIdsCache;
+}
+
 function doSearch(){
   const q=document.getElementById('srch').value.toLowerCase();
-  const encIds=new Set([...Object.keys(encerrados).map(Number),...Object.keys(encerrados)]);
+  const encIds=getEncIds();
   if(filtro==='dormentes'){
     const lista=CLIENTES_AGRUPADOS.filter(grp=>{
       const ativos=grp.processos.filter(p=>!encIds.has(p.id));
@@ -14976,7 +14987,7 @@ function doSearch(){
 }
 
 function encerrarProcesso(cid){
-  const c=CLIENTS.find(x=>x.id===cid);
+  const c=findClientById(cid);
   if(!c)return;
   // Confirmar
   abrirModal(`Encerrar processo — ${c.cliente}`,
@@ -15013,7 +15024,7 @@ function encerrarProcesso(cid){
 }
 
 function reativarProcesso(cid){
-  const c=CLIENTS.find(x=>x.id===cid);
+  const c=findClientById(cid);
   if(!c)return;
   delete encerrados[cid];
   sbSet('co_encerrados', encerrados);
@@ -15162,17 +15173,20 @@ function _rlPaint(){
 var _rlCf={};
 
 function renderList(lst, isEncView=false){
-  const cf={};
-  allPendCached().filter(p=>p.dt_raw>=HS).forEach(p=>{
-    if(p.id_processo&&p.id_processo!==0) cf[p.id_processo]=(cf[p.id_processo]||0)+1;
+  // Cache único de allPend para todo o renderList
+  var _ap = allPendCached();
+  var cf={};
+  _ap.forEach(function(p){
+    if(p.dt_raw>=HS && p.id_processo && p.id_processo!==0)
+      cf[p.id_processo]=(cf[p.id_processo]||0)+1;
   });
   _rlCf=cf;
-  // Stats
-  const sbTxt = document.getElementById('sb-stats-txt');
+  // Stats (usa cf já calculado — O(1) por cliente)
+  var sbTxt = document.getElementById('sb-stats-txt');
   if(sbTxt){
-    const total = lst.length;
-    const comPend = lst.filter(grp=>grp.processos&&grp.processos.some(p=>allPendCached().filter(ag=>ag.id_processo===p.id&&ag.dt_raw>=HOJE).length>0)).length;
-    sbTxt.innerHTML = `<span>${total} cliente${total!==1?'s':''}</span>${comPend>0?`<span style="color:var(--ouro)">• ${comPend} c/ agenda</span>`:''}`;
+    var total = lst.length;
+    var comPend = lst.filter(function(grp){ return grp.processos&&grp.processos.some(function(p){ return cf[p.id]>0; }); }).length;
+    sbTxt.innerHTML = '<span>'+total+' cliente'+(total!==1?'s':'')+'</span>'+(comPend>0?'<span style="color:var(--ouro)">\u2022 '+comPend+' c/ agenda</span>':'');
   }
   // View tabela
   if(_vclView === 'table'){
@@ -15330,7 +15344,7 @@ function abrirModalMov(cid){
 let mvWppCustom = '';
 
 function _mvEnviarWpp(cid, idx){
-  var c = CLIENTS.find(function(x){ return x.id === cid; });
+  var c = findClientById(cid);
   if(!c){ showToast('Cliente não encontrado'); return; }
   var movs = (localMov[cid]||[]).concat([...(c.movimentacoes||[]),...(MOV_INDEX[String(cid)]||[])]);
   var m = movs[idx];
@@ -15435,7 +15449,7 @@ function agRowGlobal(p){
 
 function abrirCDeAg(pid){
   if(!pid)return;
-  const c=CLIENTS.find(x=>x.id===pid);
+  const c=findClientById(pid);
   if(!c)return;
   goView('vc',document.querySelector('.hnav-btn'));
   openC(c.id);
@@ -15746,7 +15760,7 @@ function atAlterarStatusFicha(cid, novoStatus){
   }
   // Se não prosseguiu → encerrar automaticamente
   if(novoStatus==='nao-prosseguiu'){
-    const c = CLIENTS.find(x=>x.id===cid);
+    const c = findClientById(cid);
     encerrados[cid] = {
       data: new Date().toISOString().slice(0,10),
       motivo: 'Atendimento: cliente não prosseguiu',
@@ -15769,13 +15783,13 @@ function atAlterarStatusFicha(cid, novoStatus){
   // Atualizar banner
   const banner = document.getElementById('atend-banner-'+cid);
   if(banner){
-    const c = CLIENTS.find(x=>x.id===cid);
+    const c = findClientById(cid);
     if(c) banner.innerHTML = renderAtendBanner(c);
   }
 }
 
 function atConverterProcesso(cid){
-  const c = CLIENTS.find(x=>x.id===cid);
+  const c = findClientById(cid);
   if(!c) return;
   const at = localAtend.find(a=>String(a.id_cliente)===String(cid));
 
@@ -16936,7 +16950,7 @@ function abrirModalPrazo(cid){
 
 // abrirConsulta — abre ficha de consulta/atendimento
 function abrirConsulta(id){
-  const c = CLIENTS.find(x=>x.id===id||String(x.id)===String(id));
+  const c = findClientById(id||String(x.id)===String(id));
   if(c) openC(c);
   else showToast('Consulta não encontrada');
 }
@@ -17015,7 +17029,7 @@ function renderHonorariosPasta(cid){
 }
 
 function editarHonorariosPasta(cid){
-  const c = CLIENTS.find(x=>x.id===cid);
+  const c = findClientById(cid);
   if(!c) return;
   const h = c._hon_contrato||{};
   abrirModal('Honorarios — '+c.cliente,
@@ -17688,7 +17702,7 @@ function djConsultar(numero, callback){
 
 // Sincronizar movimentações de um processo com o app
 function djSincronizar(cid){
-  var c = CLIENTS.find(function(x){ return x.id === cid; });
+  var c = findClientById(cid);
   if(!c || !c.numero){ showToast('Processo sem número cadastrado'); return; }
 
   showToast('🔍 Consultando DataJud...');
