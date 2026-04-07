@@ -2235,26 +2235,75 @@ function _vfRepassesGlobal(mesP){
 }
 
 // ── ABA DESPESAS DO ESCRITÓRIO ──
+// ── MODAL DESPESA DO ESCRITÓRIO ──
+function _vfNovaDespEscritorio(){
+  var hoje = new Date().toISOString().slice(0,10);
+  abrirModal('\ud83c\udfe2 Nova Despesa do Escrit\u00f3rio',
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o *</label><input class="fm-inp" id="de-desc" placeholder="Ex: Aluguel, Internet, Sal\u00e1rio..."></div></div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor (R$) *</label><input class="fm-inp" type="number" id="de-valor" min="0.01" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="de-data" value="'+hoje+'"></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Categoria</label><select class="fm-inp" id="de-cat"><option>Estrutura</option><option>Pessoal</option><option>Telecom</option><option>Energia</option><option>Sistemas</option><option>Impostos</option><option>Marketing</option><option>Servi\u00e7os</option><option>Outros</option></select></div>'
+      +'<div><label class="fm-lbl">Forma pagamento</label><select class="fm-inp" id="de-forma"><option>PIX</option><option>Boleto</option><option>D\u00e9bito</option><option>Cart\u00e3o</option><option>TED</option><option>Dinheiro</option></select></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div style="display:flex;align-items:center;gap:6px;padding-top:4px"><input type="checkbox" id="de-recorr"><label for="de-recorr" style="font-size:11px;color:var(--tx)">Despesa fixa (recorrente mensal)</label></div>'
+    +'</div>'
+    +'<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Observa\u00e7\u00e3o</label><input class="fm-inp" id="de-obs" placeholder="Detalhes..."></div></div>',
+  function(){
+    var desc = (document.getElementById('de-desc')?.value||'').trim();
+    var valor = parseFloat(document.getElementById('de-valor')?.value)||0;
+    if(!desc){ showToast('Informe a descri\u00e7\u00e3o'); return; }
+    if(valor <= 0){ showToast('Informe o valor'); return; }
+    var data = document.getElementById('de-data')?.value||hoje;
+    var cat = document.getElementById('de-cat')?.value||'Outros';
+    var forma = document.getElementById('de-forma')?.value||'';
+    var recorr = document.getElementById('de-recorr')?.checked||false;
+    var obs = (document.getElementById('de-obs')?.value||'').trim();
+    finLancs.push({
+      id: genId(), tipo:'pagar', desc:desc, valor:valor,
+      data:data, cat:cat, forma:forma, obs:obs,
+      status:'pago', pago:true, dt_baixa:data,
+      _recorrente: recorr, _desp_escritorio: true
+    });
+    sbSet('co_fin', finLancs);
+    marcarAlterado(); fecharModal();
+    vfRender();
+    showToast('Despesa lan\u00e7ada \u2713');
+  }, '\ud83d\udcbe Salvar despesa');
+}
+
+// ── EXCLUIR DESPESA GLOBAL ──
+function _vfDelDespEscritorio(lid){
+  if(!confirm('Excluir esta despesa?')) return;
+  var ls = String(lid);
+  finLancs = finLancs.filter(function(l){ return String(l.id)!==ls; });
+  sbSet('co_fin', finLancs);
+  marcarAlterado();
+  vfRender();
+  showToast('Despesa exclu\u00edda');
+}
+
 function _vfDespesasEscritorio(mesP){
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  // Despesas globais (finLancs tipo pagar + despesas fixas)
   var desp = [];
   (finLancs||[]).forEach(function(l){
-    if(l.tipo==='pagar' && (l.pago||l.status==='pago')){
+    if(l.tipo==='pagar'){
       if(mesP && !(l.data||l.dt_baixa||'').startsWith(mesP)) return;
-      desp.push(l);
+      desp.push({src:'fin', l:l});
     }
   });
-  // Despesas internas de localLanc (despint = custo escritório)
   (localLanc||[]).forEach(function(l){
-    if(l.tipo==='despint' && (l.pago||l.status==='pago')){
+    if(l.tipo==='despint'){
       if(mesP && !(l.data||'').startsWith(mesP)) return;
-      desp.push(l);
+      desp.push({src:'loc', l:l});
     }
   });
-  var tot = desp.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  if(!desp.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhuma despesa no per\u00edodo.</div>';
+  var tot = desp.reduce(function(s,d){return s+(parseFloat(d.l.valor)||0);},0);
   var catLabel = function(l){
+    if(l.cat) return l.cat;
     var d=(l.desc||'').toUpperCase();
     if(d.includes('ALUGUEL')||d.includes('CONDOMIN')) return 'Estrutura';
     if(d.includes('SALARIO')||d.includes('KAREN')||d.includes('PRO LABORE')||d.includes('PROLABORE')) return 'Pessoal';
@@ -2262,20 +2311,29 @@ function _vfDespesasEscritorio(mesP){
     if(d.includes('ENERGIA')||d.includes('LUZ')||d.includes('CEMIG')) return 'Energia';
     if(d.includes('SISTEMA')||d.includes('SOFTWARE')||d.includes('PROJURIS')) return 'Sistemas';
     if(d.includes('IMPOSTO')||d.includes('SIMPLES')||d.includes('DARF')) return 'Impostos';
-    return l.cat||'Outros';
+    return 'Outros';
   };
   var html = '<div style="padding:16px;max-width:800px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<button onclick="_vfNovaDespEscritorio()" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova Despesa</button>'
+      +'<div style="font-size:11px;color:var(--mu)">'+desp.length+' despesa'+(desp.length!==1?'s':'')+'</div>'
+    +'</div>'
     +'<div style="background:rgba(248,118,118,.06);border:1px solid rgba(248,118,118,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
       +'<span style="font-size:12px;color:var(--mu)">Total despesas</span>'
       +'<span style="font-size:20px;font-weight:800;color:#f87676">'+fV(tot)+'</span>'
     +'</div>';
-  desp.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
+  if(!desp.length) return html+'<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa no per\u00edodo. Clique em + Nova Despesa.</div></div>';
+  desp.sort(function(a,b){return (b.l.data||'').localeCompare(a.l.data||'');}).forEach(function(d){
+    var l = d.l;
+    var delFn = d.src==='fin' ? '_vfDelDespEscritorio('+l.id+')' : 'finDelLanc(0,'+l.id+')';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(l.data||l.dt_baixa)+'</div>'
       +'<div style="flex:1;font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
       +'<div style="font-size:10px;color:var(--mu);min-width:70px">'+catLabel(l)+'</div>'
       +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||'')+'</div>'
+      +(l._recorrente?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(96,165,250,.1);color:#60a5fa;font-weight:700">FIXA</span>':'')
       +'<div style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</div>'
+      +'<button onclick="'+delFn+'" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
@@ -2319,6 +2377,7 @@ function vfRender(){
   else if(tab==='valclientes') htmlTab = _vfValoresClientes(mesP);
   else if(tab==='repasses')   htmlTab = _vfRepassesGlobal(mesP);
   else if(tab==='despesas')   htmlTab = _vfDespesasEscritorio(mesP);
+  else if(tab==='extrato')   htmlTab = vfExtrato();
   else                        htmlTab = _vfResumoGlobal(mesP);
   el.textContent = '';
   el.appendChild(_fragFromHtml(htmlTab));
