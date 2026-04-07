@@ -317,7 +317,6 @@ function sbAplicar(chave, valor, quem){
   });
   if(adicionados > 0){
     sbSet('co_fin', finLancs);
-    console.log('[Extrato Inter] Injetados: '+adicionados+' lançamentos');
   }
 })();
 
@@ -332,7 +331,6 @@ function sbAplicar(chave, valor, quem){
   });
   if(finLancs.length < finAntes){
     sbSet('co_fin', finLancs);
-    console.log('[Cleanup] finLancs removidos: '+(finAntes-finLancs.length));
   }
 
   var locAntes = (localLanc||[]).length;
@@ -341,7 +339,6 @@ function sbAplicar(chave, valor, quem){
   });
   if(localLanc.length < locAntes){
     sbSet('co_localLanc', localLanc);
-    console.log('[Cleanup] localLanc removidos: '+(locAntes-localLanc.length));
   }
 })();
 
@@ -365,7 +362,6 @@ function sbAplicar(chave, valor, quem){
   });
   if(localAg.length < antes){
     sbSet('co_ag', localAg); invalidarAllPend();
-    console.log('[Cleanup] Duplicatas agenda removidas: '+(antes-localAg.length));
   }
 })();
 
@@ -507,7 +503,6 @@ function sbAplicar(chave, valor, quem){
   sbSet('co_localLanc', localLanc);
   marcarAlterado();
 
-  console.log('[LimpezaMarco] ' + log.join(' | '));
   if(typeof showToast==='function') showToast('✓ Correções aplicadas: '+log.length+' operações');
 })();
     case 'co_tasks':   tasks=valor||{}; break;
@@ -581,7 +576,6 @@ async function sbInit(){
       if(added > 0){
         lsSet('co_localLanc', JSON.stringify(localLanc));
         sbSet('co_localLanc', localLanc);
-        console.log('[Migração] '+added+' lançamentos adicionados');
       }
     })();
     // Re-renderizar tudo
@@ -17210,7 +17204,6 @@ function wfRodar(){
   alertas.slice(0, 5).forEach(function(a, i){
     setTimeout(function(){ notifEnviar(a.titulo, a.corpo, a.tag, a.onclick); }, i * 2000);
   });
-  if(alertas.length) console.log('[CO Workflows] '+alertas.length+' alertas');
 }
 
 function _clienteNome(cid){
