@@ -281,25 +281,24 @@
     <!-- KPIs do mês selecionado -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);flex:1">
       <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Honorários recebidos</div>
-        <div id="vfkpi-hon" style="font-size:16px;font-weight:800;color:#4ade80">—</div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Total que entrou</div>
+        <div id="vfkpi-entrou" style="font-size:16px;font-weight:800;color:var(--tx)">—</div>
       </div>
       <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Previsto no mês</div>
-        <div id="vfkpi-prev" style="font-size:16px;font-weight:800;color:#86efac">—</div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Receita escritório</div>
+        <div id="vfkpi-receita" style="font-size:16px;font-weight:800;color:#4ade80">—</div>
       </div>
       <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Custódia clientes</div>
-        <div id="vfkpi-custodia" style="font-size:16px;font-weight:800;color:#fb923c">—</div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Valores de clientes</div>
+        <div id="vfkpi-clientes" style="font-size:16px;font-weight:800;color:#fb923c">—</div>
       </div>
       <div style="padding:8px 14px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Despesas do mês</div>
-        <div id="vfkpi-desp" style="font-size:16px;font-weight:800;color:#f87676">—</div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Saldo escritório</div>
+        <div id="vfkpi-saldo" style="font-size:16px;font-weight:800;color:#4ade80">—</div>
       </div>
     </div>
     <!-- Ações -->
     <div style="display:flex;gap:6px;padding:8px 14px;border-left:1px solid var(--bd);flex-shrink:0">
-      <button class="tp-btn" onclick="abrirNovoLancGlobal()" style="background:rgba(76,175,125,.1);border-color:rgba(76,175,125,.3);color:#4ade80;white-space:nowrap">+ Lançamento</button>
       <button class="tp-btn" onclick="vfExportarPDF()" style="white-space:nowrap">⬇ PDF</button>
     </div>
   </div>
@@ -307,14 +306,12 @@
   <!-- ── ABAS ── -->
   <div style="display:flex;align-items:center;gap:4px;padding:8px 16px;border-bottom:1px solid var(--bd);background:var(--sf2);flex-shrink:0;flex-wrap:wrap" id="vf-tabs">
     
-    <button class="vf-tab on" onclick="vfSetTab('mes',this)">📅 Mês</button>
-    <button class="vf-tab" onclick="vfSetTab('receber',this)">📥 A Receber</button>
-    <button class="vf-tab" onclick="vfSetTab('pagar',this)">📤 A Pagar</button>
-    <button class="vf-tab" onclick="vfSetTab('repasses',this)">💼 Repasses</button>
-    <button class="vf-tab" onclick="vfSetTab('caixa',this)">💵 Caixa Real</button>
-    <button class="vf-tab" onclick="vfSetTab('dre',this)">📊 DRE</button>
-    <button class="vf-tab" onclick="vfSetTab('fixas',this)">🏢 Desp. Fixas</button>
-    <button class="vf-tab" onclick="vfSetTab('logfin',this)">📋 Log</button>
+    <button class="vf-tab on" onclick="vfSetTab('resumo',this)">Resumo</button>
+    <button class="vf-tab" onclick="vfSetTab('recebimentos',this)">Recebimentos</button>
+    <button class="vf-tab" onclick="vfSetTab('receita',this)">Receita Escritório</button>
+    <button class="vf-tab" onclick="vfSetTab('valclientes',this)">Valores Clientes</button>
+    <button class="vf-tab" onclick="vfSetTab('repasses',this)">Repasses</button>
+    <button class="vf-tab" onclick="vfSetTab('despesas',this)">Despesas Escritório</button>
   </div>
 
   <!-- ── CONTEÚDO ── -->

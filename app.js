@@ -2049,6 +2049,238 @@ function vfTodos(){
   return result;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ══ FINANCEIRO GLOBAL v2 — CONSOLIDAÇÃO DAS PASTAS ════════════
+// ═══════════════════════════════════════════════════════════════
+
+// Consolida dados de TODAS as pastas de clientes (somente leitura)
+function _vfConsolidar(mesP){
+  var recebimentos = [];
+  var repasses = [];
+  var despesas = [];
+  (localLanc||[]).forEach(function(l){
+    var isRep = l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara;
+    var isDesp = l.tipo==='despesa'||l.tipo==='despint';
+    var rec = l.recebido||l.pago||l.status==='pago';
+    if(isRep && rec){
+      repasses.push(l);
+    } else if(isDesp){
+      despesas.push(l);
+    } else if(!isRep && !isDesp && rec){
+      var calc = _finCalcLanc(l);
+      recebimentos.push({
+        data: l.dt_baixa||l.data||'',
+        cliente: l.cliente||'',
+        processo: l.desc||'',
+        descricao: l.desc||'',
+        valor_bruto: calc.base_calculo,
+        valor_honorarios: calc.honorarios_liquidos_escritorio,
+        valor_cliente: calc.valor_cliente,
+        forma: l.forma||'',
+        _raw: l
+      });
+    }
+  });
+  // Filtrar por mês se informado
+  if(mesP){
+    recebimentos = recebimentos.filter(function(r){return (r.data||'').startsWith(mesP);});
+    repasses = repasses.filter(function(r){return (r.dt_baixa||r.data||'').startsWith(mesP);});
+    despesas = despesas.filter(function(r){return (r.data||'').startsWith(mesP);});
+  }
+  var totEntrou = recebimentos.reduce(function(s,r){return s+r.valor_bruto;},0);
+  var totHon = recebimentos.reduce(function(s,r){return s+r.valor_honorarios;},0);
+  var totCli = recebimentos.reduce(function(s,r){return s+r.valor_cliente;},0);
+  var totRep = repasses.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totDesp = despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var saldo = roundMoney(totHon - totDesp);
+  return {recebimentos:recebimentos, repasses:repasses, despesas:despesas, totEntrou:totEntrou, totHon:totHon, totCli:totCli, totRep:totRep, totDesp:totDesp, saldo:saldo};
+}
+
+// ── ABA RESUMO GLOBAL ──
+function _vfResumoGlobal(mesP){
+  var d = _vfConsolidar(mesP);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  function card(lbl, val, cor, sub){
+    return '<div style="flex:1;min-width:140px;padding:12px 14px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:4px">'+lbl+'</div>'
+      +'<div style="font-size:18px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
+      +(sub?'<div style="font-size:10px;color:var(--mu);margin-top:3px">'+sub+'</div>':'')
+    +'</div>';
+  }
+  return '<div style="padding:16px;max-width:900px">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+      +card('Total que entrou', d.totEntrou, 'var(--tx)', d.recebimentos.length+' recebimento'+(d.recebimentos.length!==1?'s':''))
+      +card('Receita escrit\u00f3rio', d.totHon, '#4ade80', 'Honor\u00e1rios l\u00edquidos')
+      +card('Valores de clientes', d.totCli, '#fb923c', 'Em cust\u00f3dia / a repassar')
+    +'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+      +card('Total repassado', d.totRep, d.totRep>0?'var(--tx)':'var(--mu)', d.repasses.length+' repasse'+(d.repasses.length!==1?'s':''))
+      +card('Despesas escrit\u00f3rio', d.totDesp, d.totDesp>0?'#f87676':'var(--mu)', '')
+      +card('Saldo escrit\u00f3rio', d.saldo, d.saldo>=0?'#4ade80':'#c9484a', 'Receita \u2212 Despesas')
+    +'</div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-size:11px;color:var(--mu)">'
+      +'<strong>Importante:</strong> Valor de clientes n\u00e3o entra no saldo do escrit\u00f3rio. \u00c9 valor em cust\u00f3dia.'
+    +'</div>'
+  +'</div>';
+}
+
+// ── ABA RECEBIMENTOS ──
+function _vfRecebimentos(mesP){
+  var d = _vfConsolidar(mesP);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  if(!d.recebimentos.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhum recebimento no per\u00edodo.</div>';
+  var totB=0,totH=0,totC=0;
+  var html = '<div style="padding:16px;max-width:960px">'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="background:var(--sf3)">'
+      +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Data</th>'
+      +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Cliente</th>'
+      +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Descri\u00e7\u00e3o</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Valor bruto</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Honor. escrit.</th>'
+      +'<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Valor cliente</th>'
+      +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Forma</th>'
+    +'</tr></thead><tbody>';
+  d.recebimentos.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(r){
+    totB+=r.valor_bruto; totH+=r.valor_honorarios; totC+=r.valor_cliente;
+    html += '<tr style="border-bottom:1px solid var(--bd)">'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(r.data)+'</td>'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')">'+escapeHtml(r.cliente)+'</td>'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--tx)">'+escapeHtml(r.descricao)+'</td>'
+      +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:var(--tx);text-align:right">'+fV(r.valor_bruto)+'</td>'
+      +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#4ade80;text-align:right">'+fV(r.valor_honorarios)+'</td>'
+      +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#fb923c;text-align:right">'+fV(r.valor_cliente)+'</td>'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--mu)">'+escapeHtml(r.forma)+'</td>'
+    +'</tr>';
+  });
+  html += '<tr style="background:var(--sf3);font-weight:700">'
+    +'<td colspan="3" style="padding:8px 10px;font-size:11px;color:var(--tx)">TOTAL</td>'
+    +'<td style="padding:8px 10px;font-size:12px;color:var(--tx);text-align:right">'+fV(totB)+'</td>'
+    +'<td style="padding:8px 10px;font-size:12px;color:#4ade80;text-align:right">'+fV(totH)+'</td>'
+    +'<td style="padding:8px 10px;font-size:12px;color:#fb923c;text-align:right">'+fV(totC)+'</td>'
+    +'<td></td></tr>';
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+// ── ABA RECEITA DO ESCRITÓRIO ──
+function _vfReceitaEscritorio(mesP){
+  var d = _vfConsolidar(mesP);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  if(!d.recebimentos.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhuma receita no per\u00edodo.</div>';
+  var html = '<div style="padding:16px;max-width:800px">'
+    +'<div style="background:rgba(76,175,125,.06);border:1px solid rgba(76,175,125,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:12px;color:var(--mu)">Total honor\u00e1rios l\u00edquidos</span>'
+      +'<span style="font-size:20px;font-weight:800;color:#4ade80">'+fV(d.totHon)+'</span>'
+    +'</div>';
+  d.recebimentos.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(r){
+    if(r.valor_honorarios <= 0) return;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(r.data)+'</div>'
+      +'<div style="flex:1;font-size:12px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')">'+escapeHtml(r.cliente)+'</div>'
+      +'<div style="font-size:11px;color:var(--mu);flex:1">'+escapeHtml(r.descricao)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#4ade80">'+fV(r.valor_honorarios)+'</div>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA VALORES DE CLIENTES ──
+function _vfValoresClientes(mesP){
+  var d = _vfConsolidar(mesP);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var itens = d.recebimentos.filter(function(r){return r.valor_cliente > 0;});
+  if(!itens.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhum valor de cliente no per\u00edodo.</div>';
+  // Calcular repasses por cliente
+  var repPorCli = {};
+  d.repasses.forEach(function(l){ var c=l.cliente||''; repPorCli[c]=(repPorCli[c]||0)+(parseFloat(l.valor)||0); });
+  var html = '<div style="padding:16px;max-width:800px">'
+    +'<div style="background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:12px;color:var(--mu)">Total valores de clientes (cust\u00f3dia)</span>'
+      +'<span style="font-size:20px;font-weight:800;color:#fb923c">'+fV(d.totCli)+'</span>'
+    +'</div>';
+  itens.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(r){
+    var rep = repPorCli[r.cliente]||0;
+    var statusRep = rep >= r.valor_cliente ? '\u2713 Repassado' : (rep > 0 ? 'Parcial' : 'Pendente');
+    var corRep = rep >= r.valor_cliente ? '#4ade80' : (rep > 0 ? '#f59e0b' : '#c9484a');
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(r.data)+'</div>'
+      +'<div style="flex:1;font-size:12px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')">'+escapeHtml(r.cliente)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#fb923c">'+fV(r.valor_cliente)+'</div>'
+      +'<div style="font-size:10px;font-weight:700;color:'+corRep+'">'+statusRep+'</div>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA REPASSES GLOBAL ──
+function _vfRepassesGlobal(mesP){
+  var d = _vfConsolidar(mesP);
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  if(!d.repasses.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhum repasse no per\u00edodo.</div>';
+  var html = '<div style="padding:16px;max-width:800px">'
+    +'<div style="background:rgba(201,72,74,.06);border:1px solid rgba(201,72,74,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:12px;color:var(--mu)">Total repassado</span>'
+      +'<span style="font-size:20px;font-weight:800;color:var(--tx)">'+fV(d.totRep)+'</span>'
+    +'</div>';
+  d.repasses.sort(function(a,b){return (b.data||b.dt_baixa||'').localeCompare(a.data||a.dt_baixa||'');}).forEach(function(l){
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(l.dt_baixa||l.data)+'</div>'
+      +'<div style="flex:1;font-size:12px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(l.cliente||'').replace(/'/g,"\\'")+'\')">'+escapeHtml(l.cliente||'\u2014')+'</div>'
+      +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||l.conta||'')+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</div>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
+// ── ABA DESPESAS DO ESCRITÓRIO ──
+function _vfDespesasEscritorio(mesP){
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  // Despesas globais (finLancs tipo pagar + despesas fixas)
+  var desp = [];
+  (finLancs||[]).forEach(function(l){
+    if(l.tipo==='pagar' && (l.pago||l.status==='pago')){
+      if(mesP && !(l.data||l.dt_baixa||'').startsWith(mesP)) return;
+      desp.push(l);
+    }
+  });
+  // Despesas internas de localLanc (despint = custo escritório)
+  (localLanc||[]).forEach(function(l){
+    if(l.tipo==='despint' && (l.pago||l.status==='pago')){
+      if(mesP && !(l.data||'').startsWith(mesP)) return;
+      desp.push(l);
+    }
+  });
+  var tot = desp.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  if(!desp.length) return '<div style="padding:40px;text-align:center;color:var(--mu)">Nenhuma despesa no per\u00edodo.</div>';
+  var catLabel = function(l){
+    var d=(l.desc||'').toUpperCase();
+    if(d.includes('ALUGUEL')||d.includes('CONDOMIN')) return 'Estrutura';
+    if(d.includes('SALARIO')||d.includes('KAREN')||d.includes('PRO LABORE')||d.includes('PROLABORE')) return 'Pessoal';
+    if(d.includes('INTERNET')||d.includes('CLARO')||d.includes('TELEFONE')) return 'Telecom';
+    if(d.includes('ENERGIA')||d.includes('LUZ')||d.includes('CEMIG')) return 'Energia';
+    if(d.includes('SISTEMA')||d.includes('SOFTWARE')||d.includes('PROJURIS')) return 'Sistemas';
+    if(d.includes('IMPOSTO')||d.includes('SIMPLES')||d.includes('DARF')) return 'Impostos';
+    return l.cat||'Outros';
+  };
+  var html = '<div style="padding:16px;max-width:800px">'
+    +'<div style="background:rgba(248,118,118,.06);border:1px solid rgba(248,118,118,.25);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:12px;color:var(--mu)">Total despesas</span>'
+      +'<span style="font-size:20px;font-weight:800;color:#f87676">'+fV(tot)+'</span>'
+    +'</div>';
+  desp.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(l.data||l.dt_baixa)+'</div>'
+      +'<div style="flex:1;font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
+      +'<div style="font-size:10px;color:var(--mu);min-width:70px">'+catLabel(l)+'</div>'
+      +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||'')+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</div>'
+    +'</div>';
+  });
+  return html+'</div>';
+}
+
 function vfRender(){
   const el = document.getElementById('vf-content');
   if(!el) return;
@@ -2071,72 +2303,26 @@ function vfRender(){
   const mesP  = _vfMes || new Date(HOJE).toISOString().slice(0,7);
   const fK    = function(v){ return v>=1000?'R$ '+(v/1000).toFixed(1).replace('.0','')+'k':'R$ '+Math.round(v); };
 
-  const isRepasse = function(l){
-    return l.subtipo==='repasse'||(l.desc||'').toLowerCase().startsWith('repasse')
-      ||l._repasse_alvara||l._repasse_acordo;
-  };
+  // ── KPIs consolidados ──
+  var cons = _vfConsolidar(mesP);
+  var e1=document.getElementById('vfkpi-entrou');   if(e1) e1.textContent=fK(cons.totEntrou);
+  var e2=document.getElementById('vfkpi-receita');  if(e2) e2.textContent=fK(cons.totHon);
+  var e3=document.getElementById('vfkpi-clientes'); if(e3) e3.textContent=fK(cons.totCli);
+  var e4=document.getElementById('vfkpi-saldo');    if(e4) e4.textContent=fK(cons.saldo);
 
-  // ── KPIs do mês selecionado ──
-  // 1. Honorários RECEBIDOS no mês (só escritório, não custódia)
-  const honRec = todos.filter(function(l){
-    return l.tipo==='receber' && l.status==='pago' && !isRepasse(l)
-      && (l.dt_baixa||l.data||'').startsWith(mesP);
-  }).reduce(function(s,l){return s+l.valor;},0);
-
-  // 2. Previsto no mês (pendentes com vencimento no mês)
-  const prev = todos.filter(function(l){
-    return l.tipo==='receber' && l.status!=='pago' && !isRepasse(l)
-      && (l.venc||l.data||'').startsWith(mesP);
-  }).reduce(function(s,l){return s+l.valor;},0);
-
-  // 3. Custódia: repasses pendentes (todos os meses — dinheiro em mãos)
-  // Custódia: all pending repasses regardless of status field name
-  const custodia = (localLanc||[]).filter(function(l){
-    return (l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo)
-      && !l.pago && (l.status||'pendente')!=='pago';
-  }).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-
-  // 4. Despesas do mês — only from todos (already includes finLancs via vfTodos)
-  const despMes = todos.filter(function(l){
-    return l.tipo==='pagar' && !isRepasse(l)
-      && (l.data||l.venc||'').startsWith(mesP);
-  }).reduce(function(s,l){return s+l.valor;},0);
-
-  var e1=document.getElementById('vfkpi-hon');      if(e1) e1.textContent=fK(honRec);
-  var e2=document.getElementById('vfkpi-prev');     if(e2) e2.textContent=fK(prev);
-  var e3=document.getElementById('vfkpi-custodia'); if(e3) e3.textContent=fK(custodia);
-  var e4=document.getElementById('vfkpi-desp');     if(e4) e4.textContent=fK(despMes);
-
-  // ── Routing ── Phase 3: lazy-load com cache de abas pesadas
-  var tab = _vfTab||'mes';
-  var cacheKey = tab + ':' + mesP + ':' + todos.length;
-  if(!vfRender._cache) vfRender._cache = {};
-  // Abas leves (dados mudam frequentemente) — sempre recalculam
-  var leve = {mes:1, receber:1, pagar:1, repasses:1, caixa:1, fixas:1};
+  // ── Routing ──
+  var tab = _vfTab||'resumo';
   var htmlTab;
-  if(leve[tab] || !vfRender._cache[cacheKey]){
-    if(tab==='mes')              htmlTab = vfMes(todos, mesP);
-    else if(tab==='receber')     htmlTab = vfAReceber(todos);
-    else if(tab==='pagar')       htmlTab = vfAPagar(todos);
-    else if(tab==='repasses')    htmlTab = vfRepasses();
-    else if(tab==='caixa')       htmlTab = vfCaixa();
-    else if(tab==='dre')         htmlTab = vfDRE(todos);
-    else if(tab==='fixas')       htmlTab = vfDespesasFixas();
-    else if(tab==='extrato')     htmlTab = vfExtrato();
-    else if(tab==='inadimplencia')htmlTab = vfInadimplencia(todos);
-    else if(tab==='logfin')      htmlTab = vfLogFinanceiro();
-    else if(tab==='fluxo')       htmlTab = vfFluxo(todos);
-    else                         htmlTab = vfMes(todos, mesP);
-    // Cache abas pesadas (dre, extrato, inadimplencia, fluxo)
-    if(!leve[tab]) vfRender._cache[cacheKey] = htmlTab;
-  } else {
-    htmlTab = vfRender._cache[cacheKey];
-  }
+  if(tab==='resumo')          htmlTab = _vfResumoGlobal(mesP);
+  else if(tab==='recebimentos') htmlTab = _vfRecebimentos(mesP);
+  else if(tab==='receita')    htmlTab = _vfReceitaEscritorio(mesP);
+  else if(tab==='valclientes') htmlTab = _vfValoresClientes(mesP);
+  else if(tab==='repasses')   htmlTab = _vfRepassesGlobal(mesP);
+  else if(tab==='despesas')   htmlTab = _vfDespesasEscritorio(mesP);
+  else                        htmlTab = _vfResumoGlobal(mesP);
   el.textContent = '';
   el.appendChild(_fragFromHtml(htmlTab));
   _updateNavBtn();
-  // Phase 3: pré-cachear abas pesadas em tempo ocioso
-  _vfPrefetch();
 }
 // Invalida cache ao alterar dados financeiros
 function vfInvalidarCache(){ if(vfRender._cache) vfRender._cache={}; }
