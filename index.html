@@ -74,7 +74,7 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- TOPO: STATS + ATALHOS em linha -->
+    <!-- TOPO: KPIs em linha -->
     <div class="dsh-top-bar">
       <div class="dsh-stats-row">
         <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
@@ -85,29 +85,41 @@
           <div id="dsc-vencidos" class="dsh-stat-val" style="color:#c9484a">—</div>
           <div class="dsh-stat-lbl">Prazos vencidos</div>
         </div>
+        <div class="dsh-stat" id="dsh-kpi-prazos7">
+          <div id="dsc-prazos7" class="dsh-stat-val" style="color:#f59e0b">—</div>
+          <div class="dsh-stat-lbl">Prazos 7 dias</div>
+        </div>
+        <div class="dsh-stat" id="dsh-kpi-aud7">
+          <div id="dsc-aud7" class="dsh-stat-val" style="color:#f87676">—</div>
+          <div class="dsh-stat-lbl">Audiências 7d</div>
+        </div>
         <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
           <div id="dsc-fin" class="dsh-stat-val" style="color:#4caf7d">—</div>
           <div class="dsh-stat-lbl">A receber</div>
+        </div>
+        <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
+          <div id="dsc-saldo" class="dsh-stat-val" style="color:#4ade80">—</div>
+          <div class="dsh-stat-lbl">Saldo escritório</div>
         </div>
       </div>
       <div class="dsh-atalhos-bar">
         <div class="dsh-at-item" onclick="novoProcesso()"><span class="dsh-at-ico" style="background:rgba(107,20,22,.25)">⚖️</span>Processo</div>
         <div class="dsh-at-item" onclick="novoTarefaDia()"><span class="dsh-at-ico" style="background:rgba(212,175,55,.12)">📋</span>Tarefa</div>
         <div class="dsh-at-item" onclick="novoCompromisso()"><span class="dsh-at-ico" style="background:rgba(96,165,250,.12)">📅</span>Compromisso</div>
-        <div class="dsh-at-item" onclick="novoLancamento()"><span class="dsh-at-ico" style="background:rgba(76,175,125,.12)">💰</span>Lançamento</div>
         <div class="dsh-at-item" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span>Atendimento</div>
         <div class="dsh-at-item" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span>Contato</div>
       </div>
     </div>
 
-    <!-- ALERTAS -->
+    <!-- ALERTAS COMPACTOS (grid 2 colunas) -->
     <div id="home-alerts" class="dsh-alerts-compact"></div>
 
-    <!-- 2 COLUNAS: TAREFAS | COMPROMISSOS + FINANCEIRO -->
+    <!-- 2 COLUNAS: TAREFAS + PRÓXIMOS COMPROMISSOS | FINANCEIRO -->
     <div class="dsh-grid2">
 
-      <!-- COLUNA 1: TAREFAS DO DIA -->
+      <!-- COLUNA 1: TAREFAS + COMPROMISSOS -->
       <div class="dsh-col">
+        <!-- Tarefas -->
         <div class="dsh-card">
           <div class="dsh-card-head">
             <div class="dsh-card-title">
@@ -118,29 +130,30 @@
               </div>
             </div>
             <div class="dsh-card-actions">
-              <button onclick="novoTarefaDia()" class="dsh-btn">＋ Nova</button>
+              <button onclick="novoTarefaDia()" class="dsh-btn">+ Nova</button>
               <button onclick="gerarResumoWpp()" class="dsh-btn dsh-btn-wpp">📲 WPP</button>
               <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
             </div>
           </div>
-          <div class="dsh-card-body" style="max-height:300px;overflow-y:auto">
+          <div class="dsh-card-body" style="max-height:280px;overflow-y:auto">
             <div id="hc-list"></div>
             <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
           </div>
         </div>
-      </div>
-
-      <!-- COLUNA 2: COMPROMISSOS + FINANCEIRO -->
-      <div class="dsh-col">
+        <!-- Próximos compromissos (lista, não calendário) -->
         <div class="dsh-card">
           <div class="dsh-card-head">
-            <span class="dsh-card-title">Compromissos</span>
+            <span class="dsh-card-title">Próximos Compromissos</span>
             <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
           </div>
-          <div class="dsh-card-body">
-            <div id="home-week"></div>
+          <div class="dsh-card-body" style="max-height:220px;overflow-y:auto">
+            <div id="home-proximos"></div>
           </div>
         </div>
+      </div>
+
+      <!-- COLUNA 2: FINANCEIRO + CALENDÁRIO -->
+      <div class="dsh-col">
         <div class="dsh-card">
           <div class="dsh-card-head">
             <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
@@ -148,6 +161,14 @@
           </div>
           <div class="dsh-card-body">
             <div id="home-fin-dash"></div>
+          </div>
+        </div>
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span class="dsh-card-title">Calendário</span>
+          </div>
+          <div class="dsh-card-body">
+            <div id="home-week"></div>
           </div>
         </div>
       </div>

@@ -9191,7 +9191,62 @@ function renderHomeAlerts(){
   // Notificação financeira no título da aba
   if(typeof atualizarStats==='function') atualizarStats();
 
-  el.innerHTML = alertasHtml ? '<div class="ha-alertas" style="margin-bottom:8px">'+alertasHtml+'</div>' : '';
+  // Alertas em grid compacto (2 colunas)
+  el.innerHTML = alertasHtml
+    ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px;margin-bottom:8px">'+alertasHtml+'</div>'
+    : '';
+
+  // Atualizar KPIs novos
+  var e5=document.getElementById('dsc-prazos7'); if(e5) e5.textContent=prazos.length;
+  var e6=document.getElementById('dsc-aud7'); if(e6) e6.textContent=audiencias.length;
+
+  // Saldo escritório
+  try {
+    var cons = _vfConsolidar(null);
+    var e7=document.getElementById('dsc-saldo'); if(e7) e7.textContent=fK(cons.saldo);
+  } catch(se){}
+
+  // Próximos compromissos (lista)
+  renderProximosCompromissos(_ap, hoje);
+}
+
+// ── PRÓXIMOS COMPROMISSOS (lista para o dashboard) ──
+function renderProximosCompromissos(allEvts, hoje){
+  var el = document.getElementById('home-proximos');
+  if(!el) return;
+  var em14 = new Date(HOJE); em14.setDate(em14.getDate()+14);
+  var em14str = em14.toISOString().slice(0,10);
+
+  var prox = allEvts.filter(function(p){
+    return !p.realizado && p.dt_raw >= hoje && p.dt_raw <= em14str;
+  }).sort(function(a,b){ return (a.dt_raw||'').localeCompare(b.dt_raw||''); }).slice(0,8);
+
+  if(!prox.length){
+    el.innerHTML = '<div style="padding:12px;text-align:center;font-size:11px;color:var(--mu)">Nenhum compromisso nos próximos 14 dias</div>';
+    return;
+  }
+
+  var html = '';
+  prox.forEach(function(p){
+    var isHoje = p.dt_raw === hoje;
+    var diasAte = Math.ceil((new Date(p.dt_raw)-new Date(hoje))/86400000);
+    var tp = agTipo(p);
+    var corTp = tp==='prazo'?'#f59e0b':tp==='audiencia'?'#f87676':'#60a5fa';
+    var icoTp = tp==='prazo'?'\u26a0':tp==='audiencia'?'\ud83c\udfdb':'\ud83d\udcc5';
+    var diasLbl = isHoje?'HOJE':diasAte===1?'Amanhã':diasAte+'d';
+    var corDias = isHoje?'#f87676':diasAte<=3?'#f59e0b':'var(--mu)';
+
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="min-width:36px;text-align:center"><span style="font-size:10px;font-weight:800;color:'+corDias+'">'+diasLbl+'</span></div>'
+      +'<span style="font-size:12px">'+icoTp+'</span>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(p.titulo||p.tipo_compromisso||'\u2014')+'</div>'
+        +'<div style="font-size:9px;color:var(--mu)">'+escapeHtml(p.cliente||'')+' \u00b7 '+fDt(p.dt_raw)+'</div>'
+      +'</div>'
+      +'<span style="font-size:9px;font-weight:700;color:'+corTp+';text-transform:uppercase">'+tp+'</span>'
+    +'</div>';
+  });
+  el.innerHTML = html;
 }
 
 function gerarResumoWpp(){

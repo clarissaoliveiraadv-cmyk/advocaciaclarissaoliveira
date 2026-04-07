@@ -2641,3 +2641,33 @@ body.light .vk-lista-row:hover { background:#F5F6F8; }
     transition-duration:0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD REDESIGN — KPIs e alertas compactos
+═══════════════════════════════════════════════ */
+.dsh-stats-row {
+  display:flex; gap:4px; flex-wrap:wrap; align-items:center;
+}
+.dsh-stat {
+  padding:8px 14px; cursor:pointer; border-radius:6px;
+  background:var(--sf2); border:1px solid var(--bd);
+  min-width:80px; text-align:center; transition:background .15s;
+}
+.dsh-stat:hover { background:var(--sf3); }
+.dsh-stat-val { font-size:18px; font-weight:800; color:var(--tx); line-height:1.2; }
+.dsh-stat-lbl { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); margin-top:2px; }
+
+/* Alertas compactos */
+.ha-alerta {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:6px;
+  border:1px solid; font-size:11px;
+}
+.ha-alerta-btn {
+  margin-left:auto; font-size:10px; font-weight:700;
+  padding:3px 10px; border-radius:4px; border:1px solid;
+  background:transparent; cursor:pointer; white-space:nowrap;
+}
+
+/* Próximos compromissos light mode */
+body.light #home-proximos { color:#1C1C1E; }
