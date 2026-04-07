@@ -1,9 +1,9 @@
 // Service Worker — Clarissa Oliveira Advocacia
 // Phase 4: cache offline para uso em campo sem internet
-const CACHE_NAME = 'co-advocacia-v47';
+const CACHE_NAME = 'co-advocacia-v48';
 const ASSETS = [
   './',
-  './Escritorio_Clarissa_App_v2 (1).html',
+  './index.html',
   './styles.css',
   './app.js',
   './manifest.json'
