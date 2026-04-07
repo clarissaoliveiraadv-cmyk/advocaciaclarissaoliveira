@@ -17643,6 +17643,159 @@ else setTimeout(_initNotifWorkflows, 1000);
 // ══ INTEGRAÇÃO DATAJUD (CNJ) — TRT 3ª REGIÃO ══
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════
+// ══ COLAR PUBLICAÇÃO — parser de Diário de Justiça ════
+// ═══════════════════════════════════════════════════════
+
+function abrirColarPublicacao(){
+  abrirModal('\ud83d\udcf0 Colar Publica\u00e7\u00e3o do Di\u00e1rio',
+    '<div style="margin-bottom:10px;font-size:11px;color:var(--mu)">Cole o texto do email do Recorte Digital (OAB) ou de qualquer publica\u00e7\u00e3o do DJe:</div>'
+    +'<textarea class="fm-inp" id="pub-texto" rows="10" placeholder="Cole aqui o texto da publica\u00e7\u00e3o..." style="font-size:11px;font-family:monospace"></textarea>',
+  function(){
+    var texto = document.getElementById('pub-texto')?.value.trim();
+    if(!texto){ showToast('Cole o texto da publica\u00e7\u00e3o'); return; }
+    fecharModal();
+    _processarPublicacao(texto);
+  }, '\ud83d\udd0d Processar');
+}
+
+function _processarPublicacao(texto){
+  // Extrair número(s) de processo (formato CNJ)
+  var reProc = /\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/g;
+  var nums = [];
+  var m;
+  while((m=reProc.exec(texto))!==null){
+    var num = m[0].replace(/[^0-9.-]/g,'');
+    if(nums.indexOf(num)===-1) nums.push(num);
+  }
+
+  // Extrair dados da publicação
+  var dataPub = '';
+  var mData = texto.match(/Data de Publica[çc][aã]o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  if(mData) dataPub = mData[1].split('/').reverse().join('-');
+  if(!dataPub){
+    var mData2 = texto.match(/Data de Disponibiliza[çc][aã]o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i);
+    if(mData2) dataPub = mData2[1].split('/').reverse().join('-');
+  }
+  if(!dataPub) dataPub = getTodayKey();
+
+  var tribunal = '';
+  var mTrib = texto.match(/Tribunal\s*:?\s*([^\n]+)/i);
+  if(mTrib) tribunal = mTrib[1].trim();
+
+  var vara = '';
+  var mVara = texto.match(/Vara\s*:?\s*([^\n]+)/i);
+  if(mVara) vara = mVara[1].trim();
+
+  var tipoPub = '';
+  var mTipo = texto.match(/Publica[çc][aã]o\s*:?\s*([^\n]+)/i);
+  if(mTipo) tipoPub = mTipo[1].trim();
+
+  var jornal = '';
+  var mJorn = texto.match(/Jornal\s*:?\s*([^\n]+)/i);
+  if(mJorn) jornal = mJorn[1].trim();
+
+  // Buscar clientes vinculados pelos números
+  var vinculados = [];
+  nums.forEach(function(num){
+    var numLimpo = num.replace(/[^0-9]/g,'');
+    (CLIENTS||[]).forEach(function(c){
+      if(!c.numero) return;
+      var cNumLimpo = c.numero.replace(/[^0-9]/g,'');
+      if(cNumLimpo===numLimpo && vinculados.indexOf(c)===-1) vinculados.push(c);
+    });
+  });
+
+  // Montar resumo para o modal
+  var descPub = '[Publica\u00e7\u00e3o] '+(tipoPub||'DJe')
+    +(tribunal?' \u2014 '+tribunal:'')
+    +(vara?' \u2014 '+vara:'')
+    +(jornal?' ('+jornal+')':'');
+
+  var trechoTexto = texto.length>300?texto.slice(0,300)+'...':texto;
+
+  var html = '<div style="margin-bottom:12px">';
+
+  // Dados extraídos
+  html += '<div style="background:var(--sf3);border-radius:6px;padding:10px 12px;margin-bottom:10px">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px">Dados extra\u00eddos</div>'
+    +(dataPub?'<div style="font-size:11px;color:var(--tx)"><strong>Data:</strong> '+fDt(dataPub)+'</div>':'')
+    +(tipoPub?'<div style="font-size:11px;color:var(--tx)"><strong>Tipo:</strong> '+escapeHtml(tipoPub)+'</div>':'')
+    +(tribunal?'<div style="font-size:11px;color:var(--tx)"><strong>Tribunal:</strong> '+escapeHtml(tribunal)+'</div>':'')
+    +(vara?'<div style="font-size:11px;color:var(--tx)"><strong>Vara:</strong> '+escapeHtml(vara)+'</div>':'')
+    +(nums.length?'<div style="font-size:11px;color:var(--tx)"><strong>Processos:</strong> '+nums.map(escapeHtml).join(', ')+'</div>':'')
+  +'</div>';
+
+  // Clientes vinculados
+  if(vinculados.length){
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4ade80;margin-bottom:6px">\u2713 '+vinculados.length+' processo'+(vinculados.length>1?'s':'')+' encontrado'+(vinculados.length>1?'s':'')+'</div>';
+    vinculados.forEach(function(c){
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">'
+        +'<input type="checkbox" checked class="pub-cli-check" data-cid="'+c.id+'" style="width:14px;height:14px">'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(c.cliente)+'</div>'
+          +'<div style="font-size:10px;color:var(--mu)">Pasta '+(c.pasta||'\u2014')+' \u00b7 '+escapeHtml(c.numero||'')+'</div></div>'
+      +'</div>';
+    });
+  } else if(nums.length){
+    html += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#f59e0b">'
+      +'\u26a0 Processo'+(nums.length>1?'s':'')+' n\u00e3o encontrado'+(nums.length>1?'s':'')+' na base: '+nums.join(', ')+'</div>';
+  } else {
+    html += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#f59e0b">'
+      +'\u26a0 Nenhum n\u00famero de processo identificado no texto</div>';
+  }
+
+  // Trecho do texto
+  html += '<div style="margin-top:10px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:4px">Trecho</div>'
+    +'<div style="font-size:10px;color:var(--mu);background:var(--sf3);border-radius:4px;padding:8px;max-height:100px;overflow-y:auto;font-family:monospace">'+escapeHtml(trechoTexto)+'</div></div>';
+
+  // Opções
+  html += '<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+    +'<label style="font-size:11px;color:var(--tx);display:flex;align-items:center;gap:4px"><input type="checkbox" id="pub-criar-prazo"> Criar prazo/compromisso</label>'
+  +'</div>';
+
+  html += '</div>';
+
+  abrirModal('\ud83d\udcf0 Publica\u00e7\u00e3o Processada', html,
+  function(){
+    // Salvar andamento nos clientes selecionados
+    var checks = document.querySelectorAll('.pub-cli-check:checked');
+    var criarPrazo = document.getElementById('pub-criar-prazo')?.checked;
+    var importados = 0;
+
+    checks.forEach(function(chk){
+      var cid = Number(chk.dataset.cid);
+      if(!localMov[cid]) localMov[cid]=[];
+      localMov[cid].unshift({
+        data: dataPub, movimentacao: descPub,
+        tipo_movimentacao: 'Publica\u00e7\u00e3o', origem: 'publicacao_dje'
+      });
+      importados++;
+
+      // Criar prazo se marcado
+      if(criarPrazo){
+        var c = findClientById(cid);
+        localAg.push({
+          id: 'ag'+genId(), titulo: 'Providenciar: '+(tipoPub||'Publica\u00e7\u00e3o DJe'),
+          tipo_compromisso: 'Prazo', cliente: c?c.cliente:'', id_processo: cid,
+          dt_raw: _addDiasUteis(dataPub, 5, 'MG'), dt_fim: _addDiasUteis(dataPub, 5, 'MG'),
+          inicio: _addDiasUteis(dataPub, 5, 'MG'),
+          obs: 'Gerado de publica\u00e7\u00e3o: '+descPub,
+          realizado: false, _prazo: true, origem: 'publicacao_prazo'
+        });
+        invalidarAllPend();
+        sbSet('co_ag', localAg);
+      }
+    });
+
+    if(importados>0){
+      sbSet('co_localMov', localMov);
+      marcarAlterado();
+    }
+    fecharModal();
+    showToast('\u2713 Publica\u00e7\u00e3o registrada em '+importados+' processo'+(importados>1?'s':''));
+  }, '\ud83d\udce5 Registrar nos processos');
+}
+
 var DATAJUD_URL = 'https://api-publica.datajud.cnj.jus.br';
 var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
