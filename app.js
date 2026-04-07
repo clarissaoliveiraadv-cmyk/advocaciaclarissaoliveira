@@ -1052,14 +1052,37 @@ function escapeHtml(s){
 }
 
 // ── Auditoria: helper de arredondamento monetário consistente ──
-function roundMoney(v){ return Math.round((+v||0)*100)/100; }
+function roundMoney(v){ var n=+(v||0); return isFinite(n)?Math.round(n*100)/100:0; }
 
-// ── Auditoria: helper de lookup de cliente case-insensitive ──
+// ── Cache de CLIENTS por ID (evita O(n) repetido) ──
+var _clientByIdCache = {};
+var _clientByIdVer = 0;
+function findClientById(id){
+  if(!id) return null;
+  var ver = (CLIENTS||[]).length;
+  if(ver !== _clientByIdVer){ _clientByIdCache={}; _clientByIdVer=ver; }
+  if(_clientByIdCache[id] !== undefined) return _clientByIdCache[id];
+  var c = (CLIENTS||[]).find(function(x){return x.id===id;}) || null;
+  _clientByIdCache[id] = c;
+  return c;
+}
+
+// ── Lookup de cliente case-insensitive (com cache) ──
+var _clientByNameCache = {};
+var _clientByNameVer = 0;
 function findClientByName(nome){
   if(!nome) return null;
   var n = nome.toLowerCase().trim();
-  return (CLIENTS||[]).find(function(c){ return (c.cliente||'').toLowerCase().trim()===n; }) || null;
+  var ver = (CLIENTS||[]).length;
+  if(ver !== _clientByNameVer){ _clientByNameCache={}; _clientByNameVer=ver; }
+  if(_clientByNameCache[n] !== undefined) return _clientByNameCache[n];
+  var c = (CLIENTS||[]).find(function(x){ return (x.cliente||'').toLowerCase().trim()===n; }) || null;
+  _clientByNameCache[n] = c;
+  return c;
 }
+
+// ── Helper unificado: lançamento está recebido/pago? ──
+function isRec(l){ return !!(l.recebido || l.pago || l.status==='pago'); }
 
 // ── Auditoria: gerador de IDs únicos (evita colisões de Date.now()) ──
 var _lastGenId = 0;
@@ -1457,7 +1480,7 @@ function vkRenderLista(tasks){
   sorted.forEach(function(t){
     var isDone = t.status==='done'||t.status==='concluido';
     var vencido = !isDone && t.prazo && t.prazo < hoje;
-    var pastaLbl = t.processo ? (function(){ var c=CLIENTS.find(function(x){return x.id===t.processo;}); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Esc.':'—');
+    var pastaLbl = t.processo ? (function(){ var c=findClientById(t.processo); return c?c.pasta:'—'; })() : (t.cliente==='Escritório'?'Esc.':'—');
     var etapaCls = isDone?'#4ade80':t.status==='andamento'?'#f59e0b':'var(--mu)';
 
     html += '<tr class="vk-lista-row'+(isDone?' vk-lista-done':'')+'">'
@@ -1543,7 +1566,7 @@ function vkTogglePasta(id, cid){
 }
 
 function vkNovaTaskPasta(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   var nome = c ? c.cliente : '';
   abrirModal('✅ Nova Tarefa — '+escapeHtml(nome),
     '<div><label class="fm-lbl">Título <span class="req">*</span></label>'
@@ -2061,7 +2084,7 @@ function _vfConsolidar(mesP){
   (localLanc||[]).forEach(function(l){
     var isRep = l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara;
     var isDesp = l.tipo==='despesa'||l.tipo==='despint';
-    var rec = l.recebido||l.pago||l.status==='pago';
+    var rec = isRec(l);
     if(isRep && rec){
       repasses.push(l);
     } else if(isDesp){
@@ -2600,7 +2623,7 @@ function vfMes(todos, mesP){
     if(l.tipo!=='honorario'&&l.tipo!=='sucumbencia') return;
     var dataRef = l.venc||l.data||'';
     var paidRef = l.dt_baixa||'';
-    var inMes   = dataRef.startsWith(mesP2) || ((l.pago||l.status==='pago') && paidRef.startsWith(mesP2));
+    var inMes   = dataRef.startsWith(mesP2) || ((isRec(l)) && paidRef.startsWith(mesP2));
     if(!inMes) return;
     seen.add(id);
     honorarios.push({
@@ -2608,7 +2631,7 @@ function vfMes(todos, mesP){
       desc: l.desc||'—', cliente: l.cliente||'—',
       valor: l.valor||0, data: l.data||l.venc,
       venc: l.venc||l.data, dt_baixa: l.dt_baixa||'',
-      status: l.pago||l.status==='pago'?'pago':l.venc&&l.venc<hoje?'vencido':'pendente',
+      status: isRec(l)?'pago':l.venc&&l.venc<hoje?'vencido':'pendente',
       natureza: l.natureza||''
     });
   });
@@ -3104,7 +3127,7 @@ function vfAReceber(todos){
     var id='l'+l.id;
     if(seen.has(id)) return;
     if(l.tipo!=='honorario'&&l.tipo!=='sucumbencia') return;
-    if(l.pago||l.status==='pago') return;
+    if(isRec(l)) return;
     seen.add(id);
     pend.push({id:id,origem:'local',tipo:'receber',desc:l.desc||'—',
       cliente:l.cliente||'—',valor:l.valor||0,venc:l.venc||l.data,
@@ -3226,7 +3249,7 @@ function vfAPagar(todos){
     if(seen.has(id)) return;
     if(l.direcao!=='pagar' && l.tipo!=='despesa' && l.tipo!=='despint') return;
     if(l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara) return;
-    if(l.pago||l.status==='pago') return;
+    if(isRec(l)) return;
     seen.add(id);
     pend.push({id:id, tipo:'pagar', desc:l.desc||'—', cliente:l.cliente||'',
       valor:l.valor||0, venc:l.venc||l.data, data:l.data||l.venc,
@@ -3417,177 +3440,6 @@ function vfMovimentacoes(todos,f){ return vfMes(todos,_vfMes||new Date(HOJE).toI
 
 function vfRelatorios(todos){ return vfDRE(todos); }
 
-function abrirNovoLancGlobal(){
-  // Build client options
-  var cliOpts = '<option value="">— Escritório (despesa interna) —</option>'
-    + (CLIENTS||[]).filter(function(c){return !c._encerrado;}).map(function(c){
-        return '<option value="'+escapeHtml(c.cliente||'')+'">'+escapeHtml(c.cliente||'—')+'</option>';
-      }).join('');
-
-  var hoje = new Date().toISOString().slice(0,10);
-
-  abrirModal('💰 Registrar entrada ou saída',
-    // Step 1: Direction
-    '<div style="margin-bottom:14px">'
-      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu);margin-bottom:8px">O que aconteceu?</div>'
-      +'<div style="display:flex;gap:8px">'
-        +'<button id="nlg-btn-entrada" onclick="nlgSetDir(\'entrada\')" style="flex:1;padding:12px;border-radius:8px;border:2px solid rgba(76,175,125,.4);background:rgba(76,175,125,.08);color:#4ade80;font-size:13px;font-weight:700;cursor:pointer">📥 Entrou dinheiro</button>'
-        +'<button id="nlg-btn-saida"   onclick="nlgSetDir(\'saida\')"   style="flex:1;padding:12px;border-radius:8px;border:2px solid rgba(201,72,74,.2);background:transparent;color:var(--mu);font-size:13px;font-weight:700;cursor:pointer">📤 Saiu dinheiro</button>'
-      +'</div>'
-    +'</div>'
-
-    // Entrada fields
-    +'<div id="nlg-entrada-fields" style="display:block">'
-      // Split question — the core
-      +'<div style="margin-bottom:12px;padding:10px 12px;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.2);border-radius:8px">'
-        +'<div style="font-size:11px;font-weight:700;color:#D4AF37;margin-bottom:8px">Esse dinheiro é 100% seu ou tem parte do cliente?</div>'
-        +'<div style="display:flex;gap:8px">'
-          +'<button id="nlg-btn-meu"   onclick="nlgSetNatureza(\'meu\')"   style="flex:1;padding:8px;border-radius:6px;border:2px solid rgba(76,175,125,.4);background:rgba(76,175,125,.08);color:#4ade80;font-size:12px;font-weight:700;cursor:pointer">✓ 100% meu</button>'
-          +'<button id="nlg-btn-split" onclick="nlgSetNatureza(\'split\')" style="flex:1;padding:8px;border-radius:6px;border:2px solid rgba(251,146,60,.2);background:transparent;color:var(--mu);font-size:12px;font-weight:700;cursor:pointer">⚖️ Tem parte do cliente</button>'
-        +'</div>'
-      +'</div>'
-
-      // Split fields (hidden by default)
-      +'<div id="nlg-split-fields" style="display:none;margin-bottom:12px;padding:10px 12px;background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.2);border-radius:8px">'
-        +'<div class="fm-row">'
-          +'<div style="flex:2"><label class="fm-lbl">Cliente (dono da parte)</label>'
-            +'<select class="fm-inp" id="nlg-split-cli" onchange="nlgCalcSplit()">'+cliOpts+'</select></div>'
-          +'<div><label class="fm-lbl">Seu % (honorários)</label>'
-            +'<input class="fm-inp" type="number" id="nlg-split-perc" min="0" max="100" step="1" value="30" oninput="nlgCalcSplit()" placeholder="30"></div>'
-        +'</div>'
-        +'<div id="nlg-split-preview" style="font-size:11px;color:var(--mu);margin-top:6px;padding:6px 8px;background:var(--sf3);border-radius:4px"></div>'
-      +'</div>'
-
-      // Common entrada fields
-      +'<div class="fm-row">'
-        +'<div style="flex:2"><label class="fm-lbl">Descrição *</label>'
-          +'<input class="fm-inp" id="nlg-desc" placeholder="Ex: Honorários — João Silva, Consultoria..."></div>'
-        +'<div><label class="fm-lbl">Data *</label>'
-          +'<input class="fm-inp" type="date" id="nlg-data" value="'+hoje+'"></div>'
-      +'</div>'
-      +'<div class="fm-row">'
-        +'<div><label class="fm-lbl">Valor total recebido (R$) *</label>'
-          +'<input class="fm-inp" type="number" id="nlg-valor" min="0" step="0.01" placeholder="0,00" oninput="nlgCalcSplit()"></div>'
-        +'<div><label class="fm-lbl">Forma</label>'
-          +'<select class="fm-inp" id="nlg-forma"><option>PIX</option><option>TED</option><option>Boleto</option><option>Dinheiro</option></select></div>'
-      +'</div>'
-      +'<div id="nlg-sem-cli" style="margin-bottom:8px">'
-        +'<label class="fm-lbl">Cliente (se aplicável)</label>'
-        +'<select class="fm-inp" id="nlg-cli-meu">'+cliOpts+'</select>'
-      +'</div>'
-    +'</div>'
-
-    // Saída fields
-    +'<div id="nlg-saida-fields" style="display:none">'
-      +'<div class="fm-row">'
-        +'<div style="flex:2"><label class="fm-lbl">Descrição *</label>'
-          +'<input class="fm-inp" id="nlg-saida-desc" placeholder="Ex: Aluguel, INSS, Karen..."></div>'
-        +'<div><label class="fm-lbl">Data *</label>'
-          +'<input class="fm-inp" type="date" id="nlg-saida-data" value="'+hoje+'"></div>'
-      +'</div>'
-      +'<div class="fm-row">'
-        +'<div><label class="fm-lbl">Valor (R$) *</label>'
-          +'<input class="fm-inp" type="number" id="nlg-saida-valor" min="0" step="0.01" placeholder="0,00"></div>'
-        +'<div><label class="fm-lbl">Forma</label>'
-          +'<select class="fm-inp" id="nlg-saida-forma"><option>PIX</option><option>TED</option><option>Boleto</option><option>Dinheiro</option><option>Cartão</option><option>Débito auto</option></select></div>'
-        +'<div><label class="fm-lbl">Categoria</label>'
-          +'<select class="fm-inp" id="nlg-saida-cat"><option value="Estrutura">Estrutura</option><option value="Pessoal">Pessoal</option><option value="Honorários pagos">Honorários parceiro</option><option value="Serviços">Serviços</option><option value="Impostos">Impostos</option><option value="Variáveis">Variáveis</option><option value="Custas processuais">Custas processuais</option></select></div>'
-      +'</div>'
-      +'<div style="margin-bottom:8px">'
-        +'<label class="fm-lbl">Já paguei?</label>'
-        +'<div style="display:flex;gap:8px;margin-top:4px">'
-          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="radio" name="nlg-pago" id="nlg-pago-sim" value="sim" checked> Sim, já paguei</label>'
-          +'<label style="display:flex;align-items:center;gap=6px;font-size:12px;cursor:pointer"><input type="radio" name="nlg-pago" id="nlg-pago-nao" value="nao"> Não, está pendente</label>'
-        +'</div>'
-      +'</div>'
-    +'</div>',
-
-  function(){
-    var dir = window._nlgDir || 'entrada';
-
-    if(dir === 'entrada'){
-      var nat    = window._nlgNatureza || 'meu';
-      var desc   = document.getElementById('nlg-desc')?.value.trim();
-      var data   = document.getElementById('nlg-data')?.value || hoje;
-      var valor  = parseFloat(document.getElementById('nlg-valor')?.value||0);
-      var forma  = document.getElementById('nlg-forma')?.value||'PIX';
-      if(!desc||!valor){ showToast('Preencha descrição e valor'); return; }
-
-      if(nat === 'split'){
-        // Split: my part + client repasse
-        var perc   = parseFloat(document.getElementById('nlg-split-perc')?.value||30)/100;
-        var cliNm  = document.getElementById('nlg-split-cli')?.value||'';
-        var meuVal = roundMoney(valor*perc);
-        var repVal = roundMoney(valor - meuVal);
-
-        // My part — honorários
-        finLancs.push({
-          id: genId(), tipo:'receber', desc:desc,
-          valor: meuVal, data:data, venc:data,
-          pago:true, status:'pago', dt_baixa:data, forma:forma,
-          cliente: cliNm||'Escritório', cat:'Honorários',
-          natureza:'honorario_escritorio',
-          obs: (perc*100).toFixed(0)+'% de R$'+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — valor bruto recebido',
-          origem:'lancamento_manual'
-        });
-
-        // Client repasse — pending
-        if(repVal > 0){
-          var cliObj = findClientByName(cliNm);
-          var newRep = {
-            id: genId(),
-            tipo:'repasse', direcao:'pagar',
-            id_processo: cliObj?.id||null,
-            desc:'Repasse — '+escapeHtml(cliNm||'Cliente')+' ('+((1-perc)*100).toFixed(0)+'% de R$'+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+')',
-            valor:repVal, data:data,
-            venc: (function(){ var d=new Date(data); d.setDate(d.getDate()+2); return d.toISOString().slice(0,10); })(),
-            pago:false, status:'pendente',
-            cliente:cliNm||'', _repasse_alvara:true, forma:'',
-            obs:'Split automático: R$'+meuVal.toLocaleString('pt-BR',{minimumFractionDigits:2})+' honorários + R$'+repVal.toLocaleString('pt-BR',{minimumFractionDigits:2})+' repasse'
-          };
-          localLanc.push(newRep);
-          sbSet('co_localLanc', localLanc);
-        }
-      } else {
-        // 100% mine
-        var cliMeu = document.getElementById('nlg-cli-meu')?.value||'';
-        finLancs.push({
-          id:genId(), tipo:'receber', desc:desc,
-          valor:valor, data:data, venc:data,
-          pago:true, status:'pago', dt_baixa:data, forma:forma,
-          cliente:cliMeu||'Escritório', cat:'Honorários',
-          natureza:'honorario_escritorio', origem:'lancamento_manual'
-        });
-      }
-
-    } else {
-      // Saída
-      var sdesc  = document.getElementById('nlg-saida-desc')?.value.trim();
-      var sdata  = document.getElementById('nlg-saida-data')?.value||hoje;
-      var svalor = parseFloat(document.getElementById('nlg-saida-valor')?.value||0);
-      var sforma = document.getElementById('nlg-saida-forma')?.value||'PIX';
-      var scat   = document.getElementById('nlg-saida-cat')?.value||'Variáveis';
-      var spago  = document.querySelector('input[name="nlg-pago"]:checked')?.value==='sim';
-      if(!sdesc||!svalor){ showToast('Preencha descrição e valor'); return; }
-      finLancs.push({
-        id:genId(), tipo:'pagar', desc:sdesc,
-        valor:svalor, data:sdata, venc:sdata,
-        pago:spago, status:spago?'pago':'pendente',
-        dt_baixa:spago?sdata:'', forma:sforma, cat:scat,
-        cliente:'Escritório', origem:'lancamento_manual'
-      });
-    }
-
-    sbSet('co_fin', finLancs);
-    marcarAlterado(); fecharModal(); vfRender();
-    window._nlgDir = null; window._nlgNatureza = null;
-    showToast('✓ Lançamento registrado');
-  }, '💾 Registrar');
-
-  // Set initial state
-  window._nlgDir = 'entrada';
-  window._nlgNatureza = 'meu';
-}
 
 function nlgSetDir(dir){
   window._nlgDir = dir;
@@ -3703,46 +3555,6 @@ function vfListaDespClientes(todos){
   return html;
 }
 
-// ─── ABA: LOG FINANCEIRO ──────────────────────────────────────
-function vfLogFinanceiro(){
-  var finAcoes = ['baixa','repasse','edicao','exclusao','lancamento'];
-  var logs = (_auditLog||[]).filter(function(e){
-    return finAcoes.indexOf(e.acao)!==-1 || (e.entidade||'').toLowerCase().indexOf('financ')!==-1
-      || (e.detalhes||'').toLowerCase().indexOf('r$')!==-1;
-  });
-  if(!logs.length) return '<div style="padding:40px;text-align:center;color:var(--mu);font-style:italic">Nenhuma altera\u00e7\u00e3o financeira registrada.</div>';
-
-  var fmtDt = function(ts){
-    if(!ts) return '\u2014';
-    var d = new Date(ts);
-    return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  };
-  var corAcao = function(a){
-    if(a==='baixa') return '#4ade80';
-    if(a==='repasse') return '#c9484a';
-    if(a==='exclusao') return '#f87676';
-    if(a==='edicao') return '#f59e0b';
-    return '#60a5fa';
-  };
-
-  var html = '<div style="max-width:860px"><div style="font-size:10px;color:var(--mu);margin-bottom:12px">'+logs.length+' altera\u00e7\u00f5es financeiras registradas</div>';
-  html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--sf3)">'
-    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Data/hora</th>'
-    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">A\u00e7\u00e3o</th>'
-    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Usu\u00e1rio</th>'
-    +'<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Detalhes</th>'
-  +'</tr></thead><tbody>';
-  logs.slice(0,100).forEach(function(e){
-    html += '<tr style="border-bottom:1px solid var(--bd)">'
-      +'<td style="padding:7px 12px;font-size:11px;color:var(--mu);white-space:nowrap">'+fmtDt(e.ts)+'</td>'
-      +'<td style="padding:7px 12px;font-size:11px;font-weight:700;color:'+corAcao(e.acao)+'">'+escapeHtml(e.acao||'\u2014')+'</td>'
-      +'<td style="padding:7px 12px;font-size:11px;color:var(--mu)">'+escapeHtml(e.usuario||'sistema')+'</td>'
-      +'<td style="padding:7px 12px;font-size:11px;color:var(--tx)">'+escapeHtml((e.detalhes||'')+(e.entidade?' \u2014 '+e.entidade:''))+'</td>'
-    +'</tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
 
 // ─── ABA: DESPESAS FIXAS ──────────────────────────────────────
 function vfDespesasFixas(){
@@ -5359,7 +5171,7 @@ function vfDelLocal(lid){
 // ═══════════════════════════════════════════════════════
 
 function abrirFluxoRepasse(cid, lid){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return;
   const rep = (localLanc||[]).find(function(l){return Number(l.id)===Number(lid);});
   if(!rep){ showToast('Repasse não encontrado'); return; }
@@ -5426,7 +5238,7 @@ function abrirFluxoRepasse(cid, lid){
 
 
 function abrirFluxoAlvara(cid, lid){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return;
   const lanc = (localLanc||[]).find(function(l){return l.id===lid;});
   if(!lanc) return;
@@ -8010,7 +7822,7 @@ function fmPreviewParcelas(){
 }
 
 function abrirModalFin(cid, direcao_default){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var honPerc = c._hon_contrato ? parseFloat(c._hon_contrato.perc||c._hon_contrato||30) : 30;
   _fl = { tipo:[], direcao:[direcao_default||'receber'], formaPag:[], centro:[], intervalo:['mensal'] };
@@ -8551,7 +8363,7 @@ function _finTab(tab, cid, btn){
   if(!el) return;
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var hoje = new Date().toISOString().slice(0,10);
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c){ el.innerHTML=''; return; }
   var locais = _finGetLocais(cid);
 
@@ -8582,7 +8394,7 @@ function _finCalcLanc(l){
   var ppc = parseFloat(l.parceiro_percentual)||0;
   var vparc = ppn && ppc > 0 ? roundMoney(hon * ppc / 100) : 0;
   var liq = roundMoney(hon - vparc);
-  var vcli = roundMoney(base - hon - ress);
+  var vcli = roundMoney(Math.max(0, base - hon - ress));
   return { base_calculo:base, honorarios_contratuais:hon, valor_parceiro:vparc, honorarios_liquidos_escritorio:liq, valor_cliente:vcli };
 }
 
@@ -8620,21 +8432,21 @@ function _finEditarHonorario(cid, lid){
   var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
   if(i===-1){ showToast('Lan\u00e7amento n\u00e3o encontrado'); return; }
   var l = localLanc[i];
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var hoje = new Date().toISOString().slice(0,10);
   var nparc = l._total_parc||1;
   abrirModal('\u270f Editar Honor\u00e1rio',
     '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o</label><input class="fm-inp" id="eh-desc" value="'+escapeHtml(l.desc||'')+'"></div></div>'
     +'<div class="fm-row">'
-      +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="eh-vi" value="'+(l.valor_integral||l.valor||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
-      +'<div><label class="fm-lbl">Valor parcela (R$)</label><input class="fm-inp" type="number" id="eh-vp" value="'+(l.valor_parcela||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
-      +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="eh-ress" value="'+(l.ressarcimento||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="eh-vi" value="'+(l.valor_integral||l.valor||0)+'" min="0" step="0.01" oninput="_finPreviewEditDebounced()"></div>'
+      +'<div><label class="fm-lbl">Valor parcela (R$)</label><input class="fm-inp" type="number" id="eh-vp" value="'+(l.valor_parcela||0)+'" min="0" step="0.01" oninput="_finPreviewEditDebounced()"></div>'
+      +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="eh-ress" value="'+(l.ressarcimento||0)+'" min="0" step="0.01" oninput="_finPreviewEditDebounced()"></div>'
     +'</div>'
     +'<div class="fm-row">'
-      +'<div><label class="fm-lbl">% Honor\u00e1rios</label><input class="fm-inp" type="number" id="eh-perc" value="'+(l.percentual_honorarios||30)+'" min="0" max="100" step="0.5" oninput="_finPreviewEdit()"></div>'
-      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="eh-pnome" value="'+escapeHtml(l.parceiro_nome||'')+'" oninput="_finPreviewEdit()"></div>'
-      +'<div><label class="fm-lbl">% Parceiro</label><input class="fm-inp" type="number" id="eh-pperc" value="'+(l.parceiro_percentual||0)+'" min="0" max="100" step="0.5" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">% Honor\u00e1rios</label><input class="fm-inp" type="number" id="eh-perc" value="'+(l.percentual_honorarios||30)+'" min="0" max="100" step="0.5" oninput="_finPreviewEditDebounced()"></div>'
+      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="eh-pnome" value="'+escapeHtml(l.parceiro_nome||'')+'" oninput="_finPreviewEditDebounced()"></div>'
+      +'<div><label class="fm-lbl">% Parceiro</label><input class="fm-inp" type="number" id="eh-pperc" value="'+(l.parceiro_percentual||0)+'" min="0" max="100" step="0.5" oninput="_finPreviewEditDebounced()"></div>'
     +'</div>'
     +'<div id="eh-preview" style="margin:12px 0;padding:10px;background:var(--sf3);border-radius:8px"></div>'
     +'<div class="fm-row">'
@@ -8687,6 +8499,7 @@ function _finEditarHonorario(cid, lid){
   }, 100);
 }
 
+function _finPreviewEditDebounced(){ _debounce('prevEdit', _finPreviewEdit, 150); }
 function _finPreviewEdit(){
   var vi = parseFloat(document.getElementById('eh-vi')?.value)||0;
   var vp = parseFloat(document.getElementById('eh-vp')?.value)||0;
@@ -8708,7 +8521,15 @@ function _finPreviewEdit(){
   +'</div>';
 }
 
+// ── Debounce helper ──
+var _debounceTimers = {};
+function _debounce(key, fn, ms){
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(fn, ms||150);
+}
+
 // ── PREVIEW HONORÁRIO (MODAL) ──
+function _finPreviewHonDebounced(){ _debounce('prevHon', _finPreviewHon, 150); }
 function _finPreviewHon(){
   var vi = parseFloat(document.getElementById('fh-vi')?.value)||0;
   var nparc = parseInt(document.getElementById('fh-nparc')?.value)||1;
@@ -8743,7 +8564,7 @@ function _finPreviewHon(){
 
 // ── MODAL NOVO HONORÁRIO ──
 function _finNovoHonorario(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var hoje = new Date().toISOString().slice(0,10);
   var honPerc = c._hon_contrato ? (c._hon_contrato.perc||30) : 30;
@@ -8752,16 +8573,16 @@ function _finNovoHonorario(cid){
       +'<div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o *</label><input class="fm-inp" id="fh-desc" placeholder="Ex: Acordo trabalhista, Alvar\u00e1..."></div>'
     +'</div>'
     +'<div class="fm-row">'
-      +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="fh-vi" min="0" step="0.01" oninput="_finPreviewHon()"></div>'
-      +'<div><label class="fm-lbl">N\u00ba de parcelas</label><input class="fm-inp" type="number" id="fh-nparc" min="1" max="120" value="1" placeholder="1 = \u00e0 vista" oninput="_finPreviewHon()"></div>'
-      +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="fh-ress" min="0" step="0.01" value="0" oninput="_finPreviewHon()"></div>'
+      +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="fh-vi" min="0" step="0.01" oninput="_finPreviewHonDebounced()"></div>'
+      +'<div><label class="fm-lbl">N\u00ba de parcelas</label><input class="fm-inp" type="number" id="fh-nparc" min="1" max="120" value="1" placeholder="1 = \u00e0 vista" oninput="_finPreviewHonDebounced()"></div>'
+      +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="fh-ress" min="0" step="0.01" value="0" oninput="_finPreviewHonDebounced()"></div>'
     +'</div>'
     +'<div class="fm-row">'
-      +'<div><label class="fm-lbl">% Honor\u00e1rios *</label><input class="fm-inp" type="number" id="fh-perc" value="'+honPerc+'" min="0" max="100" step="0.5" oninput="_finPreviewHon()"></div>'
-      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="fh-pnome" placeholder="Opcional" oninput="_finPreviewHon()"></div>'
+      +'<div><label class="fm-lbl">% Honor\u00e1rios *</label><input class="fm-inp" type="number" id="fh-perc" value="'+honPerc+'" min="0" max="100" step="0.5" oninput="_finPreviewHonDebounced()"></div>'
+      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="fh-pnome" placeholder="Opcional" oninput="_finPreviewHonDebounced()"></div>'
     +'</div>'
     +'<div id="fh-pfields" style="display:none"><div class="fm-row">'
-      +'<div><label class="fm-lbl">% Parceiro *</label><input class="fm-inp" type="number" id="fh-pperc" value="50" min="0" max="100" step="0.5" oninput="_finPreviewHon()"></div>'
+      +'<div><label class="fm-lbl">% Parceiro *</label><input class="fm-inp" type="number" id="fh-pperc" value="50" min="0" max="100" step="0.5" oninput="_finPreviewHonDebounced()"></div>'
     +'</div></div>'
     +'<div id="fh-preview" style="margin:12px 0;padding:10px;background:var(--sf3);border-radius:8px"></div>'
     +'<div class="fm-row">'
@@ -8827,11 +8648,11 @@ function _finResumoTab2(cid, c, locais, fV, hoje){
     totParc += calc.valor_parceiro;
     totLiq += calc.honorarios_liquidos_escritorio;
     totCli += calc.valor_cliente;
-    if(l.recebido||l.pago||l.status==='pago') totRec += calc.base_calculo;
+    if(isRec(l)) totRec += calc.base_calculo;
     else totPend += calc.base_calculo;
   });
   var totDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totRepPago = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totRepPago = cls.repasses.filter(function(l){return isRec(l);}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
 
   function card(lbl, val, cor){
     return '<div style="flex:1;min-width:140px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
@@ -8873,7 +8694,7 @@ function _finHonorariosTab(cid, c, locais, fV, hoje){
 
   lista.forEach(function(l){
     var calc = _finCalcLanc(l);
-    var rec = l.recebido||l.pago||l.status==='pago';
+    var rec = isRec(l);
     var corStatus = rec?'#4ade80':'#fb923c';
     var lblStatus = rec?'\u2713 Recebido':'\u23f3 Pendente';
 
@@ -8914,7 +8735,7 @@ function _finHonorariosTab(cid, c, locais, fV, hoje){
 
 // ── MODAL NOVA DESPESA ──
 function _finNovaDespesa(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var hoje = new Date().toISOString().slice(0,10);
   abrirModal('\ud83d\udcdd Nova Despesa \u2014 '+escapeHtml(c.cliente),
@@ -9083,7 +8904,7 @@ function _finRepassesBancoTab(cid, c, locais, fV, hoje){
     html += '<div style="padding:20px;text-align:center;color:var(--mu);font-style:italic">Nenhum repasse registrado.</div>';
   } else {
     cls.repasses.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(l){
-      var pago = l.pago||l.status==='pago';
+      var pago = isRec(l);
       html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
         +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'Repasse')+'</div>'
           +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+(l.forma?' \u00b7 '+l.forma:'')+(l.conta?' \u00b7 '+l.conta:'')+(l.dt_baixa?' \u00b7 Pago '+fDt(l.dt_baixa):'')+(l.obs?' \u00b7 '+escapeHtml(l.obs):'')+'</div></div>'
@@ -9103,16 +8924,16 @@ function _finRepassesBancoTab(cid, c, locais, fV, hoje){
 
 // ── GERAR REPASSE ──
 function _finGerarRepasse(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var locais = _finGetLocais(cid);
   var cls = _finClassificar2(locais);
   var totCli = 0;
   cls.honorarios.forEach(function(l){
     var calc = _finCalcLanc(l);
-    if(l.recebido||l.pago||l.status==='pago') totCli += calc.valor_cliente;
+    if(isRec(l)) totCli += calc.valor_cliente;
   });
-  var jaRep = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var jaRep = cls.repasses.filter(function(l){return isRec(l);}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
   var saldo = roundMoney(Math.max(0, totCli - jaRep));
   if(saldo <= 0){ showToast('Nenhum repasse pendente'); return; }
   var fV2 = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -9168,7 +8989,7 @@ function _finGerarRepasse(cid){
 
 // ── SALVAR DADOS BANCÁRIOS ──
 function _finSalvarBanco(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   if(!c.extra) c.extra = {};
   c.extra.nomebenef = document.getElementById('rb-nome-'+cid)?.value||'';
@@ -9186,7 +9007,7 @@ function _finSalvarBanco(cid){
 
 // ── COPIAR PRESTAÇÃO DE CONTAS ──
 function _finCopiarPrestacao(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
   var locais = _finGetLocais(cid);
   var cls = _finClassificar2(locais);
@@ -9197,10 +9018,10 @@ function _finCopiarPrestacao(cid){
     totHon += calc.honorarios_contratuais;
     totLiq += calc.honorarios_liquidos_escritorio;
     totCli += calc.valor_cliente;
-    if(l.recebido||l.pago||l.status==='pago') totRec += calc.base_calculo;
+    if(isRec(l)) totRec += calc.base_calculo;
   });
   var totDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totRepPago = cls.repasses.filter(function(l){return l.pago||l.status==='pago';}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totRepPago = cls.repasses.filter(function(l){return isRec(l);}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
   var dadosBanc = getDadosBancarios(c.cliente);
   var bancTxt = dadosBanc ? formatarDadosBancarios(dadosBanc) : '';
 
@@ -9224,7 +9045,7 @@ function _finCopiarPrestacao(cid){
 function _finHistoricoTab(cid, c, locais, fV, hoje){
   var eventos = [];
   locais.forEach(function(l){
-    var pago = l.pago||l.status==='pago';
+    var pago = isRec(l);
     var isRep = l._repasse_acordo||l._repasse_alvara||l.tipo==='repasse';
     var isDesp = l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';
     var isSucumb = l.tipo==='sucumbencia';
@@ -9278,7 +9099,7 @@ function renderFinLocal(cid){
 
   var rows = sorted.map(function(l){
     const pos = isPos(l);
-    const isPago = l.pago||l.status==='pago';
+    const isPago = isRec(l);
     const vencido = !isPago&&(l.venc||l.data)&&(l.venc||l.data)<hoje;
     const statusCor = isPago?'#4ade80':vencido?'#c9484a':'#f59e0b';
     const statusTxt = isPago?'PAGO':vencido?'VENCIDO':'PENDENTE';
@@ -9359,7 +9180,7 @@ function finEditarLanc(cid, lid){
       +'<div><label class="fm-lbl">Status</label>'
         +'<select class="fm-inp" id="fel-status">'
           +'<option value="pendente"'+((!l.pago&&l.status!=='pago')?' selected':'')+'>Pendente</option>'
-          +'<option value="pago"'+((l.pago||l.status==='pago')?' selected':'')+'>Pago / Recebido</option>'
+          +'<option value="pago"'+((isRec(l))?' selected':'')+'>Pago / Recebido</option>'
         +'</select></div>'
     +'</div>'
     +'<div class="fm-row">'
@@ -10071,7 +9892,7 @@ function gerarResumoWpp(){
   var em2d=new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
   var recebHoje=[], cobrar=[];
   (localLanc||[]).forEach(function(l){
-    if(l.pago||l.status==='pago') return;
+    if(isRec(l)) return;
     if(l.tipo==='repasse'||l.tipo==='despesa'||l.tipo==='despint') return;
     var venc=(l.venc||l.data||'').slice(0,10);
     if(!venc) return;
@@ -10087,7 +9908,7 @@ function gerarResumoWpp(){
   // 5. PAGAMENTOS do dia (despesas/repasses vencendo hoje)
   var pagHoje=[];
   (localLanc||[]).forEach(function(l){
-    if(l.pago||l.status==='pago') return;
+    if(isRec(l)) return;
     if(l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.direcao!=='pagar') return;
     var venc=(l.venc||l.data||'').slice(0,10);
     if(venc===hoje){
@@ -10149,7 +9970,7 @@ function renderFinDash(){
     var recHoje=[], despHoje=[], cobrar3=[];
     var em2dDash=new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
     (localLanc||[]).forEach(function(l){
-      if(l.pago||l.status==='pago') return;
+      if(isRec(l)) return;
       var venc=(l.venc||l.data||'').slice(0,10);
       if(!venc) return;
       var isDesp=l.tipo==='repasse'||l.tipo==='despesa'||l.tipo==='despint'||l.direcao==='pagar';
@@ -11194,7 +11015,7 @@ function converterEmProcesso(cid){
 
 
 function renderFinUnificado(cid){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return '<div style="font-size:12px;color:var(--mu);padding:20px;text-align:center;font-style:italic">Processo não encontrado.</div>';
 
   const hoje = new Date().toISOString().slice(0,10);
@@ -11225,7 +11046,7 @@ function renderFinUnificado(cid){
 
   function menuHtml(l, extraItems){
     var mid = 'fmm-'+l.id;
-    var isPago   = l.pago||l.status==='pago';
+    var isPago   = isRec(l);
     var isAguard = l.tipo==='alvara';
     var isPos    = l.tipo!=='repasse'&&l.tipo!=='despesa'&&l.tipo!=='despint'&&l.direcao!=='pagar';
     var items = [];
@@ -11248,7 +11069,7 @@ function renderFinUnificado(cid){
   }
 
   function singleRow(l){
-    var isPago   = l.pago||l.status==='pago';
+    var isPago   = isRec(l);
     var isAguard = l.tipo==='alvara';
     var isRep    = l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
     var isDesp   = l.tipo==='despesa'||l.tipo==='despint';
@@ -11309,7 +11130,7 @@ function renderFinUnificado(cid){
     var lancs  = grupos[gid].sort(function(a,b){return (a.data||'').localeCompare(b.data||'');});
     var hon    = lancs.filter(function(l){return l.tipo!=='repasse'&&!l._repasse_acordo;});
     var reps   = lancs.filter(function(l){return l.tipo==='repasse'||l._repasse_acordo;});
-    var nPago  = hon.filter(function(l){return l.pago||l.status==='pago';}).length;
+    var nPago  = hon.filter(function(l){return isRec(l);}).length;
     var nTot   = hon[0]?._total_parc || hon.length;
     var vTot   = hon.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
     var vbruto = hon[0]?._vbruto || 0;
@@ -11353,7 +11174,7 @@ function renderFinUnificado(cid){
 function renderFinResumo(cid){
   const el = document.getElementById('fin-resumo-'+cid);
   if(!el) return;
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return;
   const fmtV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   const hoje = new Date().toISOString().slice(0,10);
@@ -11364,7 +11185,7 @@ function renderFinResumo(cid){
 
   locais.forEach(function(l){
     var val  = parseFloat(l.valor||0);
-    var pago = l.pago||l.status==='pago';
+    var pago = isRec(l);
     var isRep= l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
     var isDesp= l.tipo==='despesa'||l.tipo==='despint'||l.tipo==='despesa_reimb';
 
@@ -15436,7 +15257,7 @@ function abrirModalAg(){
 
 // MODAL MOVIMENTAÇÃO
 function abrirModalMov(cid){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return;
   const hoje = new Date().toISOString().slice(0,10);
 
@@ -15520,7 +15341,7 @@ function mvWppPreview(checked){
   if(checked){
     const desc = (document.getElementById('mv-desc')?.value||'').trim();
     const cid = AC?.id;
-    const c = cid ? CLIENTS.find(function(x){return x.id===cid;}) : null;
+    const c = cid ? findClientById(cid) : null;
     const msg = mvGerarMsg(c ? c.cliente : 'cliente', desc||'[descreva a movimentação acima]');
     const ta = document.getElementById('mv-wpp-txt');
     if(ta){ ta.value = msg; mvWppCustom = msg; }
@@ -16424,7 +16245,7 @@ function _finVoltarClientes(){
 }
 
 function renderFinExpandido(cid){
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
 
   // Remover sidebar financeira anterior se existir
@@ -16454,7 +16275,7 @@ function renderFinExpandido(cid){
 function _finRenderSidebar(cid){
   var sb = document.getElementById('fin-sidebar-panel');
   if(!sb) return;
-  var c = CLIENTS.find(function(x){return x.id===cid;});
+  var c = findClientById(cid);
   if(!c) return;
 
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -16467,7 +16288,7 @@ function _finRenderSidebar(cid){
 
   locais.forEach(function(l){
     var val  = parseFloat(l.valor||0);
-    var pago = l.pago||l.status==='pago';
+    var pago = isRec(l);
     var isRep= l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo;
     var isDesp= l.tipo==='despesa'||l.tipo==='despint';
 
@@ -17153,7 +16974,7 @@ function vkConcluirComDesfecho(id){
 
 // Painel de honorarios contratados por pasta
 function renderHonorariosPasta(cid){
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   if(!c) return '';
   const h = c._hon_contrato||{};
   const perc = parseFloat(h.perc)||0;
@@ -17314,7 +17135,7 @@ function cadastrarColaboradorModal(){
 
 function _reRenderFinPasta(cid){
   _finLocaisCache = {}; // invalidar cache ao alterar dados
-  const c = CLIENTS.find(function(x){return x.id===cid;});
+  const c = findClientById(cid);
   // 1. resumo de cards
   renderFinResumo(cid);
   // 2. lista unificada (projuris + local sem sombras)
