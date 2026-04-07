@@ -462,19 +462,25 @@ async function sbInit(){
 
 let _ctcSel = null; // id do contato selecionado
 
+// ── Cache de contatos deduplicados ──
+var _ctcCache = null;
+var _ctcCacheVer = 0;
 function ctcTodos(){
-  // Deduplicar por nome+tipo (evita duplicatas de salvamentos repetidos)
-  const seen = new Set();
-  const manual = (localContatos||[])
-    .filter(c=>{
-      const k = (c.nome||'').toLowerCase().trim()+'|'+(c.tipo||'');
+  var ver = (localContatos||[]).length;
+  if(_ctcCache && _ctcCacheVer===ver) return _ctcCache;
+  var seen = new Set();
+  _ctcCache = (localContatos||[])
+    .filter(function(c){
+      var k = (c.nome||'').toLowerCase().trim()+'|'+(c.tipo||'');
       if(seen.has(k)) return false;
       seen.add(k);
       return true;
     })
-    .map(c=>({...c, _src:'manual'}));
-  return manual;
+    .map(function(c){return Object.assign({}, c, {_src:'manual'});});
+  _ctcCacheVer = ver;
+  return _ctcCache;
 }
+function invalidarCtcCache(){ _ctcCache=null; }
 
 function ctcRender(){
   ctcRenderLista();
@@ -813,7 +819,7 @@ function ctcDeletar(id){
   const c = ctcTodos().find(x=>String(x.id)===String(id));
   if(!confirm(`Excluir o contato "${c?.nome}"?`)) return;
   localContatos = localContatos.filter(x=>String(x.id)!==String(id));
-  sbSet('co_ctc', localContatos);
+  invalidarCtcCache(); sbSet('co_ctc', localContatos);
   marcarAlterado();
   _ctcSel = null;
   const main = document.getElementById('ctc-main');
@@ -12333,7 +12339,7 @@ function novoContato(){
       email:document.getElementById('nc-email')?.value||'',
       obs:  document.getElementById('nc-obs')?.value||''
     };
-    localContatos.push(novoCtc);
+    localContatos.push(novoCtc); invalidarCtcCache();
     // Salvar localmente primeiro (imediato)
     localStorage.setItem('co_ctc', JSON.stringify(localContatos));
     // Depois enviar ao Supabase com confirmação visual
@@ -17256,37 +17262,50 @@ function audit(acao, detalhes, entidade){
   sbSet('co_audit',_auditLog);
 }
 
+// ── Constantes de auditoria (evita recriar a cada render) ──
+var _AUDIT_ICON={'baixa':'\u2705','exclusao':'\ud83d\uddd1','edicao':'\u270f','criacao':'\u2795',
+  'login':'\ud83d\udd11','prazo':'\u2696','compromisso':'\ud83d\udcc5','financeiro':'\ud83d\udcb0',
+  'tarefa':'\u2713','contato':'\ud83d\udc64','processo':'\ud83d\udcc2','sistema':'\u2699'};
+var _AUDIT_COR={'baixa':'#4ade80','exclusao':'#f87676','edicao':'#fbbf24',
+  'criacao':'#60a5fa','login':'#a78bfa','prazo':'#c9a84c',
+  'compromisso':'#38bdf8','financeiro':'#4ade80','tarefa':'#a3e635',
+  'contato':'#e879f9','processo':'#f97316','sistema':'#94a3b8'};
+
 function auditRender(){
-  const el=document.getElementById('audit-content');
+  var el=document.getElementById('audit-content');
   if(!el) return;
-  const q=(document.getElementById('audit-busca')?.value||'').toLowerCase();
-  const fa=document.getElementById('audit-facao')?.value||'';
-  const fu=document.getElementById('audit-fuser')?.value||'';
-  const lista=_auditLog.filter(e=>{
-    const okQ=!q||(e.acao+e.detalhes+e.entidade+e.usuario).toLowerCase().includes(q);
+  var q=(document.getElementById('audit-busca')?.value||'').toLowerCase();
+  var fa=document.getElementById('audit-facao')?.value||'';
+  var fu=document.getElementById('audit-fuser')?.value||'';
+  var lista=_auditLog.filter(function(e){
+    var okQ=!q||(e.acao+e.detalhes+e.entidade+e.usuario).toLowerCase().includes(q);
     return okQ&&(!fa||e.acao===fa)&&(!fu||e.usuario===fu);
   });
-  const ICON={'baixa':'✅','exclusao':'🗑','edicao':'✏','criacao':'➕',
-    'login':'🔑','prazo':'⚖','compromisso':'📅','financeiro':'💰',
-    'tarefa':'✓','contato':'👤','processo':'📂','sistema':'⚙'};
-  const COR={'baixa':'#4ade80','exclusao':'#f87676','edicao':'#fbbf24',
-    'criacao':'#60a5fa','login':'#a78bfa','prazo':'#c9a84c',
-    'compromisso':'#38bdf8','financeiro':'#4ade80','tarefa':'#a3e635',
-    'contato':'#e879f9','processo':'#f97316','sistema':'#94a3b8'};
-  const usuarios=[...new Set(_auditLog.map(e=>e.usuario))];
-  const acoes=[...new Set(_auditLog.map(e=>e.acao))];
-  const resumo='<div class="audit-resumo">'
+  // Single-pass para KPIs + sets de usuarios/acoes
+  var hojeStr=new Date().toISOString().slice(0,10);
+  var kBaixas=0, kExcl=0, kHoje=0;
+  var usuariosSet={}, acoesSet={};
+  _auditLog.forEach(function(e){
+    if(e.acao==='baixa') kBaixas++;
+    if(e.acao==='exclusao') kExcl++;
+    if((e.ts||'').slice(0,10)===hojeStr) kHoje++;
+    if(e.usuario) usuariosSet[e.usuario]=1;
+    if(e.acao) acoesSet[e.acao]=1;
+  });
+  var usuarios=Object.keys(usuariosSet);
+  var acoes=Object.keys(acoesSet);
+  var resumo='<div class="audit-resumo">'
     +'<div class="audit-kpi"><div class="audit-kpi-n">'+_auditLog.length+'</div><div class="audit-kpi-l">Total</div></div>'
-    +'<div class="audit-kpi"><div class="audit-kpi-n">'+_auditLog.filter(e=>e.acao==='baixa').length+'</div><div class="audit-kpi-l">Baixas</div></div>'
-    +'<div class="audit-kpi"><div class="audit-kpi-n">'+_auditLog.filter(e=>e.acao==='exclusao').length+'</div><div class="audit-kpi-l">Exclusões</div></div>'
-    +'<div class="audit-kpi"><div class="audit-kpi-n">'+_auditLog.filter(e=>e.ts.slice(0,10)===new Date().toISOString().slice(0,10)).length+'</div><div class="audit-kpi-l">Hoje</div></div>'
+    +'<div class="audit-kpi"><div class="audit-kpi-n">'+kBaixas+'</div><div class="audit-kpi-l">Baixas</div></div>'
+    +'<div class="audit-kpi"><div class="audit-kpi-n">'+kExcl+'</div><div class="audit-kpi-l">Exclus\u00f5es</div></div>'
+    +'<div class="audit-kpi"><div class="audit-kpi-n">'+kHoje+'</div><div class="audit-kpi-l">Hoje</div></div>'
     +'</div>';
   const filtros='<div class="audit-filtros">'
-    +'<input class="vf-finp" id="audit-busca" placeholder="Buscar..." oninput="auditRender()" style="flex:2">'
+    +'<input class="vf-finp" id="audit-busca" placeholder="Buscar..." value="'+escapeHtml(q)+'" oninput="_debounce(\'auditS\',auditRender,200)" style="flex:2">'
     +'<select class="vf-finp" id="audit-facao" onchange="auditRender()"><option value="">Todas ações</option>'
-      +acoes.map(a=>'<option value="'+a+'">'+(ICON[a]||'')+' '+a+'</option>').join('')+'</select>'
+      +acoes.map(function(a){return '<option value="'+a+'"'+(fa===a?' selected':'')+'>'+(_AUDIT_ICON[a]||'')+' '+a+'</option>';}).join('')+'</select>'
     +'<select class="vf-finp" id="audit-fuser" onchange="auditRender()"><option value="">Todos usuários</option>'
-      +usuarios.map(u=>'<option>'+u+'</option>').join('')+'</select>'
+      +usuarios.map(function(u){return '<option'+(fu===u?' selected':'')+'>'+u+'</option>';}).join('')+'</select>'
     +'<button class="btn-bordo btn-bordo-sm" onclick="auditExportar()">⬇ CSV</button>'
     +'</div>';
   const hdr='<div class="audit-header-row"><div class="audit-ts">Data/Hora</div><div class="audit-user">Usuário</div><div class="audit-acao">Ação</div><div class="audit-entidade">Entidade</div><div class="audit-det">Detalhes</div></div>';
@@ -17295,7 +17314,7 @@ function auditRender(){
     return '<div class="audit-row">'
       +'<div class="audit-ts">'+dt+'</div>'
       +'<div class="audit-user">'+e.usuario+'</div>'
-      +'<div class="audit-acao" style="color:'+(COR[e.acao]||'var(--mu)')+'">'+(ICON[e.acao]||'📋')+' '+e.acao+'</div>'
+      +'<div class="audit-acao" style="color:'+(_AUDIT_COR[e.acao]||'var(--mu)')+'">'+(_AUDIT_ICON[e.acao]||'\ud83d\udccb')+' '+e.acao+'</div>'
       +'<div class="audit-entidade">'+(e.entidade||'—')+'</div>'
       +'<div class="audit-det">'+e.detalhes+'</div>'
     +'</div>';
