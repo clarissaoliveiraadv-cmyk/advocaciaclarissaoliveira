@@ -2333,10 +2333,54 @@ function _vfDespesasEscritorio(mesP){
       +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||'')+'</div>'
       +(l._recorrente?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(96,165,250,.1);color:#60a5fa;font-weight:700">FIXA</span>':'')
       +'<div style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</div>'
+      +(d.src==='fin'?'<button onclick="_vfEditarDespEscritorio('+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>':'')
       +'<button onclick="'+delFn+'" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
+}
+
+// ── EDITAR DESPESA DO ESCRITÓRIO ──
+function _vfEditarDespEscritorio(lid){
+  var i = (finLancs||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1){ showToast('N\u00e3o encontrado'); return; }
+  var l = finLancs[i];
+  var hoje = new Date().toISOString().slice(0,10);
+  abrirModal('\u270f Editar Despesa',
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o</label><input class="fm-inp" id="ede-desc" value="'+escapeHtml(l.desc||'')+'"></div></div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor (R$)</label><input class="fm-inp" type="number" id="ede-valor" value="'+(l.valor||0)+'" min="0.01" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="ede-data" value="'+(l.data||l.dt_baixa||hoje)+'"></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Categoria</label><select class="fm-inp" id="ede-cat"><option>Estrutura</option><option>Pessoal</option><option>Telecom</option><option>Energia</option><option>Sistemas</option><option>Impostos</option><option>Marketing</option><option>Servi\u00e7os</option><option>Outros</option></select></div>'
+      +'<div><label class="fm-lbl">Forma</label><select class="fm-inp" id="ede-forma"><option>PIX</option><option>Boleto</option><option>D\u00e9bito</option><option>Cart\u00e3o</option><option>TED</option><option>Dinheiro</option></select></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ede-recorr" '+(l._recorrente?'checked':'')+'><label for="ede-recorr" style="font-size:11px;color:var(--tx)">Despesa fixa</label></div>'
+    +'</div>'
+    +'<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Observa\u00e7\u00e3o</label><input class="fm-inp" id="ede-obs" value="'+escapeHtml(l.obs||'')+'"></div></div>',
+  function(){
+    var desc = (document.getElementById('ede-desc')?.value||'').trim();
+    var valor = parseFloat(document.getElementById('ede-valor')?.value)||0;
+    if(!desc||valor<=0){ showToast('Preencha descri\u00e7\u00e3o e valor'); return; }
+    finLancs[i].desc = desc;
+    finLancs[i].valor = valor;
+    finLancs[i].data = document.getElementById('ede-data')?.value||hoje;
+    finLancs[i].dt_baixa = finLancs[i].data;
+    finLancs[i].cat = document.getElementById('ede-cat')?.value||'Outros';
+    finLancs[i].forma = document.getElementById('ede-forma')?.value||'';
+    finLancs[i]._recorrente = document.getElementById('ede-recorr')?.checked||false;
+    finLancs[i].obs = (document.getElementById('ede-obs')?.value||'').trim();
+    sbSet('co_fin', finLancs);
+    marcarAlterado(); fecharModal();
+    vfRender();
+    showToast('Despesa atualizada \u2713');
+  }, '\ud83d\udcbe Salvar');
+  setTimeout(function(){
+    var sc = document.getElementById('ede-cat'); if(sc&&l.cat) sc.value=l.cat;
+    var sf = document.getElementById('ede-forma'); if(sf&&l.forma) sf.value=l.forma;
+  }, 100);
 }
 
 function vfRender(){
@@ -8571,6 +8615,99 @@ function _finToggleRecebido(cid, lid){
   showToast(rec ? 'Marcado como recebido \u2713' : 'Marcado como pendente');
 }
 
+// ── EDITAR HONORÁRIO ──
+function _finEditarHonorario(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1){ showToast('Lan\u00e7amento n\u00e3o encontrado'); return; }
+  var l = localLanc[i];
+  var c = CLIENTS.find(function(x){return x.id===cid;});
+  if(!c) return;
+  var hoje = new Date().toISOString().slice(0,10);
+  var nparc = l._total_parc||1;
+  abrirModal('\u270f Editar Honor\u00e1rio',
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o</label><input class="fm-inp" id="eh-desc" value="'+escapeHtml(l.desc||'')+'"></div></div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor integral (R$)</label><input class="fm-inp" type="number" id="eh-vi" value="'+(l.valor_integral||l.valor||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">Valor parcela (R$)</label><input class="fm-inp" type="number" id="eh-vp" value="'+(l.valor_parcela||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">Ressarcimento (R$)</label><input class="fm-inp" type="number" id="eh-ress" value="'+(l.ressarcimento||0)+'" min="0" step="0.01" oninput="_finPreviewEdit()"></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">% Honor\u00e1rios</label><input class="fm-inp" type="number" id="eh-perc" value="'+(l.percentual_honorarios||30)+'" min="0" max="100" step="0.5" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="eh-pnome" value="'+escapeHtml(l.parceiro_nome||'')+'" oninput="_finPreviewEdit()"></div>'
+      +'<div><label class="fm-lbl">% Parceiro</label><input class="fm-inp" type="number" id="eh-pperc" value="'+(l.parceiro_percentual||0)+'" min="0" max="100" step="0.5" oninput="_finPreviewEdit()"></div>'
+    +'</div>'
+    +'<div id="eh-preview" style="margin:12px 0;padding:10px;background:var(--sf3);border-radius:8px"></div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="eh-data" value="'+(l.data||hoje)+'"></div>'
+      +'<div><label class="fm-lbl">Forma</label><select class="fm-inp" id="eh-forma"><option>PIX</option><option>TED</option><option>Boleto</option><option>Dinheiro</option><option>Alvar\u00e1 judicial</option><option>Dep\u00f3sito</option></select></div>'
+      +'<div style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="eh-recebido" '+(l.recebido||l.pago?'checked':'')+'><label for="eh-recebido" style="font-size:11px;color:var(--tx)">Recebido</label></div>'
+    +'</div>'
+    +'<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Observa\u00e7\u00e3o</label><input class="fm-inp" id="eh-obs" value="'+escapeHtml(l.obs||'')+'"></div></div>',
+  function(){
+    var desc = (document.getElementById('eh-desc')?.value||'').trim();
+    var vi = parseFloat(document.getElementById('eh-vi')?.value)||0;
+    var vp = parseFloat(document.getElementById('eh-vp')?.value)||0;
+    var ress = parseFloat(document.getElementById('eh-ress')?.value)||0;
+    var perc = parseFloat(document.getElementById('eh-perc')?.value)||0;
+    var pnome = (document.getElementById('eh-pnome')?.value||'').trim();
+    var pperc = parseFloat(document.getElementById('eh-pperc')?.value)||0;
+    var data = document.getElementById('eh-data')?.value||hoje;
+    var forma = document.getElementById('eh-forma')?.value||'';
+    var recebido = document.getElementById('eh-recebido')?.checked||false;
+    var obs = (document.getElementById('eh-obs')?.value||'').trim();
+    if(!desc){ showToast('Informe a descri\u00e7\u00e3o'); return; }
+    if(!vi && !vp){ showToast('Informe o valor'); return; }
+    var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
+    localLanc[i].desc = desc;
+    localLanc[i].valor_integral = vi;
+    localLanc[i].valor_parcela = vp;
+    localLanc[i].valor = calc.base_calculo;
+    localLanc[i].ressarcimento = ress;
+    localLanc[i].percentual_honorarios = perc;
+    localLanc[i].parceiro_nome = pnome;
+    localLanc[i].parceiro_percentual = pperc;
+    localLanc[i].data = data;
+    localLanc[i].forma = forma;
+    localLanc[i].recebido = recebido;
+    localLanc[i].pago = recebido;
+    localLanc[i].status = recebido ? 'pago' : 'pendente';
+    localLanc[i].dt_baixa = recebido ? data : '';
+    localLanc[i].obs = obs;
+    sbSet('co_localLanc', localLanc);
+    marcarAlterado(); fecharModal();
+    _finLocaisCache = {};
+    _reRenderFinPasta(cid);
+    showToast('Honor\u00e1rio atualizado \u2713');
+  }, '\ud83d\udcbe Salvar altera\u00e7\u00f5es');
+  // Set forma select
+  setTimeout(function(){
+    var sel = document.getElementById('eh-forma');
+    if(sel && l.forma) sel.value = l.forma;
+    _finPreviewEdit();
+  }, 100);
+}
+
+function _finPreviewEdit(){
+  var vi = parseFloat(document.getElementById('eh-vi')?.value)||0;
+  var vp = parseFloat(document.getElementById('eh-vp')?.value)||0;
+  var ress = parseFloat(document.getElementById('eh-ress')?.value)||0;
+  var perc = parseFloat(document.getElementById('eh-perc')?.value)||0;
+  var pn = (document.getElementById('eh-pnome')?.value||'').trim();
+  var pp = parseFloat(document.getElementById('eh-pperc')?.value)||0;
+  var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pn,parceiro_percentual:pp});
+  var fmt = function(v){return 'R$ '+(isFinite(v)?v:0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var el = document.getElementById('eh-preview');
+  if(!el) return;
+  var pc = function(lbl,val,cor){return '<div style="padding:6px 8px;background:var(--sf3);border-radius:4px"><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:var(--mu)">'+lbl+'</div><div style="font-size:12px;font-weight:700;color:'+cor+'">'+fmt(val)+'</div></div>';};
+  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">'
+    +pc('Base',calc.base_calculo,'var(--tx)')
+    +pc('Honor\u00e1rios',calc.honorarios_contratuais,'#D4AF37')
+    +(pn?pc('Parceiro',calc.valor_parceiro,'#fb923c'):'')
+    +pc('L\u00edq. escrit.',calc.honorarios_liquidos_escritorio,'#4ade80')
+    +pc('Valor cliente',calc.valor_cliente,'#60a5fa')
+  +'</div>';
+}
+
 // ── PREVIEW HONORÁRIO (MODAL) ──
 function _finPreviewHon(){
   var vi = parseFloat(document.getElementById('fh-vi')?.value)||0;
@@ -8753,6 +8890,7 @@ function _finHonorariosTab(cid, c, locais, fV, hoje){
         +'<div style="display:flex;gap:6px;align-items:center">'
           +'<span style="font-size:10px;font-weight:700;color:'+corStatus+'">'+lblStatus+'</span>'
           +'<button onclick="_finToggleRecebido('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+(rec?'rgba(251,146,60,.1)':'rgba(76,175,125,.1)')+';border:1px solid '+(rec?'rgba(251,146,60,.3)':'rgba(76,175,125,.3)')+';color:'+(rec?'#fb923c':'#4ade80')+';cursor:pointer">'+(rec?'\u21a9 Pendente':'\u2713 Recebido')+'</button>'
+          +'<button onclick="_finEditarHonorario('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
           +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
         +'</div>'
       +'</div>'
@@ -8847,10 +8985,69 @@ function _finDespesasTab2(cid, c, locais, fV, hoje){
         +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 '+tipoLbl+' \u00b7 <span style="color:'+(isReimb?'#f59e0b':'var(--mu)')+'">'+(isReimb?'Reembols\u00e1vel':'Custo interno')+'</span>'+(l.pago_por?' \u00b7 Pago por: '+escapeHtml(l.pago_por):'')+(l.obs?' \u00b7 '+escapeHtml(l.obs):'')+'</div></div>'
       +'<span style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</span>'
       +'<button onclick="_finToggleTipoDesp('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">'+(l.tipo==='despint'?'\u2191 Reimb.':'\u2193 Interno')+'</button>'
+      +'<button onclick="_finEditarDespCaso('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
       +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
+}
+
+// ── TOGGLE TIPO DESPESA (reembolsável ↔ custo interno) ──
+function _finToggleTipoDesp(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1) return;
+  localLanc[i].tipo = localLanc[i].tipo==='despint' ? 'despesa' : 'despint';
+  sbSet('co_localLanc', localLanc);
+  marcarAlterado();
+  _finLocaisCache = {};
+  _finTab(_finCurTab, cid, null);
+  showToast('Tipo alterado para '+(localLanc[i].tipo==='despint'?'custo interno':'reembols\u00e1vel'));
+}
+
+// ── EDITAR DESPESA DO CASO ──
+function _finEditarDespCaso(cid, lid){
+  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  if(i===-1){ showToast('N\u00e3o encontrado'); return; }
+  var l = localLanc[i];
+  var hoje = new Date().toISOString().slice(0,10);
+  var tipoLabels = {custa:'Custa',diligencia:'Dilig\u00eancia',deslocamento:'Deslocamento',copia:'C\u00f3pia',emolumento:'Emolumento',operacional:'Operacional',outro:'Outro'};
+  var tipoOpts = Object.keys(tipoLabels).map(function(k){return '<option value="'+k+'"'+(k===(l.tipo_despesa||'outro')?' selected':'')+'>'+tipoLabels[k]+'</option>';}).join('');
+  abrirModal('\u270f Editar Despesa',
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o</label><input class="fm-inp" id="edc-desc" value="'+escapeHtml(l.desc||'')+'"></div></div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Valor (R$)</label><input class="fm-inp" type="number" id="edc-valor" value="'+(l.valor||0)+'" min="0.01" step="0.01"></div>'
+      +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="edc-data" value="'+(l.data||hoje)+'"></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div><label class="fm-lbl">Tipo</label><select class="fm-inp" id="edc-tipo">'+tipoOpts+'</select></div>'
+      +'<div><label class="fm-lbl">Forma</label><select class="fm-inp" id="edc-forma"><option>PIX</option><option>Dinheiro</option><option>Cart\u00e3o</option><option>Boleto</option><option>TED</option></select></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="edc-reimb" '+(l.tipo!=='despint'?'checked':'')+'><label for="edc-reimb" style="font-size:11px;color:var(--tx)">Reembols\u00e1vel</label></div>'
+      +'<div><label class="fm-lbl">Pago por</label><input class="fm-inp" id="edc-pago" value="'+escapeHtml(l.pago_por||'')+'"></div>'
+    +'</div>'
+    +'<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Observa\u00e7\u00e3o</label><input class="fm-inp" id="edc-obs" value="'+escapeHtml(l.obs||'')+'"></div></div>',
+  function(){
+    var desc = (document.getElementById('edc-desc')?.value||'').trim();
+    var valor = parseFloat(document.getElementById('edc-valor')?.value)||0;
+    if(!desc||valor<=0){ showToast('Preencha descri\u00e7\u00e3o e valor'); return; }
+    localLanc[i].desc = desc;
+    localLanc[i].valor = valor;
+    localLanc[i].data = document.getElementById('edc-data')?.value||hoje;
+    localLanc[i].tipo_despesa = document.getElementById('edc-tipo')?.value||'outro';
+    localLanc[i].forma = document.getElementById('edc-forma')?.value||'';
+    localLanc[i].tipo = document.getElementById('edc-reimb')?.checked ? 'despesa' : 'despint';
+    localLanc[i].pago_por = (document.getElementById('edc-pago')?.value||'').trim();
+    localLanc[i].obs = (document.getElementById('edc-obs')?.value||'').trim();
+    sbSet('co_localLanc', localLanc);
+    marcarAlterado(); fecharModal();
+    _finLocaisCache = {};
+    _reRenderFinPasta(cid);
+    showToast('Despesa atualizada \u2713');
+  }, '\ud83d\udcbe Salvar');
+  setTimeout(function(){
+    var sf = document.getElementById('edc-forma'); if(sf&&l.forma) sf.value=l.forma;
+  }, 100);
 }
 
 // ── ABA REPASSES + DADOS BANCÁRIOS ──
