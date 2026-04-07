@@ -318,9 +318,46 @@ body.light {
   --vinho:#8b1a1a; --vinho-d:#6b1416; --vinho-l:#a52020;
   --ouro:#9a7d20; --ouro-l:#c9a84c; --ouro-d:#7a6218;
   --off:#1c1c1e;
+  --grn:#15803d; --red:#991b1b; --amb:#92400e;
+  --ac:#8b1a1a;
   background:var(--bg) !important;
   color:var(--tx) !important;
 }
+
+/* Cores vibrantes escurecidas para contraste no fundo claro */
+body.light .ha-alerta { border-width:1px !important; }
+body.light [style*="color:#4ade80"] { color:#15803d !important; }
+body.light [style*="color:#f87676"] { color:#991b1b !important; }
+body.light [style*="color:#fb923c"] { color:#9a3412 !important; }
+body.light [style*="color:#f59e0b"] { color:#92400e !important; }
+body.light [style*="color:#c9484a"] { color:#7f1d1d !important; }
+body.light [style*="color:#60a5fa"] { color:#1d4ed8 !important; }
+body.light [style*="color:#D4AF37"] { color:#7a6218 !important; }
+body.light [style*="color:#86efac"] { color:#15803d !important; }
+
+/* Backgrounds de alertas com melhor contraste */
+body.light [style*="background:rgba(76,175,125"] { background:rgba(21,128,61,.08) !important; }
+body.light [style*="background:rgba(248,118,118"] { background:rgba(153,27,27,.06) !important; }
+body.light [style*="background:rgba(251,146,60"] { background:rgba(154,52,18,.06) !important; }
+body.light [style*="background:rgba(201,72,74"] { background:rgba(127,29,29,.06) !important; }
+body.light [style*="background:rgba(212,175,55"] { background:rgba(122,98,24,.06) !important; }
+body.light [style*="color-mix"] { background:#f5f0e8 !important; }
+
+/* Sidebar vertical */
+body.light .sidebar-vert { background:#fff; border-right:1px solid #D8DDE6; }
+
+/* Stats do dashboard */
+body.light .dsh-stat { background:#fff; border:1px solid #D8DDE6; }
+body.light .dsh-stat-n { color:#1C1C1E; }
+body.light .dsh-stat-l { color:#5A6272; }
+
+/* Calendário */
+body.light .hw-cal-dia { color:#374151; }
+body.light .hw-cal-hoje { background:#15803d; color:#fff; }
+
+/* Checklist / compromissos */
+body.light .hc-header, body.light .hw-header-txt { color:#1C1C1E !important; }
+body.light .hc-item-tag { opacity:1; }
 
 body.light .header    { background:#FFFFFF; border-bottom:2px solid #D8DDE6; box-shadow:0 1px 4px rgba(0,0,0,.08); }
 body.light .logo-name { color:#1C1C1E !important; }
