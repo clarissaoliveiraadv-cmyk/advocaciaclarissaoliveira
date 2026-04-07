@@ -12461,6 +12461,33 @@ function _cpCalcReverso(){
   +'</div>';
 }
 
+// ── Migrar prazos legados (prazos[cid]) para localAg ──
+function _migrarPrazosParaAg(){
+  if(!prazos||typeof prazos!=='object') return;
+  var migrados = 0;
+  var existentes = new Set((localAg||[]).map(function(p){ return String(p._prazo_legado_id||''); }));
+  Object.keys(prazos).forEach(function(cid){
+    var lista = prazos[cid]||[];
+    var c = findClientById(Number(cid))||findClientById(cid);
+    lista.forEach(function(p){
+      if(existentes.has(String(p.id))) return; // já migrado
+      localAg.push({
+        id: 'mig_'+p.id, titulo: p.titulo||'Prazo', tipo_compromisso: p.tipo||'Outro',
+        cliente: c?c.cliente:'', id_processo: Number(cid)||cid,
+        dt_raw: p.data, dt_fim: p.data, inicio: p.data,
+        obs: p.obs||'', realizado: !!p.cumprido, cumprido: p.cumprido?'Sim':'',
+        dt_conclusao: p.cumprido_em||'',
+        _prazo: true, _prazo_legado_id: p.id, origem: 'prazo_migrado'
+      });
+      migrados++;
+    });
+  });
+  if(migrados>0){
+    sbSet('co_ag', localAg); invalidarAllPend();
+  }
+}
+try { _migrarPrazosParaAg(); } catch(e){}
+
 function renderPrazos(cid){
   const lista=prazos[cid]||[], hoje=getTodayKey();
   const pend=lista.filter(p=>!p.cumprido).sort((a,b)=>a.data.localeCompare(b.data));
@@ -12569,7 +12596,11 @@ function renderAgendaProc(cid){
         +'<div class="comp-cal-mes">'+(dtP[1]?MA[parseInt(dtP[1],10)-1]||'':'')+'</div>'
       +'</div>'
       +'<div class="comp-card-body">'
-        +'<div class="comp-card-titulo '+(isDone?'done':'')+'">'+( p.tipo_compromisso||p.titulo||'Compromisso')+'</div>'
+        +'<div class="comp-card-titulo '+(isDone?'done':'')+'">'+( p.tipo_compromisso||p.titulo||'Compromisso')
+          +(p._prazo?' <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:700;vertical-align:middle">PRAZO</span>':'')
+          +(p.hora?' <span style="font-size:9px;color:var(--mu)">\u23f0 '+p.hora+'</span>':'')
+          +(!isDone&&!pass&&d>0&&d<999?' <span style="font-size:9px;color:'+(d<=3?'#f59e0b':'var(--mu)')+'">'+d+'d</span>':'')
+        +'</div>'
         +(()=>{
           const fmD=d=>d?fDt(d):'';
           const dur=eventoDuracao(p);
@@ -16834,55 +16865,51 @@ function deletarPrazo(cid, pid){
 
 // abrirModalPrazo — abre modal para adicionar novo prazo à pasta
 function abrirModalPrazo(cid){
-  const TIPOS = ['fatal','protocolo','audiencia','pericia','recurso','contestacao','outro'];
-  abrirModal('Novo Prazo', `
-    <div class="fm-row">
-      <div style="flex:2">
-        <label class="fm-lbl">Descrição *</label>
-        <input class="fm-inp" id="np-titulo" placeholder="Ex: Recurso Ordinário, Contestação...">
-      </div>
-      <div>
-        <label class="fm-lbl">Tipo</label>
-        <select class="fm-inp" id="np-tipo">
-          ${TIPOS.map(t=>`<option value="${t}">${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="fm-row" style="margin-top:8px">
-      <div>
-        <label class="fm-lbl">Data *</label>
-        <input class="fm-inp" type="date" id="np-data">
-      </div>
-    </div>
-    <div style="margin-top:8px">
-      <label class="fm-lbl">Observações</label>
-      <textarea class="fm-inp" id="np-obs" rows="2" placeholder="Referência, processo, número..."></textarea>
-    </div>
-  `, ()=>{
-    const titulo = document.getElementById('np-titulo')?.value.trim();
-    const data   = document.getElementById('np-data')?.value;
-    const tipo   = document.getElementById('np-tipo')?.value;
-    const obs    = document.getElementById('np-obs')?.value.trim()||'';
-    if(!titulo){ showToast('Informe a descrição'); return; }
-    if(!data)  { showToast('Informe a data'); return; }
-    if(!prazos[cid]) prazos[cid]=[];
-    // Dedup: não permitir prazo idêntico (mesmo título + data)
-    var dup = prazos[cid].some(function(x){ return x.titulo===titulo && x.data===data && !x.cumprido; });
-    if(dup){ showToast('Prazo j\u00e1 cadastrado com mesma descri\u00e7\u00e3o e data'); return; }
-    prazos[cid].push({ id:'p'+genId(), titulo:titulo, data:data, tipo:tipo, obs:obs, cumprido:false });
-    prazosSalvar();
-    marcarAlterado();
-    fecharModal();
-    // Re-renderizar
-    const container = document.querySelector(`[id^="tp"]`)?.querySelector('.prazos-wrap')?.parentElement;
-    // Tentar re-render direto
-    const allPrazosWraps = document.querySelectorAll('.prazos-wrap');
-    allPrazosWraps.forEach(w=>{
-      const btn = w.querySelector('button[onclick*="abrirModalPrazo('+cid+')"]');
-      if(btn) w.parentElement.innerHTML = renderPrazos(cid);
+  var c = findClientById(cid);
+  var TIPOS = ['Fatal','Protocolo','Audi\u00eancia','Per\u00edcia','Recurso','Contesta\u00e7\u00e3o','Reuni\u00e3o','Despacho','Dilig\u00eancia','Outro'];
+  abrirModal('\u23f0 Novo Prazo / Compromisso', ''
+    +'<div class="fm-row">'
+      +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo *</label>'
+        +'<input class="fm-inp" id="np-titulo" placeholder="Ex: Recurso Ordin\u00e1rio, Audi\u00eancia..."></div>'
+      +'<div><label class="fm-lbl">Tipo</label>'
+        +'<select class="fm-inp" id="np-tipo">'+TIPOS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Data *</label><input class="fm-inp" type="date" id="np-data"></div>'
+      +'<div><label class="fm-lbl">Hora (opcional)</label><input class="fm-inp" type="time" id="np-hora"></div>'
+    +'</div>'
+    +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00f5es</label>'
+      +'<textarea class="fm-inp" id="np-obs" rows="2" placeholder="Refer\u00eancia, processo..."></textarea></div>',
+  function(){
+    var titulo = document.getElementById('np-titulo')?.value.trim();
+    var data = document.getElementById('np-data')?.value;
+    var tipo = document.getElementById('np-tipo')?.value||'Outro';
+    var hora = document.getElementById('np-hora')?.value||'';
+    var obs = document.getElementById('np-obs')?.value.trim()||'';
+    if(!titulo){ showToast('Informe o t\u00edtulo'); return; }
+    if(!data){ showToast('Informe a data'); return; }
+    // Salvar como compromisso unificado em localAg
+    var novoId = 'ag'+genId();
+    localAg.push({
+      id: novoId, titulo: titulo, tipo_compromisso: tipo,
+      cliente: c?c.cliente:'', id_processo: cid,
+      dt_raw: data, dt_fim: data, inicio: data+(hora?'T'+hora:''),
+      hora: hora, obs: obs, realizado: false, cumprido: '',
+      _prazo: true, origem: 'prazo_manual'
     });
-    showToast('Prazo cadastrado ✓');
-  }, '💾 Salvar');
+    sbSet('co_ag', localAg); invalidarAllPend();
+    marcarAlterado(); fecharModal();
+    // Re-render compromissos da pasta
+    var elAg = document.getElementById('tp-agenda-proc-'+cid);
+    if(elAg) elAg.innerHTML = renderAgendaProc(cid);
+    // Re-render prazos legados
+    var allPW = document.querySelectorAll('.prazos-wrap');
+    allPW.forEach(function(w){
+      var btn = w.querySelector('button[onclick*="abrirModalPrazo('+cid+')"]');
+      if(btn && w.parentElement) w.parentElement.innerHTML = renderPrazos(cid);
+    });
+    showToast('Prazo/compromisso cadastrado \u2713');
+  }, '\ud83d\udcbe Salvar');
 }
 
 // abrirConsulta — abre ficha de consulta/atendimento
