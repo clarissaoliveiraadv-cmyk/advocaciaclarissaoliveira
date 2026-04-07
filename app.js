@@ -12347,6 +12347,120 @@ function editarPrazo(cid,pid){
   },'Salvar');
 }
 
+// ── Calculadora de prazos (para frente e reverso) ──
+function _addDiasUteis(dataInicial, dias, estado){
+  var dt = new Date(dataInicial+'T12:00:00');
+  var contados = 0;
+  var direcao = dias >= 0 ? 1 : -1;
+  var total = Math.abs(dias);
+  while(contados < total){
+    dt.setDate(dt.getDate()+direcao);
+    var info = calcEhFeriado(dt, estado||'MG', '');
+    if(!info.eh) contados++;
+  }
+  return dt.toISOString().slice(0,10);
+}
+
+function _contarDiasUteis(dataInicial, dataFinal, estado){
+  var dt = new Date(dataInicial+'T12:00:00');
+  var fim = new Date(dataFinal+'T12:00:00');
+  var contados = 0;
+  if(dt >= fim) return 0;
+  while(dt < fim){
+    dt.setDate(dt.getDate()+1);
+    var info = calcEhFeriado(dt, estado||'MG', '');
+    if(!info.eh) contados++;
+  }
+  return contados;
+}
+
+function _abrirCalcPrazo(cid){
+  var hoje = getTodayKey();
+  abrirModal('\ud83d\uddd3 Calcular Prazo',
+    '<div style="display:flex;gap:6px;margin-bottom:14px">'
+      +'<button id="cp-tab-frente" class="btn-bordo btn-bordo-sm" onclick="_cpSetTab(\'frente\')" style="flex:1">Para frente \u2192</button>'
+      +'<button id="cp-tab-reverso" class="btn-bordo btn-bordo-sm" onclick="_cpSetTab(\'reverso\')" style="flex:1;background:var(--sf3);color:var(--mu);border-color:var(--bd)">\u2190 Reverso</button>'
+    +'</div>'
+    // Para frente
+    +'<div id="cp-frente">'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Data inicial</label><input class="fm-inp" type="date" id="cp-f-data" value="'+hoje+'" onchange="_cpCalcFrente()"></div>'
+        +'<div><label class="fm-lbl">Dias \u00fateis</label><input class="fm-inp" type="number" id="cp-f-dias" value="15" min="1" onchange="_cpCalcFrente()" oninput="_debounce(\'cpf\',_cpCalcFrente,300)"></div>'
+        +'<div><label class="fm-lbl">Estado</label><select class="fm-inp" id="cp-f-uf" onchange="_cpCalcFrente()"><option>MG</option><option>SP</option><option>RJ</option><option>RS</option><option>PR</option><option>SC</option><option>BA</option><option>DF</option></select></div>'
+      +'</div>'
+      +'<div id="cp-f-result" style="margin-top:12px"></div>'
+    +'</div>'
+    // Reverso
+    +'<div id="cp-reverso" style="display:none">'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Data final (prazo/audi\u00eancia)</label><input class="fm-inp" type="date" id="cp-r-data" onchange="_cpCalcReverso()"></div>'
+        +'<div><label class="fm-lbl">Dias \u00fateis antes</label><input class="fm-inp" type="number" id="cp-r-dias" value="5" min="0" onchange="_cpCalcReverso()" oninput="_debounce(\'cpr\',_cpCalcReverso,300)"></div>'
+        +'<div><label class="fm-lbl">Estado</label><select class="fm-inp" id="cp-r-uf" onchange="_cpCalcReverso()"><option>MG</option><option>SP</option><option>RJ</option><option>RS</option><option>PR</option><option>SC</option><option>BA</option><option>DF</option></select></div>'
+      +'</div>'
+      +'<div id="cp-r-result" style="margin-top:12px"></div>'
+    +'</div>',
+  null, 'Fechar');
+  setTimeout(_cpCalcFrente, 100);
+}
+
+function _cpSetTab(tab){
+  var bf = document.getElementById('cp-tab-frente');
+  var br = document.getElementById('cp-tab-reverso');
+  var df = document.getElementById('cp-frente');
+  var dr = document.getElementById('cp-reverso');
+  if(tab==='frente'){
+    if(bf){ bf.style.background=''; bf.style.color=''; bf.style.borderColor=''; }
+    if(br){ br.style.background='var(--sf3)'; br.style.color='var(--mu)'; br.style.borderColor='var(--bd)'; }
+    if(df) df.style.display='block';
+    if(dr) dr.style.display='none';
+  } else {
+    if(br){ br.style.background=''; br.style.color=''; br.style.borderColor=''; }
+    if(bf){ bf.style.background='var(--sf3)'; bf.style.color='var(--mu)'; bf.style.borderColor='var(--bd)'; }
+    if(df) df.style.display='none';
+    if(dr) dr.style.display='block';
+  }
+}
+
+function _cpCalcFrente(){
+  var data = document.getElementById('cp-f-data')?.value;
+  var dias = parseInt(document.getElementById('cp-f-dias')?.value)||0;
+  var uf = document.getElementById('cp-f-uf')?.value||'MG';
+  var el = document.getElementById('cp-f-result');
+  if(!el||!data||!dias) return;
+  var resultado = _addDiasUteis(data, dias, uf);
+  var diasCorridos = Math.ceil((new Date(resultado)-new Date(data))/86400000);
+  el.innerHTML = '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;text-align:center">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:4px">Prazo final</div>'
+    +'<div style="font-size:24px;font-weight:800;color:#4ade80">'+fDt(resultado)+'</div>'
+    +'<div style="font-size:11px;color:var(--mu);margin-top:4px">'+dias+' dias \u00fateis = '+diasCorridos+' dias corridos</div>'
+  +'</div>';
+}
+
+function _cpCalcReverso(){
+  var dataFinal = document.getElementById('cp-r-data')?.value;
+  var diasAntes = parseInt(document.getElementById('cp-r-dias')?.value)||0;
+  var uf = document.getElementById('cp-r-uf')?.value||'MG';
+  var el = document.getElementById('cp-r-result');
+  if(!el||!dataFinal) return;
+  var hoje = getTodayKey();
+  var diasRestantes = _contarDiasUteis(hoje, dataFinal, uf);
+  var dataLimite = diasAntes > 0 ? _addDiasUteis(dataFinal, -diasAntes, uf) : dataFinal;
+  var diasAteLimite = _contarDiasUteis(hoje, dataLimite, uf);
+  var corLimite = diasAteLimite <= 0 ? '#c9484a' : diasAteLimite <= 3 ? '#f59e0b' : '#4ade80';
+
+  el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:12px;text-align:center">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Restam at\u00e9 '+fDt(dataFinal)+'</div>'
+      +'<div style="font-size:22px;font-weight:800;color:'+(diasRestantes<=3?'#f59e0b':'var(--tx)')+'">'+diasRestantes+' dias \u00fateis</div>'
+    +'</div>'
+    +(diasAntes>0?'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:12px;text-align:center">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Limite ('+diasAntes+'d \u00fateis antes)</div>'
+      +'<div style="font-size:22px;font-weight:800;color:'+corLimite+'">'+fDt(dataLimite)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu)">'+diasAteLimite+' dias \u00fateis a partir de hoje</div>'
+    +'</div>':'')
+  +'</div>';
+}
+
 function renderPrazos(cid){
   const lista=prazos[cid]||[], hoje=getTodayKey();
   const pend=lista.filter(p=>!p.cumprido).sort((a,b)=>a.data.localeCompare(b.data));
@@ -12391,7 +12505,10 @@ function renderPrazos(cid){
   let out='<div class="prazos-wrap">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
       +'<span class="dp-sep" style="margin:0">Prazos da Pasta</span>'
-      +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalPrazo('+cid+')">+ Novo Prazo</button>'
+      +'<div style="display:flex;gap:6px">'
+        +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalPrazo('+cid+')">+ Novo Prazo</button>'
+        +'<button class="btn-bordo btn-bordo-sm" style="background:var(--sf3);color:var(--mu);border-color:var(--bd)" onclick="_abrirCalcPrazo('+cid+')">\ud83d\uddd3 Calcular prazo</button>'
+      +'</div>'
     +'</div>';
   if(!pend.length&&!done.length){
     out+='<div style="font-size:12px;color:var(--mu);font-style:italic;padding:12px 0">Nenhum prazo cadastrado.</div>';
