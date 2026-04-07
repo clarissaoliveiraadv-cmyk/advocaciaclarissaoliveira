@@ -297,10 +297,28 @@ function sbRealtime(){
 }
 
 function sbAplicar(chave, valor, quem){
-  const n = {clarissa:'Clarissa',assistente:'Assistente',financeiro:'Financeiro'}[quem]||quem;
+  var n = {clarissa:'Clarissa',assistente:'Assistente',financeiro:'Financeiro'}[quem]||quem;
   switch(chave){
     case 'co_vktasks': vkTasks=valor||[]; if(document.getElementById('vkt')?.classList.contains('on')) vkRender(); break;
-    case 'co_fin':     finLancs=valor||[]; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_fin': finLancs=valor||[]; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_localLanc': localLanc=valor||[]; _finLocaisCache={}; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_localMov': localMov=valor||{}; break;
+    case 'co_localAg': localAg=valor||[]; invalidarAllPend(); break;
+    case 'co_ag': localAg=valor||[]; invalidarAllPend(); break;
+    case 'co_encerrados': encerrados=valor||{}; _encIdsCache=null; break;
+    case 'co_notes': notes=valor||{}; break;
+    case 'co_ctc': localContatos=valor||[]; invalidarCtcCache(); break;
+    case 'co_tasks': if(typeof tasks!=='undefined') tasks=valor||{}; break;
+    case 'co_td': case 'co_prazos': prazos=valor||{}; break;
+    case 'co_colab': if(typeof _colaboradores!=='undefined') _colaboradores=valor||[]; break;
+    case 'co_despfixas': if(typeof _despFixas!=='undefined') _despFixas=valor||[]; break;
+    case 'co_coments': if(typeof comentarios!=='undefined') comentarios=valor||{}; break;
+    case 'co_atend': if(typeof localAtend!=='undefined') localAtend=valor||[]; break;
+    case 'co_clientes': if(typeof CLIENTS!=='undefined'){ CLIENTS.length=0; (valor||[]).forEach(function(c){CLIENTS.push(c);}); _clientByIdCache={}; _clientByNameCache={}; } break;
+    case 'co_audit': if(typeof _auditLog!=='undefined') _auditLog=valor||[]; break;
+  }
+  if(n && n!==_sbUsuario) showToast('\u2601 '+n+' atualizou '+chave.replace('co_',''));
+}
 
 
 // ── AUTO-INJECT: Extrato Inter Jan-Mar 2026 ──
@@ -505,32 +523,6 @@ function sbAplicar(chave, valor, quem){
 
   if(typeof showToast==='function') showToast('✓ Correções aplicadas: '+log.length+' operações');
 })();
-    case 'co_tasks':   tasks=valor||{}; break;
-    case 'co_ag':      localAg=valor||[]; renderHomeWeek(); break;
-    case 'co_encerrados': encerrados=valor||{}; doSearch(); break;
-    case 'co_notes':   notes=valor||{}; break;
-    case 'co_localLanc':        localLanc=valor||[]; break;
-    case 'co_localMov':  localMov=valor||{}; break;
-    case 'co_atend':     localAtend=valor||[]; break;
-    case 'co_td':        prazos=valor||{}; break;
-    case 'co_ctc':       localContatos=valor||[]; break;
-    case 'co_clientes':
-      if(Array.isArray(valor)&&valor.length){
-        const consultas=CLIENTS.filter(c=>c.tipo==='consulta'||c.status_consulta==='consulta');
-        CLIENTS=[...valor,...consultas];
-        montarClientesAgrupados(); doSearch(); atualizarStats();
-      }
-      break;
-    case 'co_clientes_consulta':
-      if(Array.isArray(valor)){
-        const processos=CLIENTS.filter(c=>c.tipo!=='consulta'&&c.status_consulta!=='consulta');
-        CLIENTS=[...processos,...valor];
-        montarClientesAgrupados(); doSearch();
-      }
-      break;
-  }
-  showToast(`${n} atualizou o sistema`);
-}
 
 function sbSetUsuario(u){
   _sbUsuario=u; localStorage.setItem('co_usuario',u);
