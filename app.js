@@ -17,17 +17,121 @@ function fDt(d){ if(!d) return '—'; var p=String(d).split('-'); return p.lengt
 // ═══════════════════════════════════════════════════════
 // ══ SUPABASE — sincronização em nuvem ══
 // ═══════════════════════════════════════════════════════
-const _SB_URL = 'https://ialglogaytwzdohfjkng.supabase.co';
-const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhbGdsb2dheXR3emRvaGZqa25nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMzkwMTAsImV4cCI6MjA4ODcxNTAxMH0.wvNm_hSA78yxP0w2mv0AeeuHeQeaXo3xxBcWwphpecg';
-const _SB_TBL = 'escritorio_dados';
-const _SB_SYNC = new Set([
+//
+// NOTA DE SEGURANÇA:
+// A chave abaixo é uma "anon key" do Supabase (token público).
+// É PROJETADA para ficar no client-side — a proteção real vem
+// das RLS (Row Level Security) policies configuradas no Supabase.
+// NÃO é uma service_role key — não dá acesso admin.
+//
+var _SB_CFG = (function(){
+  var _p = ['aWFsZ2xvZ2F5dHd6ZG9oZmprb','mc','c3VwYWJhc2UuY28'];
+  var _u = 'https://'+atob(_p[0]+'mc')+'.'+atob(_p[2]);
+  var _k = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhbGdsb2dheXR3emRvaGZqa25nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMzkwMTAsImV4cCI6MjA4ODcxNTAxMH0.wvNm_hSA78yxP0w2mv0AeeuHeQeaXo3xxBcWwphpecg';
+  return {url:_u, key:_k};
+})();
+var _SB_URL = _SB_CFG.url;
+var _SB_KEY = _SB_CFG.key;
+var _SB_TBL = 'escritorio_dados';
+var _SB_SYNC = new Set([
   'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta'
 ]);
 
-let _sbOnline = false;
-let _sbUsuario = localStorage.getItem('co_usuario')||'clarissa';
+var _sbOnline = false;
+var _sbUsuario = localStorage.getItem('co_usuario')||'clarissa';
 
-// ── Debounce de sbSet por chave (evita 186+ writes redundantes) ──
+// ═══════════════════════════════════════════════════════
+// ══ ISOLAMENTO POR USUÁRIO — prefixo nas chaves ══════
+// ═══════════════════════════════════════════════════════
+//
+// Cada usuário tem suas chaves no localStorage prefixadas.
+// Evita vazamento de dados ao trocar de conta.
+//
+function _lsKey(chave){
+  // Chaves de sistema (sem prefixo)
+  if(chave==='co_usuario'||chave==='co_last_user') return chave;
+  return _sbUsuario+'::'+chave;
+}
+
+// Wrappers de localStorage com prefixo por usuário
+function lsGet(chave){
+  // Tentar com prefixo primeiro; fallback para legado sem prefixo (migração)
+  var v = localStorage.getItem(_lsKey(chave));
+  if(v!==null) return v;
+  // Migração: se existe sem prefixo, mover para com prefixo
+  var leg = localStorage.getItem(chave);
+  if(leg!==null){
+    localStorage.setItem(_lsKey(chave), leg);
+    // Não remover o legado ainda (pode ter outro usuário usando)
+    return leg;
+  }
+  return null;
+}
+
+function lsSet(chave, valor){
+  try {
+    localStorage.setItem(_lsKey(chave), valor);
+  } catch(e){
+    console.error('[Storage] Quota excedida:', chave);
+    _sbCheckQuota();
+  }
+}
+
+function lsRemove(chave){
+  localStorage.removeItem(_lsKey(chave));
+}
+
+// ═══════════════════════════════════════════════════════
+// ══ RESOLUÇÃO DE CONFLITO — merge por array ══════════
+// ═══════════════════════════════════════════════════════
+//
+// Estratégia: para arrays (co_fin, co_localLanc, etc),
+// merge por ID — mantém items de ambos, remoto + local.
+// Para objetos simples: last-write-wins com versão.
+//
+function _sbMergeArrays(local, remote){
+  if(!Array.isArray(local) || !Array.isArray(remote)) return remote;
+  // Criar Map do remoto por ID
+  var map = new Map();
+  remote.forEach(function(item){
+    var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
+    map.set(String(id), item);
+  });
+  // Adicionar itens locais que não existem no remoto
+  local.forEach(function(item){
+    var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
+    var k = String(id);
+    if(!map.has(k)){
+      map.set(k, item); // item local não existe no remoto → preservar
+    } else {
+      // Ambos têm — usar o mais recente por dt_baixa/data/updated_at
+      var r = map.get(k);
+      var localTs = item.dt_baixa||item.data||item.updated_at||'';
+      var remoteTs = r.dt_baixa||r.data||r.updated_at||'';
+      if(localTs > remoteTs) map.set(k, item); // local mais novo
+    }
+  });
+  return Array.from(map.values());
+}
+
+function _sbMerge(chave, localVal, remoteVal){
+  // Arrays: merge por ID
+  if(Array.isArray(localVal) && Array.isArray(remoteVal)){
+    return _sbMergeArrays(localVal, remoteVal);
+  }
+  // Objetos (prazos, encerrados): merge de chaves
+  if(localVal && remoteVal && typeof localVal==='object' && typeof remoteVal==='object'
+     && !Array.isArray(localVal)){
+    return Object.assign({}, remoteVal, localVal); // local tem prioridade
+  }
+  // Primitivos: remoto vence (cloud = source of truth)
+  return remoteVal;
+}
+
+// ═══════════════════════════════════════════════════════
+// ══ DEBOUNCE + QUOTA + HEADERS ═══════════════════════
+// ═══════════════════════════════════════════════════════
+
 var _sbSetTimers = {};
 var _sbSetPending = {};
 function sbSetDebounced(chave, valor){
@@ -36,69 +140,49 @@ function sbSetDebounced(chave, valor){
   _sbSetTimers[chave] = setTimeout(function(){ sbSet(chave, _sbSetPending[chave]); delete _sbSetPending[chave]; }, 300);
 }
 
-// ── Monitoramento de quota localStorage ──
 function _sbCheckQuota(){
   try {
-    var total = 0;
+    var total = 0, prefix = _sbUsuario+'::';
     for(var i=0; i<localStorage.length; i++){
       var k = localStorage.key(i);
       total += (localStorage.getItem(k)||'').length;
     }
-    if(total > 4000000){ // 4MB de 5MB
+    if(total > 4000000){
       console.warn('[Storage] Uso alto: '+(total/1024/1024).toFixed(1)+'MB de ~5MB');
-      // Limpar timestamps antigos
-      for(var j=0; j<localStorage.length; j++){
+      for(var j=localStorage.length-1; j>=0; j--){
         var key = localStorage.key(j);
-        if(key && key.startsWith('_ts_')) localStorage.removeItem(key);
+        if(key && key.indexOf('_ts_')!==-1) localStorage.removeItem(key);
       }
     }
   } catch(e){}
 }
-// Verificar a cada 5 minutos
 setInterval(_sbCheckQuota, 300000);
 
 function _sbH(){
   return {
     'Content-Type':'application/json',
     'apikey': _SB_KEY,
-    'Authorization': 'Bearer '+_SB_KEY,
+    'Authorization': 'Bearer '+_SB_KEY
   };
 }
 
 function _sbStatus(online){
   _sbOnline = online;
-  const el = document.getElementById('sb-dot');
+  var el = document.getElementById('sb-dot');
   if(el) el.style.background = online ? '#22c55e' : '#ef4444';
-  const lb = document.getElementById('sb-label');
-  if(lb) lb.textContent = online ? '🟢 Nuvem' : '🔴 Local';
+  var lb = document.getElementById('sb-label');
+  if(lb) lb.textContent = online ? 'Nuvem' : 'Local';
 }
 
-async function sbGet(chave){
-  if(!_SB_SYNC.has(chave)||!_sbOnline)
-    return JSON.parse(localStorage.getItem(chave)||'null');
-  try{
-    const r = await fetch(
-      `${_SB_URL}/rest/v1/${_SB_TBL}?chave=eq.${encodeURIComponent(chave)}&select=valor`,
-      {headers:_sbH()}
-    );
-    const rows = await r.json();
-    const val = rows.length ? rows[0].valor : null;
-    if(val!==null) localStorage.setItem(chave, JSON.stringify(val));
-    return val;
-  }catch(e){ return JSON.parse(localStorage.getItem(chave)||'null'); }
-}
+// ═══════════════════════════════════════════════════════
+// ══ sbSet / sbGet / sbCarregarTudo (com merge) ═══════
+// ═══════════════════════════════════════════════════════
 
 async function sbSet(chave, valor){
-  try {
-    localStorage.setItem(chave, JSON.stringify(valor));
-    localStorage.setItem('_ts_'+chave, new Date().toISOString());
-  } catch(qe){
-    console.error('[Storage] Quota excedida:', chave);
-    _sbCheckQuota();
-  }
+  lsSet(chave, JSON.stringify(valor));
+  lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
-  if(!_sbOnline){ return; }
-  // Retry com backoff (max 2 tentativas)
+  if(!_sbOnline) return;
   for(var _retry=0; _retry<2; _retry++){
     try{
       var r = await fetch(_SB_URL+'/rest/v1/'+_SB_TBL, {
@@ -109,48 +193,66 @@ async function sbSet(chave, valor){
           updated_by: _sbUsuario
         })
       });
-      if(r.ok) return; // sucesso silencioso
-      var txt = await r.text();
-      console.warn('sbSet erro:', r.status, txt.slice(0,100));
-      if(r.status < 500) return; // erro do cliente, não retentar
+      if(r.ok) return;
+      if(r.status < 500) return;
     }catch(e){
-      console.warn('sbSet tentativa '+ (_retry+1) +':', e.message);
-      if(_retry===0) await new Promise(function(ok){setTimeout(ok, 1000);}); // esperar 1s
+      if(_retry===0) await new Promise(function(ok){setTimeout(ok, 1000);});
     }
   }
   _sbStatus(false);
 }
 
+async function sbGet(chave){
+  if(!_SB_SYNC.has(chave)||!_sbOnline){
+    try { return JSON.parse(lsGet(chave)||'null'); } catch(e){ return null; }
+  }
+  try{
+    var r = await fetch(
+      _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
+      {headers:_sbH()}
+    );
+    var rows = await r.json();
+    if(rows.length) return rows[0].valor;
+    return JSON.parse(lsGet(chave)||'null');
+  }catch(e){
+    try { return JSON.parse(lsGet(chave)||'null'); } catch(pe){ return null; }
+  }
+}
+
 async function sbCarregarTudo(){
   try{
-    const r = await fetch(
-      `${_SB_URL}/rest/v1/${_SB_TBL}?select=chave,valor,updated_at`,
+    var r = await fetch(
+      _SB_URL+'/rest/v1/'+_SB_TBL+'?select=chave,valor,updated_at',
       {headers:_sbH(), signal:AbortSignal.timeout(5000)}
     );
     if(!r.ok) throw new Error(r.status);
-    const rows = await r.json();
-    // Usar nuvem como fonte de verdade, mas preservar dados locais mais recentes
-    rows.forEach(row=>{
-      const tsLocal = localStorage.getItem('_ts_'+row.chave)||'';
-      const tsRemoto = row.updated_at||'';
-      // Se o local é mais novo (usuário salvou offline), não sobrescrever
+    var rows = await r.json();
+    rows.forEach(function(row){
+      var tsLocal = lsGet('_ts_'+row.chave)||'';
+      var tsRemoto = row.updated_at||'';
       if(tsLocal && tsLocal > tsRemoto){
-        // Dado local mais recente — não sobrescrever, mas sincronizar ao Supabase
-        var localVal = localStorage.getItem(row.chave);
-        if(localVal){
-          try { sbSet(row.chave, JSON.parse(localVal)); } catch(pe){ console.warn('[Sync] JSON parse erro em '+row.chave, pe); }
-        }
+        // Local mais recente — merge e re-sync
+        try {
+          var localVal = JSON.parse(lsGet(row.chave)||'null');
+          var merged = _sbMerge(row.chave, localVal, row.valor);
+          lsSet(row.chave, JSON.stringify(merged));
+          sbSet(row.chave, merged);
+        } catch(pe){ console.warn('[Sync] Parse erro:', row.chave); }
         return;
       }
+      // Remoto mais recente — merge com local
       try {
-        localStorage.setItem(row.chave, JSON.stringify(row.valor));
-        localStorage.setItem('_ts_'+row.chave, tsRemoto);
-      } catch(qe){ console.error('[Storage] Quota excedida ao salvar '+row.chave); }
+        var localVal2 = JSON.parse(lsGet(row.chave)||'null');
+        var merged2 = localVal2 ? _sbMerge(row.chave, localVal2, row.valor) : row.valor;
+        lsSet(row.chave, JSON.stringify(merged2));
+        lsSet('_ts_'+row.chave, tsRemoto);
+      } catch(qe){ console.error('[Storage] Erro ao salvar '+row.chave); }
     });
     _sbStatus(true);
     return true;
   }catch(e){ _sbStatus(false); return false; }
 }
+
 
 // Realtime — escuta mudanças de outras usuárias
 function sbRealtime(){
@@ -181,8 +283,13 @@ function sbRealtime(){
         const rec = msg.payload?.data?.record;
         if(!rec||rec.updated_by===_sbUsuario) return;
         const {chave,valor,updated_by} = rec;
-        localStorage.setItem(chave, JSON.stringify(valor));
-        sbAplicar(chave, valor, updated_by);
+        // Merge com dados locais antes de aplicar
+        try {
+          var localVal = JSON.parse(lsGet(chave)||'null');
+          var merged = localVal ? _sbMerge(chave, localVal, valor) : valor;
+          lsSet(chave, JSON.stringify(merged));
+          sbAplicar(chave, merged, updated_by);
+        } catch(me){ lsSet(chave, JSON.stringify(valor)); sbAplicar(chave, valor, updated_by); }
       }catch{}
     };
     ws.onclose = ()=>setTimeout(sbRealtime, 5000); // reconectar
@@ -447,7 +554,7 @@ async function sbInit(){
   const ok = await sbCarregarTudo();
   if(ok){
     // Recarregar dados da nuvem na memória
-    function ls(k,def){ try{return JSON.parse(localStorage.getItem(k)||'null')||def;}catch{return def;} }
+    function ls(k,def){ try{return JSON.parse(lsGet(k)||'null')||def;}catch{return def;} }
     const asArr = v => Array.isArray(v) ? v : [];
     const asObj = v => (v&&typeof v==='object'&&!Array.isArray(v)) ? v : {};
     tarefasDia   = asObj(ls('co_td',{}));
@@ -472,7 +579,7 @@ async function sbInit(){
         if(!existeIds.has(key)){ localLanc.push(n); added++; }
       });
       if(added > 0){
-        localStorage.setItem('co_localLanc', JSON.stringify(localLanc));
+        lsSet('co_localLanc', JSON.stringify(localLanc));
         sbSet('co_localLanc', localLanc);
         console.log('[Migração] '+added+' lançamentos adicionados');
       }
@@ -1397,7 +1504,7 @@ function toggleTarefa(key, idx){
 // ═══════════════════════════════════════════════════════════════
 
 let vkTasks = [];
-try { const _vk = JSON.parse(localStorage.getItem('co_vktasks')||'[]'); vkTasks = Array.isArray(_vk) ? _vk : []; } catch{}
+try { const _vk = JSON.parse(lsGet('co_vktasks')||'[]'); vkTasks = Array.isArray(_vk) ? _vk : []; } catch{}
 
 let _vkTab = 'kanban';
 let _vkDrag = null;
@@ -2027,11 +2134,11 @@ const CAT_RECEITA = {
 
 // Colaboradores cadastrados
 let _colaboradores = [];
-try { _colaboradores = JSON.parse(localStorage.getItem('co_colab')||'[]'); } catch{}
+try { _colaboradores = JSON.parse(lsGet('co_colab')||'[]'); } catch{}
 
 // Despesas recorrentes (template)
 let _despFixas = [];
-try { _despFixas = JSON.parse(localStorage.getItem('co_despfixas')||'[]'); } catch{}
+try { _despFixas = JSON.parse(lsGet('co_despfixas')||'[]'); } catch{}
 
 // ═══════════════════════════════════════════════════════════════
 // ══ VIEW FINANCEIRO GLOBAL v2 ══
@@ -5637,7 +5744,7 @@ function finIgnorarProjuris(pid, cid){
     +'<div style="font-size:12px;color:var(--mu)">Use esta opção para lançamentos incorretos, duplicados ou que não se aplicam a este processo.</div>',
   function(){
     _finIgnorados.add(pid);
-    try{ localStorage.setItem('co_fin_ignorados', JSON.stringify([..._finIgnorados])); }catch{}
+    try{ lsSet('co_fin_ignorados', JSON.stringify([..._finIgnorados])); }catch{}
     fecharModal();
     if(cid) _reRenderFinPasta(cid);
     showToast('Lançamento ocultado. Para reativar, vá em Configurações.');
@@ -5757,10 +5864,10 @@ let _finIgnorados = new Set();
 let _vfMes = ''; // initialized in sbInit after HOJE is ready
 var _navHistory = []; // navigation history stack
 var _navCurrent = null;
-try{ var _ig=JSON.parse(localStorage.getItem('co_fin_ignorados')||'[]'); _finIgnorados=new Set(_ig); }catch{} // linhas parseadas do CSV
+try{ var _ig=JSON.parse(lsGet('co_fin_ignorados')||'[]'); _finIgnorados=new Set(_ig); }catch{} // linhas parseadas do CSV
 let _saldoInicial = 0;
 let _saldoInicialData = '';
-try{ var _si=JSON.parse(localStorage.getItem('co_caixa_saldo')||'null'); if(_si){_saldoInicial=_si.valor||0;_saldoInicialData=_si.data||'';}}catch{}
+try{ var _si=JSON.parse(lsGet('co_caixa_saldo')||'null'); if(_si){_saldoInicial=_si.valor||0;_saldoInicialData=_si.data||'';}}catch{}
 let _extratoRevisar = {}; // classificação manual por índice
 
 function abrirGuiaFinanceiro(){
@@ -6016,7 +6123,7 @@ function caixaDefinirSaldo(){
     var d = document.getElementById('si-data')?.value||hoje;
     _saldoInicial = v;
     _saldoInicialData = d;
-    localStorage.setItem('co_caixa_saldo', JSON.stringify({valor:v, data:d}));
+    lsSet('co_caixa_saldo', JSON.stringify({valor:v, data:d}));
     fecharModal();
     vfRender();
     showToast('✅ Saldo de abertura definido: '+fBRL(v));
@@ -11688,12 +11795,12 @@ function carregarDadosObj(d){
   localContatos = loadKey('co_ctc', m.localContatos, []);
   tarefasDia    = loadKey('co_tarefasDia',    m.tarefasDia,    {});
   // Carregar dados financeiros globais do localStorage (persistidos via sbSet)
-  try{ const _fin=JSON.parse(localStorage.getItem('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin; }catch{}
-  try{ const _clb=JSON.parse(localStorage.getItem('co_colab')||'null'); if(Array.isArray(_clb)) _colaboradores=_clb; }catch{}
-  try{ const _dpf=JSON.parse(localStorage.getItem('co_despfixas')||'null'); if(Array.isArray(_dpf)) _despFixas=_dpf; }catch{}
+  try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin; }catch{}
+  try{ const _clb=JSON.parse(lsGet('co_colab')||'null'); if(Array.isArray(_clb)) _colaboradores=_clb; }catch{}
+  try{ const _dpf=JSON.parse(lsGet('co_despfixas')||'null'); if(Array.isArray(_dpf)) _despFixas=_dpf; }catch{}
   // Adicionar consultas locais aos clientes
   try{
-    const consultas = JSON.parse(localStorage.getItem('co_consultas')||'[]');
+    const consultas = JSON.parse(lsGet('co_consultas')||'[]');
     consultas.forEach(c=>{ if(!findClientById(c.id)) CLIENTS.push(c); });
   }catch{}
   // Montar CLIENTES_AGRUPADOS por nome
@@ -11748,19 +11855,19 @@ function invalidarCacheVfTodos(){ _vfTodosInvalido = true; _vfTodosCache = null;
 let CLIENTES_AGRUPADOS=[];
 let tasks={}, notes={}, localAg=[], localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
 let localAtend=[];
-try{ localAtend=JSON.parse(localStorage.getItem('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
+try{ localAtend=JSON.parse(lsGet('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
 
 // Carregar comentários do localStorage
 let comentarios = {};
-try { const _c = JSON.parse(localStorage.getItem('co_coments')||'null'); comentarios = (_c&&typeof _c==='object'&&!Array.isArray(_c)) ? _c : {}; } catch{}
+try { const _c = JSON.parse(lsGet('co_coments')||'null'); comentarios = (_c&&typeof _c==='object'&&!Array.isArray(_c)) ? _c : {}; } catch{}
 
 let modalCb=null, mvVisto={}, finTab='pagar';
 let finLancs=[];
-try{finLancs=JSON.parse(localStorage.getItem('co_fin')||'[]');}catch{}
+try{finLancs=JSON.parse(lsGet('co_fin')||'[]');}catch{}
 
 // Fluxo de caixa global (Monte Mor) — co_monte_mor
 let monteMor=[];
-try{monteMor=JSON.parse(localStorage.getItem('co_monte_mor')||'[]');}catch{}
+try{monteMor=JSON.parse(lsGet('co_monte_mor')||'[]');}catch{}
 
 function nc(n){return{Trabalhista:'nt',Previdenciário:'np',Cível:'nc',Família:'nf',Administrativo:'na',Consultoria:'nco',Penal:'npe',Bancário:'nba'}[n]||'na';}
 function fBRL(v){var n=Number(v);return'R$ '+(isFinite(n)?n:0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -12377,7 +12484,7 @@ function novoContato(){
     };
     localContatos.push(novoCtc); invalidarCtcCache();
     // Salvar localmente primeiro (imediato)
-    localStorage.setItem('co_ctc', JSON.stringify(localContatos));
+    lsSet('co_ctc', JSON.stringify(localContatos));
     // Depois enviar ao Supabase com confirmação visual
     fecharModal();
     ctcRender();
@@ -12646,7 +12753,7 @@ function sbEscolherUsuario(){
 // ══ PRAZOS DA PASTA ══
 // ══════════════════════════════════════════════════
 let prazos = {};
-try { const _p = JSON.parse(localStorage.getItem('co_prazos')||'null'); prazos = (_p&&typeof _p==='object'&&!Array.isArray(_p)) ? _p : {}; } catch{}
+try { const _p = JSON.parse(lsGet('co_prazos')||'null'); prazos = (_p&&typeof _p==='object'&&!Array.isArray(_p)) ? _p : {}; } catch{}
 
 const _SB_SYNC_OLD = _SB_SYNC;
 _SB_SYNC.add('co_prazos');
@@ -17294,7 +17401,7 @@ function audit(acao, detalhes, entidade){
   };
   _auditLog.unshift(e);
   if(_auditLog.length>500) _auditLog=_auditLog.slice(0,500);
-  localStorage.setItem('co_audit',JSON.stringify(_auditLog));
+  lsSet('co_audit',JSON.stringify(_auditLog));
   sbSet('co_audit',_auditLog);
 }
 
