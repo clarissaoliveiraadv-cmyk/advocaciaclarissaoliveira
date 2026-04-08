@@ -16942,53 +16942,9 @@ function deletarPrazo(cid, pid){
   showToast('Prazo exclu\u00eddo');
 }
 
-// abrirModalPrazo — abre modal para adicionar novo prazo à pasta
+// abrirModalPrazo — redireciona para modal de compromisso unificado
 function abrirModalPrazo(cid){
-  var c = findClientById(cid);
-  var TIPOS = ['Fatal','Protocolo','Audi\u00eancia','Per\u00edcia','Recurso','Contesta\u00e7\u00e3o','Reuni\u00e3o','Despacho','Dilig\u00eancia','Outro'];
-  abrirModal('\u23f0 Novo Prazo / Compromisso', ''
-    +'<div class="fm-row">'
-      +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo *</label>'
-        +'<input class="fm-inp" id="np-titulo" placeholder="Ex: Recurso Ordin\u00e1rio, Audi\u00eancia..."></div>'
-      +'<div><label class="fm-lbl">Tipo</label>'
-        +'<select class="fm-inp" id="np-tipo">'+TIPOS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div>'
-    +'</div>'
-    +'<div class="fm-row" style="margin-top:8px">'
-      +'<div><label class="fm-lbl">Data *</label><input class="fm-inp" type="date" id="np-data"></div>'
-      +'<div><label class="fm-lbl">Hora (opcional)</label><input class="fm-inp" type="time" id="np-hora"></div>'
-    +'</div>'
-    +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00f5es</label>'
-      +'<textarea class="fm-inp" id="np-obs" rows="2" placeholder="Refer\u00eancia, processo..."></textarea></div>',
-  function(){
-    var titulo = document.getElementById('np-titulo')?.value.trim();
-    var data = document.getElementById('np-data')?.value;
-    var tipo = document.getElementById('np-tipo')?.value||'Outro';
-    var hora = document.getElementById('np-hora')?.value||'';
-    var obs = document.getElementById('np-obs')?.value.trim()||'';
-    if(!titulo){ showToast('Informe o t\u00edtulo'); return; }
-    if(!data){ showToast('Informe a data'); return; }
-    // Salvar como compromisso unificado em localAg
-    var novoId = 'ag'+genId();
-    localAg.push({
-      id: novoId, titulo: titulo, tipo_compromisso: tipo,
-      cliente: c?c.cliente:'', id_processo: cid,
-      dt_raw: data, dt_fim: data, inicio: data+(hora?'T'+hora:''),
-      hora: hora, obs: obs, realizado: false, cumprido: '',
-      _prazo: true, origem: 'prazo_manual'
-    });
-    sbSet('co_ag', localAg); invalidarAllPend();
-    marcarAlterado(); fecharModal();
-    // Re-render compromissos da pasta
-    var elAg = document.getElementById('tp-agenda-proc-'+cid);
-    if(elAg) elAg.innerHTML = renderAgendaProc(cid);
-    // Re-render prazos legados
-    var allPW = document.querySelectorAll('.prazos-wrap');
-    allPW.forEach(function(w){
-      var btn = w.querySelector('button[onclick*="abrirModalPrazo('+cid+')"]');
-      if(btn && w.parentElement) w.parentElement.innerHTML = renderPrazos(cid);
-    });
-    showToast('Prazo/compromisso cadastrado \u2713');
-  }, '\ud83d\udcbe Salvar');
+  _abrirModalCompromisso(cid||null);
 }
 
 // abrirConsulta — abre ficha de consulta/atendimento
