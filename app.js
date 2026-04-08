@@ -8587,12 +8587,13 @@ function _finCopiarPrestacao(cid){
   var locais = _finGetLocais(cid);
   var cls = _finClassificar2(locais);
   var fV2 = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  var totHon=0, totLiq=0, totCli=0, totRec=0;
+  var totHon=0, totLiq=0, totCli=0, totRec=0, totBase=0;
   cls.honorarios.forEach(function(l){
     var calc = _finCalcLanc(l);
     totHon += calc.honorarios_contratuais;
     totLiq += calc.honorarios_liquidos_escritorio;
     totCli += calc.valor_cliente;
+    totBase += calc.base_calculo;
     if(isRec(l)) totRec += calc.base_calculo;
   });
   var totDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
@@ -8603,10 +8604,11 @@ function _finCopiarPrestacao(cid){
   var msg = '*PRESTA\u00c7\u00c3O DE CONTAS*\n'
     +'Cliente: '+c.cliente+'\n'
     +(c.numero?'Processo: '+c.numero+'\n':'')
+    +'\nValor total lan\u00e7ado: '+fV2(totBase)
     +'\nHonor\u00e1rios contratuais: '+fV2(totHon)
     +'\nL\u00edquido escrit\u00f3rio: '+fV2(totLiq)
     +'\nValor do cliente: '+fV2(totCli)
-    +'\nTotal recebido: '+fV2(totRec)
+    +'\nRecebido efetivamente: '+fV2(totRec)+(totRec<totBase?' (pendente: '+fV2(totBase-totRec)+')':'')
     +'\nDespesas: '+fV2(totDesp)
     +'\nRepasses pagos: '+fV2(totRepPago)
     +(bancTxt?'\n\n'+bancTxt:'')
