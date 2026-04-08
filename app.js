@@ -1288,7 +1288,10 @@ function hcEnviarKanban(id, titulo, cliente, hoje){
 function novoTarefaDia(){
   document.getElementById('novo-menu').style.display='none';
   const hoje = getTodayKey();
-  const clientes = CLIENTS.map(c=>`<option value="${c.cliente}">${c.cliente}</option>`).join('');
+  var _seenCli = {};
+  var clientes = CLIENTS.filter(function(c){ var n=(c.cliente||'').toLowerCase(); if(_seenCli[n]) return false; _seenCli[n]=true; return true; })
+    .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'');})
+    .map(function(c){return '<option value="'+escapeHtml(c.cliente)+'">'+escapeHtml(c.cliente)+'</option>';}).join('');
   abrirModal('📝 Nova Tarefa do Dia',`
     <div class="fm-row">
       <div style="flex:2">
@@ -1839,9 +1842,17 @@ function vkRenderResponsavel(tasks){
 
 // ── NOVA TAREFA ──
 function vkNovaTask(tipoDefault='tarefa'){
-  var procOpts = CLIENTS.filter(function(c){return !(encerrados[c.id]||encerrados[String(c.id)]);})
-    .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');})
-    .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">Pasta '+c.pasta+' \u2014 '+escapeHtml(c.cliente||'\u2014')+'</option>';}).join('');
+  // Deduplicar clientes por nome (evita repetições)
+  var seen = {};
+  var procOpts = CLIENTS.filter(function(c){
+    if(encerrados[c.id]||encerrados[String(c.id)]) return false;
+    var nome = (c.cliente||'').toLowerCase().trim();
+    if(seen[nome]) return false;
+    seen[nome] = true;
+    return true;
+  })
+  .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');})
+  .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">Pasta '+(c.pasta||'\u2014')+' \u2014 '+escapeHtml(c.cliente||'\u2014')+'</option>';}).join('');
   abrirModal('\u2705 Nova Tarefa',
     '<div class="fm-row">'
       +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo <span class="req">*</span></label>'
