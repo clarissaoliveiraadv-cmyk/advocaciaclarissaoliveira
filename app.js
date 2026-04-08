@@ -1524,7 +1524,7 @@ function vkRenderLista(tasks){
 // ── TAREFAS VINCULADAS À PASTA ──
 function _renderTarefasPasta(cid){
   var hoje = new Date(HOJE).toISOString().slice(0,10);
-  var tarefas = vkTasks.filter(function(t){ return t.processo===cid; });
+  var tarefas = vkTasks.filter(function(t){ return String(t.processo)===String(cid); });
   if(!tarefas.length) return '<div style="padding:16px;font-size:12px;color:var(--mu);font-style:italic">Nenhuma tarefa vinculada a este processo.</div>';
 
   var pend = tarefas.filter(function(t){ return !isDone(t); });
@@ -1852,7 +1852,7 @@ function vkNovaTask(tipoDefault='tarefa'){
     return true;
   })
   .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');})
-  .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">Pasta '+(c.pasta||'\u2014')+' \u2014 '+escapeHtml(c.cliente||'\u2014')+'</option>';}).join('');
+  .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">'+escapeHtml(c.cliente||'\u2014')+' \u2014 Pasta '+(c.pasta||'\u2014')+'</option>';}).join('');
   abrirModal('\u2705 Nova Tarefa',
     '<div class="fm-row">'
       +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo <span class="req">*</span></label>'
@@ -10405,7 +10405,12 @@ function salvarAtendimento(){
 
   if(!nomeVal){ showToast('Informe o nome do cliente'); return; }
 
-  // Se não encontrou em CLIENTS, criar entrada (contato → cliente)
+  // Se não encontrou por ID, tentar por nome (evita duplicata)
+  if(!clienteMatch && nomeVal){
+    clienteMatch = findClientByName(nomeVal);
+    if(clienteMatch) clienteIdSel = String(clienteMatch.id);
+  }
+  // Se realmente não existe, criar entrada (contato → cliente)
   if(!clienteMatch && nomeVal){
     var novoId = genId();
     var novoCliente = {
@@ -10420,7 +10425,6 @@ function salvarAtendimento(){
     sbSet('co_clientes', CLIENTS);
     clienteIdSel = String(novoId);
     clienteMatch = novoCliente;
-    showToast('Cliente "'+nomeVal+'" criado automaticamente');
   }
 
   const assunto    = document.getElementById('ns-assunto')?.value||'consultoria';
@@ -12221,6 +12225,42 @@ try { _finAutoStatusVencidos(); } catch(e){}
   if(vkTasks.length < tkAntes2){ vkSalvar(); changed=true; }
 
   if(changed) _finLocaisCache={};
+})();
+
+// ── Limpeza: remover clientes duplicados criados por salvarAtendimento ──
+(function _limparClientesDuplicados(){
+  if(!CLIENTS||!CLIENTS.length) return;
+  // Clientes com tipo='consulta' criados automaticamente que duplicam processos existentes
+  var processosIds = new Set();
+  var nomesProcesso = {};
+  // Primeiro: mapear nomes que já têm processo real (não consulta)
+  CLIENTS.forEach(function(c){
+    if(c.tipo!=='consulta' && c.status_consulta!=='consulta'){
+      processosIds.add(c.id);
+      var nome = (c.cliente||'').toLowerCase().trim();
+      if(!nomesProcesso[nome]) nomesProcesso[nome]=[];
+      nomesProcesso[nome].push(c.id);
+    }
+  });
+  // Remover consultas duplicadas (mesmo nome de um processo real)
+  var antes = CLIENTS.length;
+  var idsRemover = new Set();
+  CLIENTS.forEach(function(c){
+    if(c.tipo!=='consulta' && c.status_consulta!=='consulta') return;
+    var nome = (c.cliente||'').toLowerCase().trim();
+    if(nomesProcesso[nome] && nomesProcesso[nome].length > 0){
+      idsRemover.add(c.id); // consulta duplicada de processo existente
+    }
+  });
+  if(idsRemover.size > 0){
+    var novos = CLIENTS.filter(function(c){ return !idsRemover.has(c.id); });
+    CLIENTS.length = 0;
+    novos.forEach(function(c){ CLIENTS.push(c); });
+    _clientByIdCache = {};
+    _clientByNameCache = {};
+    sbSet('co_clientes', CLIENTS);
+    if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
+  }
 })();
 
 function atualizarStats(){
@@ -16102,7 +16142,7 @@ function renderFicha(c, grp=null){
     </div>
     <div class="tabs">
       <button class="tab on" onclick="sw(this,'tp2')">📋 Andamentos <span class="tc">${cMov.length}</span></button>
-      <button class="tab" onclick="sw(this,'tp7')">✅ Tarefas <span class="tc">${vkTasks.filter(function(t){return t.processo===c.id&&t.status!=='done'&&t.status!=='concluido';}).length||''}</span></button>
+      <button class="tab" onclick="sw(this,'tp7')">✅ Tarefas <span class="tc">${vkTasks.filter(function(t){return String(t.processo)===String(c.id)&&!isDone(t);}).length||''}</span></button>
       <button class="tab" onclick="sw(this,'tp4')">💰 Financeiro</button>
       <button class="tab" onclick="sw(this,'tp5')">📅 Compromissos</button>
       <button class="tab" onclick="sw(this,'tp6b')">💬 Comentários</button>
