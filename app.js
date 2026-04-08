@@ -11480,7 +11480,7 @@ function excluirProcesso(cid){
       const _fOld=document.getElementById('ficha'); if(_fOld) _fOld.classList.remove('on');
       const _fvcl=document.getElementById('ficha-vcl'); if(_fvcl){_fvcl.classList.remove('on');_fvcl.innerHTML='';}
       const _e2b=document.getElementById('emp2'); if(_e2b) _e2b.style.display='flex';
-      document.getElementById('st1').textContent=CLIENTS.length;
+      document.getElementById('st1').textContent=CLIENTS.filter(function(c){return !getEncIds().has(c.id)&&c.tipo!=='consulta';}).length;
       atualizarBadgeEnc();
       doSearch()
       atualizarStats();;
@@ -12279,7 +12279,15 @@ function atualizarStats(){
   });
   var encIds2 = getEncIds();
   var ativosCount = 0;
-  (CLIENTS||[]).forEach(function(c){ if(!encIds2.has(c.id)&&c.tipo!=='consulta'&&c.status_consulta!=='consulta') ativosCount++; });
+  if(typeof CLIENTES_AGRUPADOS!=='undefined' && CLIENTES_AGRUPADOS){
+    ativosCount = CLIENTES_AGRUPADOS.filter(function(grp){
+      return grp.processos && grp.processos.some(function(p){ return !encIds2.has(p.id); });
+    }).length;
+  } else {
+    var _nomes = {};
+    (CLIENTS||[]).forEach(function(c){ if(!encIds2.has(c.id)&&c.tipo!=='consulta') _nomes[(c.cliente||'').toLowerCase()]=1; });
+    ativosCount = Object.keys(_nomes).length;
+  }
   var el1=document.getElementById('st1'); if(el1) el1.textContent=ativosCount;
   var el2=document.getElementById('st2'); if(el2) el2.textContent=sem.length;
   var el3=document.getElementById('st3'); if(el3) el3.textContent=pass.length;
