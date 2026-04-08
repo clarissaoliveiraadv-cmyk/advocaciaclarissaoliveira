@@ -14943,9 +14943,17 @@ function renderVclEmpty(){
   var hoje = getTodayKey();
   var encIds = getEncIds();
 
-  // Stats rápidos
+  // Stats rápidos — contar CLIENTES (agrupados), não processos
   var totalAtivos = 0;
-  (CLIENTS||[]).forEach(function(c){ if(!encIds.has(c.id)&&c.tipo!=='consulta') totalAtivos++; });
+  if(typeof CLIENTES_AGRUPADOS!=='undefined' && CLIENTES_AGRUPADOS){
+    totalAtivos = CLIENTES_AGRUPADOS.filter(function(grp){
+      return grp.processos && grp.processos.some(function(p){ return !encIds.has(p.id); });
+    }).length;
+  } else {
+    var _n = {};
+    (CLIENTS||[]).forEach(function(c){ if(!encIds.has(c.id)&&c.tipo!=='consulta') _n[(c.cliente||'').toLowerCase()]=1; });
+    totalAtivos = Object.keys(_n).length;
+  }
 
   var _ap = allPendCached();
   var prazosHoje=0, prazos7d=0, audiencias7d=0;
@@ -14987,7 +14995,7 @@ function renderVclEmpty(){
 
   // KPIs grid
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
-    +card('Processos ativos', totalAtivos, 'var(--tx)')
+    +card('Clientes ativos', totalAtivos, 'var(--tx)')
     +card('Tarefas pendentes', tarefasPend, tarefasAtrasadas>0?'#f59e0b':'var(--tx)')
     +card('Prazos 7 dias', prazos7d, prazos7d>0?'#f59e0b':'var(--mu)')
     +card('Audiências 7d', audiencias7d, audiencias7d>0?'#f87676':'var(--mu)')
