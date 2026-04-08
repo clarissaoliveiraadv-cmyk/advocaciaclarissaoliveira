@@ -2417,7 +2417,7 @@ function _vfDespesasEscritorio(mesP){
 
 // ── EDITAR DESPESA DO ESCRITÓRIO ──
 function _vfEditarDespEscritorio(lid){
-  var i = (finLancs||[]).findIndex(function(l){return l.id===lid;});
+  var i = (finLancs||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1){ showToast('N\u00e3o encontrado'); return; }
   var l = finLancs[i];
   var hoje = new Date().toISOString().slice(0,10);
@@ -4912,7 +4912,7 @@ function abrirFluxoAlvara(cid, lid){
     var rep  = Math.max(0, roundMoney(valRec - hon - despVal));
 
     // Marca o lançamento original como recebido
-    var i = localLanc.findIndex(function(l){return l.id===lid;});
+    var i = localLanc.findIndex(function(l){return String(l.id)===String(lid);});
     if(i!==-1){
       localLanc[i] = Object.assign({}, localLanc[i], {
         pago: true, status: 'pago', dt_baixa: dtRec,
@@ -7865,7 +7865,7 @@ function _finClassificar2(locais){
 
 // ── TOGGLE RECEBIDO ──
 function _finToggleRecebido(cid, lid){
-  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  var i = (localLanc||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1) return;
   var rec = !localLanc[i].recebido;
   localLanc[i].recebido = rec;
@@ -7881,7 +7881,7 @@ function _finToggleRecebido(cid, lid){
 
 // ── EDITAR HONORÁRIO ──
 function _finEditarHonorario(cid, lid){
-  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  var i = (localLanc||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1){ showToast('Lan\u00e7amento n\u00e3o encontrado'); return; }
   var l = localLanc[i];
   var c = findClientById(cid);
@@ -8285,9 +8285,9 @@ function _finHonorariosTab(cid, c, locais, fV, hoje){
         +'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
         +'<div style="display:flex;gap:6px;align-items:center">'
           +'<span style="font-size:10px;font-weight:700;color:'+corStatus+'">'+lblStatus+'</span>'
-          +'<button onclick="_finToggleRecebido('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+(rec?'rgba(251,146,60,.1)':'rgba(76,175,125,.1)')+';border:1px solid '+(rec?'rgba(251,146,60,.3)':'rgba(76,175,125,.3)')+';color:'+(rec?'#fb923c':'#4ade80')+';cursor:pointer">'+(rec?'\u21a9 Pendente':'\u2713 Recebido')+'</button>'
-          +'<button onclick="_finEditarHonorario('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
-          +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
+          +'<button onclick="_finToggleRecebido('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:'+(rec?'rgba(251,146,60,.1)':'rgba(76,175,125,.1)')+';border:1px solid '+(rec?'rgba(251,146,60,.3)':'rgba(76,175,125,.3)')+';color:'+(rec?'#fb923c':'#4ade80')+';cursor:pointer">'+(rec?'\u21a9 Pendente':'\u2713 Recebido')+'</button>'
+          +'<button onclick="_finEditarHonorario('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
+          +'<button onclick="finDelLanc('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
         +'</div>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">'
@@ -8380,9 +8380,9 @@ function _finDespesasTab2(cid, c, locais, fV, hoje){
       +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
         +'<div style="font-size:10px;color:var(--mu)">'+fDt(l.data)+' \u00b7 '+tipoLbl+' \u00b7 <span style="color:'+(isReimb?'#f59e0b':'var(--mu)')+'">'+(isReimb?'Reembols\u00e1vel':'Custo interno')+'</span>'+(l.pago_por?' \u00b7 Pago por: '+escapeHtml(l.pago_por):'')+(l.obs?' \u00b7 '+escapeHtml(l.obs):'')+'</div></div>'
       +'<span style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</span>'
-      +'<button onclick="_finToggleTipoDesp('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">'+(l.tipo==='despint'?'\u2191 Reimb.':'\u2193 Interno')+'</button>'
-      +'<button onclick="_finEditarDespCaso('+cid+','+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
-      +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
+      +'<button onclick="_finToggleTipoDesp('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">'+(l.tipo==='despint'?'\u2191 Reimb.':'\u2193 Interno')+'</button>'
+      +'<button onclick="_finEditarDespCaso('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>'
+      +'<button onclick="finDelLanc('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
@@ -8390,7 +8390,7 @@ function _finDespesasTab2(cid, c, locais, fV, hoje){
 
 // ── TOGGLE TIPO DESPESA (reembolsável ↔ custo interno) ──
 function _finToggleTipoDesp(cid, lid){
-  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  var i = (localLanc||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1) return;
   localLanc[i].tipo = localLanc[i].tipo==='despint' ? 'despesa' : 'despint';
   sbSet('co_localLanc', localLanc);
@@ -8402,7 +8402,7 @@ function _finToggleTipoDesp(cid, lid){
 
 // ── EDITAR DESPESA DO CASO ──
 function _finEditarDespCaso(cid, lid){
-  var i = (localLanc||[]).findIndex(function(l){return l.id===lid;});
+  var i = (localLanc||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1){ showToast('N\u00e3o encontrado'); return; }
   var l = localLanc[i];
   var hoje = new Date().toISOString().slice(0,10);
@@ -8486,7 +8486,7 @@ function _finRepassesBancoTab(cid, c, locais, fV, hoje){
         +'<span style="font-size:10px;font-weight:700;color:'+(pago?'#4ade80':'#c9484a')+'">'+(pago?'\u2713 Pago':'\u23f3 Pendente')+'</span>'
         +'<span style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</span>'
         +(!pago?'<button onclick="vfBaixar(\'l'+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(201,72,74,.1);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2713 Pagar</button>':'')
-        +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
+        +'<button onclick="finDelLanc('+cid+',\''+l.id+'\')" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
       +'</div>';
     });
   }
@@ -8685,7 +8685,7 @@ function renderFinLocal(cid){
       : '<div style="display:flex;gap:6px;flex-wrap:wrap">'
           +'<button onclick="vfBaixar(&quot;l'+l.id+'&quot;)" style="font-size:11px;font-weight:600;padding:5px 10px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">'+(pos?'✓ Receber':'✓ Pagar')+'</button>'
           +'<button onclick="finEditarLanc('+cid+','+JSON.stringify(l.id)+')" style="font-size:11px;padding:5px 8px;border-radius:5px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✏</button>'
-          +'<button onclick="finDelLanc('+cid+','+l.id+')" style="font-size:11px;padding:5px 8px;border-radius:5px;background:rgba(201,72,74,.08);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">✕</button>'
+          +'<button onclick="finDelLanc('+cid+',\''+l.id+'\')" style="font-size:11px;padding:5px 8px;border-radius:5px;background:rgba(201,72,74,.08);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">✕</button>'
         +'</div>';
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="flex:1;min-width:0">'
@@ -10774,7 +10774,7 @@ function renderFinUnificado(cid){
     else if(!isPago)  items.push({t:(isPos?'✓ Receber':'✓ Pagar'), fn:'vfBaixar(\'l'+l.id+'\')'});
     else              items.push({t:'↩ Estornar',       fn:'finEstornarLocal('+cid+','+l.id+')'});
     items.push({t:'✏ Editar', fn:'finEditarLanc('+cid+','+l.id+')'});
-    if(!isPago) items.push({t:'✕ Excluir', fn:'finDelLanc('+cid+','+l.id+')'});
+    if(!isPago) items.push({t:'✕ Excluir', fn:'finDelLanc('+cid+',\''+l.id+'\')'});
     if(extraItems) items = items.concat(extraItems);
     return '<div style="position:relative;display:inline-block">'
       +'<button onclick="var m=document.getElementById(\''+mid+'\');m.style.display=m.style.display===\'none\'?\'block\':\'none\'"'
