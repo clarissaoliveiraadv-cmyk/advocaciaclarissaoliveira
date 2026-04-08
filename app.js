@@ -8020,6 +8020,16 @@ function _finNovoHonorario(cid){
   if(!c) return;
   var hoje = new Date().toISOString().slice(0,10);
   var honPerc = c._hon_contrato ? (c._hon_contrato.perc||30) : 30;
+
+  // Puxar parceiro da parceria cadastrada (se houver)
+  var parcs = getParceriasDoProcesso(c);
+  var parcNome = '', parcPerc = '';
+  if(parcs.length > 0){
+    var p0 = parcs[0];
+    parcNome = p0.nome||'';
+    parcPerc = p0.percDel||p0.percMeu||'';
+  }
+
   abrirModal('\ud83d\udcb0 Lan\u00e7ar Honor\u00e1rio \u2014 '+escapeHtml(c.cliente),
     '<div class="fm-row">'
       +'<div style="flex:2"><label class="fm-lbl">Descri\u00e7\u00e3o *</label><input class="fm-inp" id="fh-desc" placeholder="Ex: Acordo trabalhista, Alvar\u00e1..."></div>'
@@ -8031,11 +8041,12 @@ function _finNovoHonorario(cid){
     +'</div>'
     +'<div class="fm-row">'
       +'<div><label class="fm-lbl">% Honor\u00e1rios *</label><input class="fm-inp" type="number" id="fh-perc" value="'+honPerc+'" min="0" max="100" step="0.5" oninput="_finPreviewHonDebounced()"></div>'
-      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="fh-pnome" placeholder="Opcional" oninput="_finPreviewHonDebounced()"></div>'
+      +'<div><label class="fm-lbl">Parceiro (nome)</label><input class="fm-inp" id="fh-pnome" value="'+escapeHtml(parcNome)+'" placeholder="Opcional" oninput="_finPreviewHonDebounced()"></div>'
     +'</div>'
-    +'<div id="fh-pfields" style="display:none"><div class="fm-row">'
-      +'<div><label class="fm-lbl">% Parceiro *</label><input class="fm-inp" type="number" id="fh-pperc" value="50" min="0" max="100" step="0.5" oninput="_finPreviewHonDebounced()"></div>'
+    +'<div id="fh-pfields" style="display:'+(parcNome?'block':'none')+'"><div class="fm-row">'
+      +'<div><label class="fm-lbl">% Parceiro *</label><input class="fm-inp" type="number" id="fh-pperc" value="'+(parcPerc||50)+'" min="0" max="100" step="0.5" oninput="_finPreviewHonDebounced()"></div>'
     +'</div></div>'
+    +(parcNome?'<div style="font-size:10px;color:#4ade80;margin-bottom:8px">\u2713 Parceiro preenchido a partir da parceria cadastrada</div>':'')
     +'<div id="fh-preview" style="margin:12px 0;padding:10px;background:var(--sf3);border-radius:8px"></div>'
     +'<div class="fm-row">'
       +'<div><label class="fm-lbl">Data</label><input class="fm-inp" type="date" id="fh-data" value="'+hoje+'"></div>'
@@ -8082,6 +8093,17 @@ function _finNovoHonorario(cid){
       });
     }
     sbSet('co_localLanc', localLanc);
+    // Se informou parceiro e não tem parceria cadastrada, criar automaticamente
+    if(pnome && parcs.length===0){
+      var lista = getParceriasDoProcesso(c);
+      lista.push({
+        nome: pnome, oab:'', tipo:'parceiro',
+        percMeu: String(100 - (pperc||0)), percDel: String(pperc||0),
+        base:'', repasse:'', repasse_data:'', repasse_status:'pendente',
+        obs:'Criado automaticamente ao lan\u00e7ar honor\u00e1rio'
+      });
+      setParceriasDoProcesso(c, lista);
+    }
     marcarAlterado(); fecharModal();
     _finLocaisCache = {};
     _reRenderFinPasta(cid);
