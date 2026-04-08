@@ -2862,7 +2862,7 @@ function vfMes(todos, mesP){
         +'<td style="padding:8px 8px;font-size:13px;font-weight:700;color:#c9484a;text-align:right;white-space:nowrap">'+fmtV(l.valor||0)+'</td>'
         +'<td style="padding:8px 8px;text-align:right">'
           +(urgente?'<span style="font-size:9px;font-weight:700;color:#c9484a;margin-right:6px">VENCIDO</span>':'')
-          +'<button onclick="abrirFluxoRepasse('+l.id_processo+','+l.id+')" style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;border:none;background:#c9484a;color:#fff;cursor:pointer">Pagar</button>'
+          +'<button onclick="abrirFluxoRepasse('+l.id_processo+',\''+l.id+'\')" style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;border:none;background:#c9484a;color:#fff;cursor:pointer">Pagar</button>'
         +'</td>'
       +'</tr>';
     });
