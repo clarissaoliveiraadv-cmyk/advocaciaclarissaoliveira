@@ -2400,7 +2400,7 @@ function _vfDespesasEscritorio(mesP){
   if(!desp.length) return html+'<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa no per\u00edodo. Clique em + Nova Despesa.</div></div>';
   desp.sort(function(a,b){return (b.l.data||'').localeCompare(a.l.data||'');}).forEach(function(d){
     var l = d.l;
-    var delFn = d.src==='fin' ? '_vfDelDespEscritorio('+l.id+')' : 'finDelLanc(0,'+l.id+')';
+    var delFn = d.src==='fin' ? '_vfDelDespEscritorio(\''+l.id+'\')' : 'finDelLanc(0,\''+l.id+'\')';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(l.data||l.dt_baixa)+'</div>'
       +'<div style="flex:1;font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
@@ -2408,7 +2408,7 @@ function _vfDespesasEscritorio(mesP){
       +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||'')+'</div>'
       +(l._recorrente?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(96,165,250,.1);color:#60a5fa;font-weight:700">FIXA</span>':'')
       +'<div style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</div>'
-      +(d.src==='fin'?'<button onclick="_vfEditarDespEscritorio('+l.id+')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>':'')
+      +(d.src==='fin'?'<button onclick="_vfEditarDespEscritorio(\''+l.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">\u270f</button>':'')
       +'<button onclick="'+delFn+'" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
     +'</div>';
   });
