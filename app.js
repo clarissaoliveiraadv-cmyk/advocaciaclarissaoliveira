@@ -34,7 +34,7 @@ var _SB_URL = _SB_CFG.url;
 var _SB_KEY = _SB_CFG.key;
 var _SB_TBL = 'escritorio_dados';
 var _SB_SYNC = new Set([
-  'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta'
+  'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta','co_iniciais'
 ]);
 
 var _sbOnline = false;
@@ -316,6 +316,7 @@ function sbAplicar(chave, valor, quem){
     case 'co_atend': if(typeof localAtend!=='undefined') localAtend=valor||[]; break;
     case 'co_clientes': if(typeof CLIENTS!=='undefined'){ CLIENTS.length=0; (valor||[]).forEach(function(c){CLIENTS.push(c);}); _clientByIdCache={}; _clientByNameCache={}; } break;
     case 'co_audit': if(typeof _auditLog!=='undefined') _auditLog=valor||[]; break;
+    case 'co_iniciais': if(typeof _iniciais!=='undefined') _iniciais=valor||[]; break;
   }
   if(n && n!==_sbUsuario) showToast('\u2601 '+n+' atualizou '+chave.replace('co_',''));
 }
@@ -11286,7 +11287,7 @@ function sbSalvarClientes(){
   const processos  = CLIENTS.filter(c=>c.tipo!=='consulta'&&c.status_consulta!=='consulta');
   const consultas  = CLIENTS.filter(c=>c.tipo==='consulta'||c.status_consulta==='consulta');
   sbSet('co_clientes', processos);
-  if(consultas.length) sbSet('co_clientes_consulta', consultas);
+  if(consultas.length) sbSet('co_clientes_consulta','co_iniciais', consultas);
 }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
@@ -11302,7 +11303,7 @@ async function sbCarregarClientes(){
     let processos = [], consultas = [];
     rows.forEach(row=>{
       if(row.chave==='co_clientes') processos = Array.isArray(row.valor)?row.valor:[];
-      if(row.chave==='co_clientes_consulta') consultas = Array.isArray(row.valor)?row.valor:[];
+      if(row.chave==='co_clientes_consulta','co_iniciais') consultas = Array.isArray(row.valor)?row.valor:[];
     });
     if(processos.length){
       CLIENTS = [...processos, ...consultas];
@@ -14791,7 +14792,7 @@ function goView(v,btn){
   if(btn){ btn.classList.add('on'); }
   // Sidebar: highlight matching vsb-btn by title
   var viewToTitle={'vc':'Dashboard','vcl':'Clientes','va':'Agenda','vf':'Financeiro',
-    'vk':'Tarefas','vct':'Contatos','vcalc':'Prazos','vaudit':'Auditoria'};
+    'vk':'Tarefas','vini':'Iniciais','vct':'Contatos','vcalc':'Prazos','vaudit':'Auditoria'};
   var activeTitle=viewToTitle[v];
   if(activeTitle){
     document.querySelectorAll('.vsb-btn').forEach(function(b){
@@ -17792,6 +17793,209 @@ function _processarPublicacao(texto){
     showToast('\u2713 Publica\u00e7\u00e3o registrada em '+importados+' processo'+(importados>1?'s':''));
   }, '\ud83d\udce5 Registrar nos processos');
 }
+
+// ═══════════════════════════════════════════════════════
+// ══ MÓDULO INICIAIS — pipeline de petições iniciais ═══
+// ═══════════════════════════════════════════════════════
+
+var _iniciais = [];
+try { _iniciais = JSON.parse(lsGet('co_iniciais')||'[]'); if(!Array.isArray(_iniciais)) _iniciais=[]; } catch(e){ _iniciais=[]; }
+
+var INI_COLUNAS = [
+  {id:'pendente', label:'Pendente', icon:'\ud83d\udccb', cor:'#f59e0b'},
+  {id:'fazendo',  label:'Fazendo',  icon:'\u26a1',     cor:'#60a5fa'},
+  {id:'concluida',label:'Conclu\u00edda', icon:'\u2705', cor:'#4ade80'}
+];
+
+function iniSalvar(){
+  sbSet('co_iniciais', _iniciais);
+  lsSet('co_iniciais', JSON.stringify(_iniciais));
+}
+
+function iniRender(){
+  var el = document.getElementById('ini-content');
+  if(!el) return;
+  var hoje = getTodayKey();
+
+  var cols = INI_COLUNAS.map(function(col){
+    var itens = _iniciais.filter(function(i){ return (i.status||'pendente')===col.id; });
+    var cards = itens.map(function(i){
+      var diasAtend = i.data_atendimento ? Math.ceil((new Date(hoje)-new Date(i.data_atendimento))/86400000) : 0;
+      var docsOk = (i.docs_checklist||[]).filter(function(d){return d.ok;}).length;
+      var docsTotal = (i.docs_checklist||[]).length;
+      return '<div class="ini-card" draggable="true" ondragstart="iniDragStart(event,\''+i.id+'\')">'
+        +'<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'
+          +'<div style="font-size:13px;font-weight:700;color:var(--tx)">'+escapeHtml(i.cliente||'\u2014')+'</div>'
+          +'<div style="display:flex;gap:4px">'
+            +'<button onclick="iniEditar(\''+i.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u270f</button>'
+            +'<button onclick="iniExcluir(\''+i.id+'\')" style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--sf3);border:1px solid rgba(201,72,74,.3);color:#c9484a;cursor:pointer">\u2715</button>'
+          +'</div>'
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--mu);margin-bottom:4px">'
+          +(i.area?'<span style="padding:1px 6px;border-radius:3px;background:rgba(107,20,22,.2);color:#c9484a;font-weight:700;font-size:9px;text-transform:uppercase">'+escapeHtml(i.area)+'</span> ':'')
+          +(i.responsavel?'\ud83d\udc64 '+escapeHtml(i.responsavel):'')
+        +'</div>'
+        +(i.data_atendimento?'<div style="font-size:10px;color:var(--mu)">Atend: '+fDt(i.data_atendimento)+(diasAtend>7?' <span style="color:#f59e0b">('+diasAtend+'d)</span>':'')+'</div>':'')
+        +(docsTotal?'<div style="font-size:10px;color:var(--mu);margin-top:2px">\ud83d\udcceMocs: '+docsOk+'/'+docsTotal+(docsOk===docsTotal?' \u2713':'')+'</div>':'')
+        +(i.honorarios?'<div style="font-size:10px;color:#D4AF37;margin-top:2px">\ud83d\udcb0 '+escapeHtml(i.honorarios)+'</div>':'')
+        +(i.prazo?'<div style="font-size:10px;color:'+(i.prazo<hoje?'#c9484a':'var(--mu)')+';margin-top:2px">\u23f0 Prazo: '+fDt(i.prazo)+(i.prazo<hoje?' (vencido!)':'')+'</div>':'')
+        +(i.obs?'<div style="font-size:10px;color:var(--mu);margin-top:4px;font-style:italic">'+escapeHtml(i.obs.slice(0,60))+(i.obs.length>60?'...':'')+'</div>':'')
+        +(col.id!=='concluida'&&i.status!=='concluida'?'<div style="margin-top:6px"><button onclick="iniMover(\''+i.id+'\')" style="font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">Avan\u00e7ar \u2192</button></div>':'')
+        +(col.id==='concluida'&&i.numero_processo?'<div style="font-size:10px;color:#4ade80;margin-top:4px">\u2696 '+escapeHtml(i.numero_processo)+'</div>':'')
+      +'</div>';
+    }).join('');
+
+    return '<div class="ini-col">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--sf3);border-bottom:1px solid var(--bd);border-radius:8px 8px 0 0">'
+        +'<span style="font-size:12px;font-weight:700;color:'+col.cor+'">'+col.icon+' '+col.label+'</span>'
+        +'<span style="font-size:11px;color:var(--mu)">'+itens.length+'</span>'
+      +'</div>'
+      +'<div class="ini-col-body" id="inicol-'+col.id+'" ondragover="event.preventDefault();this.style.background=\'var(--sf3)\'" ondragleave="this.style.background=\'\'" ondrop="iniDrop(\''+col.id+'\',this)">'
+        +(cards||'<div style="padding:12px;font-size:11px;color:var(--mu);font-style:italic">Nenhuma inicial</div>')
+      +'</div>'
+    +'</div>';
+  }).join('');
+
+  // Stats
+  var pendentes = _iniciais.filter(function(i){return i.status==='pendente';}).length;
+  var fazendo = _iniciais.filter(function(i){return i.status==='fazendo';}).length;
+
+  el.innerHTML = (pendentes+fazendo>0?'<div style="margin-bottom:12px;font-size:11px;color:var(--mu)">'+pendentes+' pendente'+(pendentes!==1?'s':'')+' \u00b7 '+fazendo+' em andamento</div>':'')
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:start">'+cols+'</div>';
+}
+
+// Drag & drop
+var _iniDragId = null;
+function iniDragStart(e, id){ _iniDragId = id; }
+function iniDrop(colId, el){
+  el.style.background = '';
+  if(!_iniDragId) return;
+  var i = _iniciais.find(function(x){return String(x.id)===String(_iniDragId);});
+  if(!i) return;
+  var oldStatus = i.status;
+  i.status = colId;
+  if(colId==='concluida' && oldStatus!=='concluida'){
+    i.data_conclusao = getTodayKey();
+    // Pedir número do processo
+    setTimeout(function(){
+      var num = prompt('N\u00famero do processo distribu\u00eddo (opcional):');
+      if(num){ i.numero_processo = num.trim(); }
+      iniSalvar(); iniRender();
+    }, 100);
+  } else {
+    iniSalvar(); iniRender();
+  }
+  _iniDragId = null;
+  showToast('Inicial movida para '+colId);
+}
+
+function iniMover(id){
+  var i = _iniciais.find(function(x){return String(x.id)===String(id);});
+  if(!i) return;
+  if(i.status==='pendente') i.status='fazendo';
+  else if(i.status==='fazendo'){
+    i.status='concluida';
+    i.data_conclusao = getTodayKey();
+    var num = prompt('N\u00famero do processo distribu\u00eddo (opcional):');
+    if(num) i.numero_processo = num.trim();
+  }
+  iniSalvar(); iniRender();
+  showToast('Inicial avan\u00e7ada \u2713');
+}
+
+function iniNova(){
+  var AREAS = ['Trabalhista','Previdenci\u00e1rio','C\u00edvel','Fam\u00edlia','Penal','Administrativo','Outro'];
+  var DOCS_PADRAO = ['RG/CNH','CPF','Comprovante resid\u00eancia','CTPS','Procura\u00e7\u00e3o','Contrato honor\u00e1rios'];
+  var clientesOpts = CLIENTS.map(function(c){return '<option value="'+escapeHtml(c.cliente)+'">'+escapeHtml(c.cliente)+' (Pasta '+(c.pasta||'\u2014')+')</option>';}).join('');
+  // Também contatos
+  var ctcOpts = ctcTodos().map(function(c){return '<option value="'+escapeHtml(c.nome)+'">'+escapeHtml(c.nome)+' (Contato)</option>';}).join('');
+
+  abrirModal('\ud83d\udcdd Nova Inicial Pendente',
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Cliente *</label>'
+      +'<input class="fm-inp" id="ini-cli" list="ini-cli-list" placeholder="Nome do cliente...">'
+      +'<datalist id="ini-cli-list">'+clientesOpts+ctcOpts+'</datalist></div></div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">\u00c1rea jur\u00eddica</label><select class="fm-inp" id="ini-area">'+AREAS.map(function(a){return '<option>'+a+'</option>';}).join('')+'</select></div>'
+      +'<div><label class="fm-lbl">Data atendimento</label><input class="fm-inp" type="date" id="ini-dt" value="'+getTodayKey()+'"></div>'
+      +'<div><label class="fm-lbl">Prazo estimado</label><input class="fm-inp" type="date" id="ini-prazo"></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Respons\u00e1vel</label><select class="fm-inp" id="ini-resp"><option>Clarissa</option><option>Assistente</option><option>Estagi\u00e1rio 1</option><option>Estagi\u00e1rio 2</option></select></div>'
+      +'<div><label class="fm-lbl">Honor\u00e1rios combinados</label><input class="fm-inp" id="ini-hon" placeholder="Ex: 30% \u00eaxito + R$ 500 entrada"></div>'
+    +'</div>'
+    +'<div style="margin-top:10px"><label class="fm-lbl">Documentos necess\u00e1rios</label>'
+      +'<div id="ini-docs" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'
+        +DOCS_PADRAO.map(function(d,i){return '<label style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--tx);cursor:pointer"><input type="checkbox" class="ini-doc-chk" value="'+d+'"> '+d+'</label>';}).join('')
+      +'</div>'
+      +'<input class="fm-inp" id="ini-doc-extra" placeholder="Outros documentos (separar por v\u00edrgula)" style="margin-top:6px"></div>'
+    +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00f5es / Resumo do caso</label>'
+      +'<textarea class="fm-inp" id="ini-obs" rows="3" placeholder="Breve resumo do caso, pontos relevantes..."></textarea></div>',
+  function(){
+    var cli = (document.getElementById('ini-cli')?.value||'').trim();
+    if(!cli){ showToast('Informe o cliente'); return; }
+    var docs = [];
+    document.querySelectorAll('.ini-doc-chk:checked').forEach(function(chk){ docs.push({nome:chk.value, ok:false}); });
+    var extra = (document.getElementById('ini-doc-extra')?.value||'').split(',').map(function(d){return d.trim();}).filter(Boolean);
+    extra.forEach(function(d){ docs.push({nome:d, ok:false}); });
+
+    _iniciais.push({
+      id: 'ini'+genId(), cliente: cli,
+      area: document.getElementById('ini-area')?.value||'',
+      data_atendimento: document.getElementById('ini-dt')?.value||getTodayKey(),
+      prazo: document.getElementById('ini-prazo')?.value||'',
+      responsavel: document.getElementById('ini-resp')?.value||'Clarissa',
+      honorarios: (document.getElementById('ini-hon')?.value||'').trim(),
+      docs_checklist: docs,
+      obs: (document.getElementById('ini-obs')?.value||'').trim(),
+      status: 'pendente', criado_em: new Date().toISOString()
+    });
+    iniSalvar(); fecharModal(); marcarAlterado(); iniRender();
+    showToast('Inicial pendente criada \u2713');
+  }, '\ud83d\udcbe Salvar');
+}
+
+function iniEditar(id){
+  var i = _iniciais.find(function(x){return String(x.id)===String(id);});
+  if(!i) return;
+  var AREAS = ['Trabalhista','Previdenci\u00e1rio','C\u00edvel','Fam\u00edlia','Penal','Administrativo','Outro'];
+  var docsHtml = (i.docs_checklist||[]).map(function(d,idx){
+    return '<label style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--tx);cursor:pointer"><input type="checkbox" class="inie-doc-chk" data-idx="'+idx+'" '+(d.ok?'checked':'')+' value="'+escapeHtml(d.nome)+'"> '+escapeHtml(d.nome)+'</label>';
+  }).join('');
+
+  abrirModal('\u270f Editar Inicial \u2014 '+escapeHtml(i.cliente),
+    '<div class="fm-row"><div style="flex:2"><label class="fm-lbl">Cliente</label><input class="fm-inp" id="inie-cli" value="'+escapeHtml(i.cliente||'')+'"></div></div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">\u00c1rea</label><select class="fm-inp" id="inie-area">'+AREAS.map(function(a){return '<option'+(a===i.area?' selected':'')+'>'+a+'</option>';}).join('')+'</select></div>'
+      +'<div><label class="fm-lbl">Prazo</label><input class="fm-inp" type="date" id="inie-prazo" value="'+(i.prazo||'')+'"></div>'
+      +'<div><label class="fm-lbl">Respons\u00e1vel</label><select class="fm-inp" id="inie-resp"><option'+(i.responsavel==='Clarissa'?' selected':'')+'>Clarissa</option><option'+(i.responsavel==='Assistente'?' selected':'')+'>Assistente</option><option'+(i.responsavel==='Estagi\u00e1rio 1'?' selected':'')+'>Estagi\u00e1rio 1</option><option'+(i.responsavel==='Estagi\u00e1rio 2'?' selected':'')+'>Estagi\u00e1rio 2</option></select></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px"><div><label class="fm-lbl">Honor\u00e1rios</label><input class="fm-inp" id="inie-hon" value="'+escapeHtml(i.honorarios||'')+'"></div></div>'
+    +(docsHtml?'<div style="margin-top:8px"><label class="fm-lbl">Documentos</label><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'+docsHtml+'</div></div>':'')
+    +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00f5es</label><textarea class="fm-inp" id="inie-obs" rows="3">'+escapeHtml(i.obs||'')+'</textarea></div>',
+  function(){
+    i.cliente = (document.getElementById('inie-cli')?.value||'').trim();
+    i.area = document.getElementById('inie-area')?.value||'';
+    i.prazo = document.getElementById('inie-prazo')?.value||'';
+    i.responsavel = document.getElementById('inie-resp')?.value||'';
+    i.honorarios = (document.getElementById('inie-hon')?.value||'').trim();
+    i.obs = (document.getElementById('inie-obs')?.value||'').trim();
+    // Atualizar docs checklist
+    document.querySelectorAll('.inie-doc-chk').forEach(function(chk){
+      var idx = parseInt(chk.dataset.idx);
+      if(i.docs_checklist[idx]) i.docs_checklist[idx].ok = chk.checked;
+    });
+    iniSalvar(); fecharModal(); marcarAlterado(); iniRender();
+    showToast('Inicial atualizada \u2713');
+  }, '\ud83d\udcbe Salvar');
+}
+
+function iniExcluir(id){
+  if(!confirm('Excluir esta inicial?')) return;
+  _iniciais = _iniciais.filter(function(x){return String(x.id)!==String(id);});
+  iniSalvar(); marcarAlterado(); iniRender();
+  showToast('Inicial exclu\u00edda');
+}
+
 
 var DATAJUD_URL = 'https://api-publica.datajud.cnj.jus.br';
 var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';

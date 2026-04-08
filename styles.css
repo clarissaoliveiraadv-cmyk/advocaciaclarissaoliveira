@@ -2726,3 +2726,16 @@ body.light #home-proximos { color:#1C1C1E; }
 
 /* Comentários */
 .coments-input { font-size:13px !important; }
+
+/* ═══════════════════════════════════════════════
+   MÓDULO INICIAIS — kanban
+═══════════════════════════════════════════════ */
+.ini-col { background:var(--sf2); border:1px solid var(--bd); border-radius:8px; overflow:hidden; }
+.ini-col-body { min-height:100px; padding:8px; }
+.ini-card {
+  background:var(--sf); border:1px solid var(--bd); border-radius:6px;
+  padding:10px 12px; margin-bottom:8px; cursor:grab;
+  transition:box-shadow .15s;
+}
+.ini-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.2); }
+.ini-card:active { cursor:grabbing; }
