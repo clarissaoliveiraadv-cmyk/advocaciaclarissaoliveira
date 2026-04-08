@@ -12640,7 +12640,7 @@ function renderAgendaProc(cid){
   const noItem='<div class="prazos-wrap" style="margin-bottom:0">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
       +'<span class="dp-sep" style="margin:0">📅 Compromissos</span>'
-      +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalAgCliente('+cid+')">＋ Novo compromisso</button>'
+      +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalPrazo('+cid+')">＋ Novo</button>'
     +'</div>'
     +'<div style="font-size:12px;color:var(--mu);font-style:italic;padding:4px 0">Nenhum compromisso cadastrado.</div>'
   +'</div><div style="height:1px;background:var(--bd);margin:6px 0 12px"></div>';
@@ -12700,7 +12700,7 @@ function renderAgendaProc(cid){
   let out='<div class="prazos-wrap" style="margin-bottom:4px">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
       +'<span class="dp-sep" style="margin:0">📅 Compromissos</span>'
-      +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalAgCliente('+cid+')">＋ Novo compromisso</button>'
+      +'<button class="btn-bordo btn-bordo-sm" onclick="abrirModalPrazo('+cid+')">＋ Novo</button>'
     +'</div>';
   if(andamento.length) out+='<div class="dp-sep" style="margin:0 0 6px;font-size:10px;color:var(--ouro)">⏳ Em andamento ('+andamento.length+')</div>'+andamento.map(p=>row(p)).join('');
   out+=fut.map(p=>row(p)).join('');
@@ -12710,9 +12710,7 @@ function renderAgendaProc(cid){
 }
 
 
-function abrirModalAgCliente(cid){
-  _abrirModalCompromisso(cid);
-}
+function abrirModalAgCliente(cid){ abrirModalPrazo(cid); }
 
 function excluirAgCliente(agId, cid){
   const raw = String(agId).replace(/^ag/,'');
@@ -15987,8 +15985,7 @@ function renderFicha(c, grp=null){
               <div class="pj-opcoes-sep"></div>
               <div class="pj-opcoes-group">Adicionar</div>
               <div class="pj-opcoes-item" onclick="abrirModalMov(${c.id})">📋 Adicionar Movimentação</div>
-              <div class="pj-opcoes-item" onclick="abrirModalAgCliente(${c.id})">📅 Adicionar Compromisso</div>
-              <div class="pj-opcoes-item" onclick="abrirModalPrazo(${c.id})">⏰ Adicionar Prazo</div>
+              <div class="pj-opcoes-item" onclick="abrirModalPrazo(${c.id})">\ud83d\udcc5 Adicionar Prazo / Compromisso</div>
               <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'receber')">💰 Adicionar Recebimento</div>
               <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'pagar')">💸 Adicionar Pagamento</div>
               <div class="pj-opcoes-sep"></div>
@@ -16111,7 +16108,7 @@ function renderFicha(c, grp=null){
       <div class="sec-header">
         <span class="sec-lbl">Histórico (${(c.agenda||[]).length})</span>
         <div class="sec-line"></div>
-        <button class="btn-add btn-add-ghost" style="margin-left:10px;flex-shrink:0" onclick="abrirModalAgCliente(${c.id})">＋ Novo</button>
+        <button class="btn-add btn-add-ghost" style="margin-left:10px;flex-shrink:0" onclick="abrirModalPrazo(${c.id})">＋ Novo</button>
       </div>
       ${(c.agenda||[]).length?(c.agenda||[]).map(a=>`
         <div class="ai"><div class="adot ${a.cumprido==='Sim'?'dok':'dpend'}"></div>
