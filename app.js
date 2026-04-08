@@ -11377,17 +11377,31 @@ function carregarDadosObj(d){
 }
 
 function montarClientesAgrupados(){
-  const mapa = {};
-  CLIENTS.forEach(c=>{
-    const nome = (c.cliente||'').trim();
-    if(!mapa[nome]){
-      mapa[nome] = { id: c.id, nome, processos: [] };
-    }
+  // Deduplicar CLIENTS por ID (mesmo processo aparece 1x)
+  var seenIds = new Set();
+  var dedupClients = [];
+  CLIENTS.forEach(function(c){
+    var k = String(c.id);
+    if(seenIds.has(k)) return;
+    seenIds.add(k);
+    dedupClients.push(c);
+  });
+  if(dedupClients.length < CLIENTS.length){
+    CLIENTS.length = 0;
+    dedupClients.forEach(function(c){ CLIENTS.push(c); });
+    _clientByIdCache = {};
+    _clientByNameCache = {};
+  }
+  // Agrupar por nome
+  var mapa = {};
+  CLIENTS.forEach(function(c){
+    var nome = (c.cliente||'').trim();
+    if(!mapa[nome]) mapa[nome] = { id: c.id, nome:nome, processos: [] };
     mapa[nome].processos.push(c);
   });
-  CLIENTES_AGRUPADOS = Object.values(mapa).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-  _rebuildClientsIndex(); // PERF: manter índice O(1) sincronizado
-  invalidarCacheVfTodos(); // PERF: CLIENTS mudou → cache de lançamentos inválido
+  CLIENTES_AGRUPADOS = Object.values(mapa).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+  _rebuildClientsIndex();
+  invalidarCacheVfTodos();
 }
 
 
