@@ -2671,3 +2671,58 @@ body.light .vk-lista-row:hover { background:#F5F6F8; }
 
 /* Próximos compromissos light mode */
 body.light #home-proximos { color:#1C1C1E; }
+
+/* ═══════════════════════════════════════════════
+   PASTA DO CLIENTE — fontes maiores, mais espaço
+═══════════════════════════════════════════════ */
+
+/* Tabs maiores */
+.tabs { gap:0; }
+.tab { font-size:13px !important; padding:10px 18px !important; }
+.tab .tc { font-size:11px; }
+
+/* Títulos de seção */
+.tp-title { font-size:11px !important; }
+.tp-title-count { font-size:10px !important; padding:2px 8px !important; }
+.tp-btn { font-size:11px !important; padding:6px 14px !important; }
+
+/* Andamentos — fonte maior */
+.pj-mov-body { font-size:13px !important; line-height:1.7 !important; }
+.pj-mov-date { font-size:12px !important; }
+.pj-mov-item { padding:12px 0 !important; gap:12px !important; }
+.pj-mov-actbtn { font-size:11px !important; padding:4px 10px !important; }
+.pj-mov-plus, .pj-mov-env { width:26px !important; height:26px !important; font-size:13px !important; }
+
+/* Timeline lateral — texto maior */
+.pj-tl-txt { font-size:12px !important; padding:8px 12px !important; }
+.pj-tl-date { font-size:11px !important; }
+.pj-tl-title { font-size:15px !important; }
+
+/* Compromissos — cards maiores */
+.comp-card { padding:12px 14px !important; }
+.comp-card-titulo { font-size:14px !important; }
+.comp-card-meta { font-size:11px !important; }
+.comp-st-btn { font-size:11px !important; padding:4px 10px !important; }
+.comp-edit-btn { font-size:12px !important; padding:4px 10px !important; }
+.comp-cal-dia { font-size:18px !important; }
+.comp-cal-mes { font-size:10px !important; }
+
+/* Ficha do cliente — header e dados */
+.fhead .fn { font-size:18px !important; }
+.fpasta { font-size:10px !important; }
+
+/* Financeiro da pasta — cards maiores */
+.fin-nav-btn { font-size:12px !important; padding:8px 16px !important; }
+
+/* Prazos — cards maiores */
+.prazos-wrap .dp-sep { font-size:12px !important; }
+
+/* Badges e tags */
+.cnat { font-size:9px !important; padding:3px 8px !important; }
+
+/* Labels de campo */
+.fm-lbl { font-size:11px !important; }
+.fm-inp { font-size:12px !important; padding:8px 10px !important; }
+
+/* Comentários */
+.coments-input { font-size:13px !important; }
