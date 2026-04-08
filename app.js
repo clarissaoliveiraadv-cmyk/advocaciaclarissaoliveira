@@ -2350,8 +2350,10 @@ function _vfDelDespEscritorio(lid){
   var ls = String(lid);
   finLancs = finLancs.filter(function(l){ return String(l.id)!==ls; });
   sbSet('co_fin', finLancs);
+  _finLocaisCache = {};
   marcarAlterado();
   vfRender();
+  renderFinDash();
   showToast('Despesa exclu\u00edda');
 }
 
@@ -8680,15 +8682,15 @@ function renderFinLocal(cid){
 }
 
 function finDelLanc(cid, lid){
-  if(!confirm('Excluir este lançamento?')) return;
-  var cidN = Number(cid), lidS = String(lid);
-  localLanc = localLanc.filter(function(l){
-    return String(l.id)!==lidS;
-  });
+  if(!confirm('Excluir este lan\u00e7amento?')) return;
+  var cidN = Number(cid)||cid, lidS = String(lid);
+  localLanc = localLanc.filter(function(l){ return String(l.id)!==lidS; });
   sbSet('co_localLanc', localLanc);
+  _finLocaisCache = {};
   marcarAlterado();
-  _reRenderFinPasta(cidN);
-  showToast('Lançamento excluído');
+  if(cidN) _reRenderFinPasta(cidN);
+  if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+  showToast('Lan\u00e7amento exclu\u00eddo');
 }
 
 function finEditarLanc(cid, lid){
@@ -12694,11 +12696,11 @@ function excluirAgCliente(agId, cid){
       <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
     </div>`,
     ()=>{
-      localAg = (localAg||[]).filter(a=>String(a.id)!==raw&&String(a.id_agenda)!==raw);
-      sbSet('co_ag', localAg);
+      localAg = (localAg||[]).filter(function(a){return String(a.id)!==raw&&String(a.id_agenda)!==raw;});
+      sbSet('co_ag', localAg); invalidarAllPend();
       marcarAlterado();
       fecharModal();
-      const el = document.getElementById('tp-agenda-proc-'+cid);
+      var el = document.getElementById('tp-agenda-proc-'+cid);
       if(el) el.innerHTML = renderAgendaProc(cid);
       _render_agenda_all();
       atualizarStats();
@@ -12765,9 +12767,9 @@ function excluirMovimentacao(cid, idx){
     ()=>{
       localMov[cid].splice(idx, 1);
       sbSet('co_localMov', localMov);
-      fecharModal();
+      marcarAlterado(); fecharModal();
       if(AC?.id===cid) renderFicha(AC, _grupoAtual);
-      showToast('Andamento excluído');
+      showToast('Andamento exclu\u00eddo');
     }, 'Excluir'
   );
   setTimeout(()=>{
@@ -12917,11 +12919,13 @@ function adicionarComentario(cid){
 }
 
 function deletarComentario(cid, idx){
-  if(!confirm('Excluir este comentário?')) return;
+  if(!confirm('Excluir este coment\u00e1rio?')) return;
   (comentarios[cid]||[]).splice(idx,1);
   sbSet('co_coments', comentarios);
-  const wrap = document.getElementById('coment-list-'+cid);
+  marcarAlterado();
+  var wrap = document.getElementById('coment-list-'+cid);
   if(wrap) wrap.innerHTML = renderComentarios(cid);
+  showToast('Coment\u00e1rio exclu\u00eddo');
 }
 
 function updateComentCount(cid){
@@ -16892,13 +16896,19 @@ function vfFiltrar(){
 function deletarPrazo(cid, pid){
   if(!confirm('Excluir este prazo?')) return;
   if(!prazos[cid]) return;
-  prazos[cid] = prazos[cid].filter(p=>p.id!==pid && String(p.id)!==String(pid));
-  sbSet('co_td', prazos);
+  prazos[cid] = prazos[cid].filter(function(p){return p.id!==pid && String(p.id)!==String(pid);});
+  prazosSalvar(); // salva em co_prazos E co_td
   marcarAlterado();
-  // Re-renderizar o bloco de prazos
-  const wrap = document.querySelector('#prazo-'+cid+'-'+pid)?.closest('.prazos-wrap')?.parentElement;
+  // Também remover de localAg se foi migrado
+  var agAntes = localAg.length;
+  localAg = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)!==String(pid); });
+  if(localAg.length<agAntes){ sbSet('co_ag', localAg); invalidarAllPend(); }
+  // Re-renderizar
+  var wrap = document.querySelector('#prazo-'+cid+'-'+pid)?.closest('.prazos-wrap')?.parentElement;
   if(wrap) wrap.innerHTML = renderPrazos(cid);
-  showToast('Prazo excluído');
+  var elAg = document.getElementById('tp-agenda-proc-'+cid);
+  if(elAg) elAg.innerHTML = renderAgendaProc(cid);
+  showToast('Prazo exclu\u00eddo');
 }
 
 // abrirModalPrazo — abre modal para adicionar novo prazo à pasta
