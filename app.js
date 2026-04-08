@@ -1210,7 +1210,7 @@ function renderChecklist(){
     const atrasada = t.prazo && t.prazo < hoje && !done;
     return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" style="cursor:pointer">
       <div class="hc-item-corpo">
-        <div class="hc-item-txt${done?' done':''}">${t.titulo}</div>
+        <div class="hc-item-txt${done?' done':''}">${t.titulo||t.text||t.desc||'\u2014'}</div>
         <div class="hc-item-meta">
           ${atrasada ? `<span class="hc-badge-atrasada">ATRASADA</span>` : ''}
           ${t.cliente?`<span class="hc-item-cli">📁 ${t.cliente}</span>`:''}
@@ -12202,6 +12202,11 @@ try { _finAutoStatusVencidos(); } catch(e){}
     });
     if(changed) sbSet('co_localMov', localMov);
   }
+
+  // vkTasks — remover tarefas sem título (undefined)
+  var tkAntes2 = (vkTasks||[]).length;
+  vkTasks = (vkTasks||[]).filter(function(t){ return t.titulo && t.titulo!=='undefined'; });
+  if(vkTasks.length < tkAntes2){ vkSalvar(); changed=true; }
 
   if(changed) _finLocaisCache={};
 })();
