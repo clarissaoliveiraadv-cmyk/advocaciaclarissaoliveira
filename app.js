@@ -1013,10 +1013,11 @@ function parcEditar(cid, idx){
 
 function parcDeletar(cid, idx){
   if(!confirm('Remover esta parceria?')) return;
-  const c = CLIENTS.find(x=>String(x.id||x.pasta)===cid)||{id:cid};
-  const lista = getParceriasDoProcesso(c);
+  var c = CLIENTS.find(function(x){return String(x.id||x.pasta)===String(cid);})||{id:cid};
+  var lista = getParceriasDoProcesso(c);
   lista.splice(idx, 1);
   setParceriasDoProcesso(c, lista);
+  marcarAlterado();
   renderFicha(c);
   showToast('Parceria removida');
 }
@@ -1250,8 +1251,9 @@ function hcToggle(id, origem, tdIdx, hoje){
 }
 
 function hcRemover(id, origem, tdIdx, hoje){
+  if(!confirm('Excluir esta tarefa?')) return;
   if(origem==='kanban'){
-    vkTasks = vkTasks.filter(t=>String(t.id)!==String(id));
+    vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
     vkSalvar();
   } else {
     if(tarefasDia[hoje]) tarefasDia[hoje].splice(tdIdx,1);
@@ -1259,6 +1261,7 @@ function hcRemover(id, origem, tdIdx, hoje){
   }
   renderChecklist();
   marcarAlterado();
+  showToast('Tarefa removida');
 }
 
 function hcEnviarKanban(id, titulo, cliente, hoje){
@@ -1956,9 +1959,10 @@ function vkMarcarHoje(id){
 }
 function vkDeletar(id){
   if(!confirm('Excluir esta tarefa?')) return;
-  vkTasks = vkTasks.filter(t=>String(t.id)!==String(id));
-  vkSalvar();
+  vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
+  vkSalvar(); marcarAlterado();
   vkRender();
+  showToast('Tarefa exclu\u00edda');
 }
 
 // ── Detecta tipo de evento pela campo tipo ou pelo título ──
@@ -10536,8 +10540,9 @@ function togglePend(cid,pid){
 }
 
 function delPend(cid,pid){
+  if(!confirm('Excluir esta pend\u00eancia?')) return;
   if(!tasks[cid]?.pendencias) return;
-  tasks[cid].pendencias = tasks[cid].pendencias.filter(p=>p.id!==pid);
+  tasks[cid].pendencias = tasks[cid].pendencias.filter(function(p){return p.id!==pid;});
   sbSet('co_tasks', tasks);
   marcarAlterado();
   const el = document.getElementById('pend-list-'+cid);
@@ -16433,8 +16438,8 @@ function addTask(cid){const txt=document.getElementById(`ti-${cid}`).value.trim(
     marcarAlterado();document.getElementById(`ti-${cid}`).value='';document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);showToast('Tarefa adicionada');}
 function toggleTask(cid,i){tasks[cid][i].done=!tasks[cid][i].done;if(tasks[cid][i].done)tasks[cid][i].etapa='FEITO';sbSet('co_t', tasks);
     marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);}
-function delTask(cid,i){tasks[cid].splice(i,1);sbSet('co_t', tasks);
-    marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);}
+function delTask(cid,i){if(!confirm('Excluir?'))return;tasks[cid].splice(i,1);sbSet('co_t', tasks);
+    marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);showToast('Tarefa exclu\u00edda');}
 function saveNote(cid){notes[cid]=document.getElementById(`obs-${cid}`).value;sbSet('co_n', notes);
     marcarAlterado();const s=document.getElementById(`osv-${cid}`);s.style.opacity='1';setTimeout(()=>s.style.opacity='0',2000);showToast('Observação salva');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200);}
