@@ -10467,7 +10467,7 @@ function salvarAtendimento(){
   const descricao = `[Atendimento] ${assuntoLabel}${resumo?': '+resumo:''}`;
 
   // Salvar em localAtend (pipeline CRM)
-  const idAt = 'at'+Date.now();
+  var idAt = 'at'+genId();
   const registro = {
     id: idAt, cliente: nomeVal, id_cliente: clienteIdSel,
     assunto: assuntoLabel, resumo, data: dataAt,
@@ -15894,8 +15894,10 @@ document.addEventListener('click', function(e){
   }
 });
 
-function atAlterarStatusFicha(cid, novoStatus){
-  const idx = localAtend.findIndex(a=>String(a.id_cliente)===String(cid));
+function atAlterarStatusFicha(cid, novoStatus, atId){
+  // Buscar por ID do atendimento se fornecido, senão por id_cliente (legado)
+  var idx = atId ? localAtend.findIndex(function(a){return String(a.id)===String(atId);})
+    : localAtend.findIndex(function(a){return String(a.id_cliente)===String(cid);});
   if(idx>=0){
     localAtend[idx].status = novoStatus;
     sbSet('co_atend', localAtend);
