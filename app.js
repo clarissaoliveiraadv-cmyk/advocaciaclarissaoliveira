@@ -2204,29 +2204,47 @@ function _vfConsolidar(mesP){
 function _vfResumoGlobal(mesP){
   var d = _vfConsolidar(mesP);
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  function card(lbl, val, cor, sub){
-    return '<div style="flex:1;min-width:140px;padding:12px 14px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
-      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:4px">'+lbl+'</div>'
-      +'<div style="font-size:18px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
-      +(sub?'<div style="font-size:10px;color:var(--mu);margin-top:3px">'+sub+'</div>':'')
+  var maxVal = Math.max(d.totEntrou, d.totHon, d.totCli, d.totRep, d.totDesp, 1);
+
+  function card(lbl, val, cor, sub, destaque){
+    var pct = Math.min(100, Math.round(Math.abs(val)/maxVal*100));
+    return '<div style="flex:1;min-width:140px;padding:14px 16px;background:'+(destaque?'linear-gradient(135deg,var(--sf2),'+cor+'15)':'var(--sf2)')+';border:1px solid '+(destaque?cor+'40':'var(--bd)')+';border-radius:10px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px;letter-spacing:.05em">'+lbl+'</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
+      +'<div style="height:4px;background:var(--sf3);border-radius:3px;margin-top:8px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+cor+';border-radius:3px"></div></div>'
+      +(sub?'<div style="font-size:10px;color:var(--mu);margin-top:4px">'+sub+'</div>':'')
     +'</div>';
   }
+
+  // Barra receita vs despesa
+  var percRec = d.totEntrou > 0 ? Math.round(d.totHon/d.totEntrou*100) : 0;
+  var percDesp = d.totHon > 0 ? Math.round(d.totDesp/d.totHon*100) : 0;
+
   return '<div style="padding:16px;max-width:900px">'
     +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
-      +card('Total que entrou', d.totEntrou, 'var(--tx)', d.recebimentos.length+' recebimento'+(d.recebimentos.length!==1?'s':''))
-      +card('Receita escrit\u00f3rio', d.totHon, '#4ade80', 'Honor\u00e1rios l\u00edquidos')
-      +card('Valores de clientes', d.totCli, '#fb923c', 'Em cust\u00f3dia / a repassar')
+      +card('Total que entrou', d.totEntrou, 'var(--tx)', d.recebimentos.length+' recebimento'+(d.recebimentos.length!==1?'s':''), false)
+      +card('Receita escrit\u00f3rio', d.totHon, '#4ade80', percRec+'% do total', true)
+      +card('Valores de clientes', d.totCli, '#fb923c', 'Cust\u00f3dia', false)
     +'</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
-      +card('Total repassado', d.totRep, d.totRep>0?'var(--tx)':'var(--mu)', d.repasses.length+' repasse'+(d.repasses.length!==1?'s':''))
-      +card('Despesas escrit\u00f3rio', d.totDesp, d.totDesp>0?'#f87676':'var(--mu)', '')
-      +card('Saldo escrit\u00f3rio', d.saldo, d.saldo>=0?'#4ade80':'#c9484a', 'Receita \u2212 Despesas')
+      +card('Total repassado', d.totRep, 'var(--tx)', d.repasses.length+' repasse'+(d.repasses.length!==1?'s':''), false)
+      +card('Despesas escrit\u00f3rio', d.totDesp, '#f87676', percDesp+'% da receita', false)
+      +card('Saldo escrit\u00f3rio', d.saldo, d.saldo>=0?'#4ade80':'#c9484a', 'Receita \u2212 Despesas', true)
     +'</div>'
-    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;font-size:11px;color:var(--mu)">'
-      +'<strong>Importante:</strong> Valor de clientes n\u00e3o entra no saldo do escrit\u00f3rio. \u00c9 valor em cust\u00f3dia.'
+    // Barra visual receita vs despesa
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:12px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:8px">Receita vs Despesa</div>'
+      +'<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--sf3)">'
+        +(d.totHon>0?'<div style="width:'+Math.round(d.totHon/(d.totHon+d.totDesp)*100)+'%;background:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">Receita '+fV(d.totHon)+'</div>':'')
+        +(d.totDesp>0?'<div style="width:'+Math.round(d.totDesp/(d.totHon+d.totDesp)*100)+'%;background:#f87676;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">Despesa '+fV(d.totDesp)+'</div>':'')
+      +'</div>'
+    +'</div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:12px;font-size:11px;color:var(--mu)">'
+      +'<strong>Nota:</strong> Valor de clientes \u00e9 cust\u00f3dia \u2014 n\u00e3o entra no saldo.'
     +'</div>'
   +'</div>';
 }
+
 
 // ── ABA RECEBIMENTOS ──
 function _vfRecebimentos(mesP){
@@ -2419,6 +2437,18 @@ function _vfDespesasEscritorio(mesP){
     if(d.includes('IMPOSTO')||d.includes('SIMPLES')||d.includes('DARF')) return 'Impostos';
     return 'Outros';
   };
+  var catCores = {Estrutura:'#60a5fa',Pessoal:'#a78bfa',Telecom:'#38bdf8',Energia:'#fbbf24',Sistemas:'#4ade80',Impostos:'#f87676',Marketing:'#e879f9',Outros:'var(--mu)'};
+
+  // Agrupar por categoria
+  var porCat = {};
+  desp.forEach(function(d){
+    var cat = catLabel(d.l);
+    if(!porCat[cat]) porCat[cat] = {total:0, itens:[]};
+    porCat[cat].total += parseFloat(d.l.valor)||0;
+    porCat[cat].itens.push(d);
+  });
+  var catsSorted = Object.keys(porCat).sort(function(a,b){return porCat[b].total - porCat[a].total;});
+
   var html = '<div style="padding:16px;max-width:800px">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
       +'<button onclick="_vfNovaDespEscritorio()" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(248,118,118,.08);border:1px solid rgba(248,118,118,.3);color:#f87676;cursor:pointer">+ Nova Despesa</button>'
@@ -2428,14 +2458,33 @@ function _vfDespesasEscritorio(mesP){
       +'<span style="font-size:12px;color:var(--mu)">Total despesas</span>'
       +'<span style="font-size:20px;font-weight:800;color:#f87676">'+fV(tot)+'</span>'
     +'</div>';
+
   if(!desp.length) return html+'<div style="padding:20px;text-align:center;color:var(--mu)">Nenhuma despesa no per\u00edodo. Clique em + Nova Despesa.</div></div>';
+
+  // Cards por categoria com barra
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">';
+  catsSorted.forEach(function(cat){
+    var pct = tot>0 ? Math.round(porCat[cat].total/tot*100) : 0;
+    var cor = catCores[cat]||'var(--mu)';
+    html += '<div style="padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:'+cor+';margin-bottom:4px">'+cat+'</div>'
+      +'<div style="font-size:14px;font-weight:800;color:'+cor+'">'+fV(porCat[cat].total)+'</div>'
+      +'<div style="height:3px;background:var(--sf3);border-radius:2px;margin-top:6px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+cor+';border-radius:2px"></div></div>'
+      +'<div style="font-size:9px;color:var(--mu);margin-top:3px">'+pct+'% \u00b7 '+porCat[cat].itens.length+' item'+(porCat[cat].itens.length!==1?'s':'')+'</div>'
+    +'</div>';
+  });
+  html += '</div>';
+
+  // Lista detalhada
   desp.sort(function(a,b){return (b.l.data||'').localeCompare(a.l.data||'');}).forEach(function(d){
     var l = d.l;
     var delFn = d.src==='fin' ? '_vfDelDespEscritorio(\''+l.id+'\')' : 'finDelLanc(0,\''+l.id+'\')';
+    var cat = catLabel(l);
+    var cor = catCores[cat]||'var(--mu)';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
       +'<div style="font-size:11px;color:var(--mu);min-width:80px">'+fDt(l.data||l.dt_baixa)+'</div>'
       +'<div style="flex:1;font-size:12px;font-weight:600;color:var(--tx)">'+escapeHtml(l.desc||'\u2014')+'</div>'
-      +'<div style="font-size:10px;color:var(--mu);min-width:70px">'+catLabel(l)+'</div>'
+      +'<div style="font-size:9px;padding:2px 6px;border-radius:3px;background:'+cor+'20;color:'+cor+';font-weight:700">'+cat+'</div>'
       +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||'')+'</div>'
       +(l._recorrente?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(96,165,250,.1);color:#60a5fa;font-weight:700">FIXA</span>':'')
       +'<div style="font-size:13px;font-weight:700;color:#f87676">'+fV(l.valor)+'</div>'
@@ -2445,6 +2494,7 @@ function _vfDespesasEscritorio(mesP){
   });
   return html+'</div>';
 }
+
 
 // ── EDITAR DESPESA DO ESCRITÓRIO ──
 function _vfEditarDespEscritorio(lid){
@@ -7437,38 +7487,52 @@ function _finNovoHonorario(cid){
 // ── ABA RESUMO v2 ──
 function _finResumoTab2(cid, c, locais, fV, hoje){
   var cls = _finClassificar2(locais);
-  var totHon=0, totParc=0, totLiq=0, totCli=0, totRec=0, totPend=0;
+  var totHon=0, totParc=0, totLiq=0, totCli=0, totRec=0, totPend=0, totBase=0;
   cls.honorarios.forEach(function(l){
     var calc = _finCalcLanc(l);
     totHon += calc.honorarios_contratuais;
     totParc += calc.valor_parceiro;
     totLiq += calc.honorarios_liquidos_escritorio;
     totCli += calc.valor_cliente;
+    totBase += calc.base_calculo;
     if(isRec(l)) totRec += calc.base_calculo;
     else totPend += calc.base_calculo;
   });
   var totDesp = cls.despesas.reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
-  var totRepPago = cls.repasses.filter(function(l){return isRec(l);}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totRepPago = cls.repasses.filter(isRec).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var totRepPend = cls.repasses.filter(function(l){return !isRec(l);}).reduce(function(s,l){return s+(parseFloat(l.valor)||0);},0);
+  var maxVal = Math.max(totBase, totHon, totLiq, totCli, 1);
+  var percRec = totBase>0 ? Math.round(totRec/totBase*100) : 0;
 
-  function card(lbl, val, cor){
-    return '<div style="flex:1;min-width:140px;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px">'
+  function card(lbl, val, cor, sub, destaque){
+    var pct = Math.min(100, Math.round(Math.abs(val)/maxVal*100));
+    return '<div style="flex:1;min-width:130px;padding:12px 14px;background:'+(destaque?'linear-gradient(135deg,var(--sf2),'+cor+'15)':'var(--sf2)')+';border:1px solid '+(destaque?cor+'40':'var(--bd)')+';border-radius:10px">'
       +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:4px">'+lbl+'</div>'
-      +'<div style="font-size:15px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
+      +'<div style="font-size:16px;font-weight:800;color:'+cor+'">'+fV(val)+'</div>'
+      +'<div style="height:3px;background:var(--sf3);border-radius:2px;margin-top:6px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+cor+';border-radius:2px"></div></div>'
+      +(sub?'<div style="font-size:9px;color:var(--mu);margin-top:3px">'+sub+'</div>':'')
     +'</div>';
   }
 
   return '<div style="padding:14px">'
-    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
-      +card('Honor\u00e1rios contratuais', totHon, '#D4AF37')
-      +card('Parceiro', totParc, totParc>0?'#fb923c':'var(--mu)')
-      +card('L\u00edq. escrit\u00f3rio', totLiq, '#4ade80')
-      +card('Valor cliente', totCli, '#60a5fa')
+    // Valor integral total
+    +(totBase>0?'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Valor integral total</div>'
+        +'<div style="font-size:22px;font-weight:800;color:var(--tx)">'+fV(totBase)+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:9px;color:var(--mu)">Recebido: '+percRec+'%</div>'
+        +'<div style="height:6px;width:120px;background:var(--sf3);border-radius:4px;overflow:hidden;margin-top:4px"><div style="width:'+percRec+'%;height:100%;background:#4ade80;border-radius:4px"></div></div></div>'
+    +'</div>':'')
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
+      +card('Honor\u00e1rios', totHon, '#D4AF37', '', false)
+      +card('Parceiro', totParc, totParc>0?'#fb923c':'var(--mu)', '', false)
+      +card('L\u00edq. escrit\u00f3rio', totLiq, '#4ade80', '', true)
+      +card('Valor cliente', totCli, '#60a5fa', '', false)
     +'</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
-      +card('Total recebido', totRec, '#4ade80')
-      +card('Total pendente', totPend, totPend>0?'#fb923c':'var(--mu)')
-      +card('Despesas', totDesp, totDesp>0?'#f87676':'var(--mu)')
-      +card('Repasses pagos', totRepPago, totRepPago>0?'var(--tx)':'var(--mu)')
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
+      +card('Recebido', totRec, '#4ade80', '', false)
+      +card('Pendente', totPend, totPend>0?'#f59e0b':'var(--mu)', '', false)
+      +card('Despesas', totDesp, totDesp>0?'#f87676':'var(--mu)', '', false)
+      +card('Repasses', totRepPago, totRepPago>0?'var(--tx)':'var(--mu)', totRepPend>0?'<span style="color:#c9484a">'+fV(totRepPend)+' pendente</span>':'', totRepPend>0)
     +'</div>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
       +'<button onclick="_finNovoHonorario('+cid+')" style="font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">+ Lan\u00e7ar Honor\u00e1rio</button>'
@@ -7478,6 +7542,7 @@ function _finResumoTab2(cid, c, locais, fV, hoje){
     +'</div>'
   +'</div>';
 }
+
 
 // ── RELATÓRIO PDF DA PASTA DO CLIENTE ──
 function _finRelatorioPDF(cid){
