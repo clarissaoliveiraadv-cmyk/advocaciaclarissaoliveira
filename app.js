@@ -7387,7 +7387,7 @@ function _finPreviewHon(){
   +(nparc>1?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bd)">'
     +pcard('TOTAL honor\u00e1rios',roundMoney(calc.honorarios_contratuais*nparc),'#D4AF37')
     +pcard('TOTAL l\u00edq. escrit.',roundMoney(calc.honorarios_liquidos_escritorio*nparc),'#4ade80')
-    +pcard('TOTAL cliente',roundMoney(calc.valor_cliente*nparc),'#60a5fa')
+    +pcard('TOTAL cliente',roundMoney(calc.valor_cliente*nparc + ress*(nparc>1?nparc-1:0)),'#60a5fa')
   +'</div>':'');
   // show/hide parceiro fields
   var pf = document.getElementById('fh-pfields');
@@ -7460,12 +7460,14 @@ function _finNovoHonorario(cid){
         d.setMonth(d.getMonth()+p);
         dtP = d.toISOString().slice(0,10);
       }
-      var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
+      // Ressarcimento só na primeira parcela
+      var ressParc = (p===0) ? ress : 0;
+      var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ressParc,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
       localLanc.push({
         id: genId(), tipo:'honorario', direcao:'receber',
         id_processo: cid, cliente: c.cliente,
         desc:descP, valor_integral:vi, valor_parcela:vp, valor:calc.base_calculo,
-        ressarcimento:ress, percentual_honorarios:perc,
+        ressarcimento:ressParc, percentual_honorarios:perc,
         parceiro_nome:pnome, parceiro_percentual:pperc,
         data:dtP, forma:forma, recebido:false,
         status:'pendente', pago:false, dt_baixa:'', obs:obs,
@@ -8107,11 +8109,28 @@ function renderFinLocal(cid){
 function finDelLanc(cid, lid){
   if(!confirm('Excluir este lan\u00e7amento?')) return;
   var cidN = Number(cid)||cid, lidS = String(lid);
+  var antes = localLanc.length;
   localLanc = localLanc.filter(function(l){ return String(l.id)!==lidS; });
+  if(localLanc.length===antes){ showToast('N\u00e3o encontrado (ID: '+lidS+')'); return; }
   sbSet('co_localLanc', localLanc);
   _finLocaisCache = {};
   marcarAlterado();
-  if(cidN) _reRenderFinPasta(cidN);
+  // Re-render imediato (sem requestAnimationFrame)
+  if(cidN){
+    var el = document.getElementById('fin-tab-content-'+cidN);
+    if(el && typeof _finCurTab!=='undefined'){
+      var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+      var hoje = new Date().toISOString().slice(0,10);
+      var c = findClientById(cidN);
+      if(c){
+        var locais = _finGetLocais(cidN);
+        if(_finCurTab==='resumo') el.innerHTML = _finResumoTab2(cidN, c, locais, fV, hoje);
+        else if(_finCurTab==='honorarios') el.innerHTML = _finHonorariosTab(cidN, c, locais, fV, hoje);
+        else if(_finCurTab==='despesas') el.innerHTML = _finDespesasTab2(cidN, c, locais, fV, hoje);
+        else if(_finCurTab==='repasses') el.innerHTML = _finRepassesBancoTab(cidN, c, locais, fV, hoje);
+      }
+    }
+  }
   if(document.getElementById('vf')?.classList.contains('on')) vfRender();
   showToast('Lan\u00e7amento exclu\u00eddo');
 }
