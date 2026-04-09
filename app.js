@@ -8352,240 +8352,71 @@ function _poloAdverso(polo){
 
 function novoProcesso(){
   document.getElementById('novo-menu').style.display='none';
+  abrirModal('\u2696 Novo Processo',
+    '<div style="margin-bottom:14px;background:var(--sf3);border-radius:8px;padding:12px 14px">'
+      +'<div style="font-size:11px;color:var(--mu);margin-bottom:8px">Digite o n\u00famero e o nome. O sistema busca os dados no tribunal automaticamente.</div>'
+    +'</div>'
+    // Campos principais
+    +'<div class="fm-row">'
+      +'<div style="flex:2"><label class="fm-lbl">N\u00famero do processo <span class="req">*</span></label>'
+        +'<input class="fm-inp" id="np-num" placeholder="0000000-00.0000.0.00.0000"></div>'
+      +'<div><label class="fm-lbl">&nbsp;</label>'
+        +'<button onclick="_npBuscarDataJud()" class="btn-bordo" style="width:100%;padding:8px 12px">\ud83d\udd0d Buscar tribunal</button></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div style="flex:2"><label class="fm-lbl">Nome do cliente <span class="req">*</span></label>'
+        +'<input class="fm-inp" id="np-nome" placeholder="Nome completo"></div>'
+      +'<div><label class="fm-lbl">CPF</label>'
+        +'<input class="fm-inp" id="np-cpf" placeholder="000.000.000-00"></div>'
+    +'</div>'
+    // Status da busca
+    +'<div id="np-dj-status" style="margin-top:8px"></div>'
+    // Campos preenchidos pelo DataJud (ou manual)
+    +'<div id="np-dj-fields" style="margin-top:10px">'
+      +'<div class="fm-row">'
+        +'<div><label class="fm-lbl">Natureza</label>'
+          +'<select class="fm-inp" id="np-nat"><option>Trabalhista</option><option>Previdenci\u00e1rio</option><option>C\u00edvel</option><option>Fam\u00edlia</option><option>Administrativo</option><option>Penal</option><option>Banc\u00e1rio</option><option>Outro</option></select></div>'
+        +'<div><label class="fm-lbl">Polo do cliente</label>'
+          +'<select class="fm-inp" id="np-polo"><option>Autor</option><option>R\u00e9u</option><option>Reclamante</option><option>Reclamado</option><option>Requerente</option><option>Requerido</option></select></div>'
+      +'</div>'
+      +'<div class="fm-row" style="margin-top:8px">'
+        +'<div style="flex:2"><label class="fm-lbl">Vara / Ju\u00edzo</label>'
+          +'<input class="fm-inp" id="np-vara" placeholder="Preenchido automaticamente"></div>'
+        +'<div><label class="fm-lbl">Data distribui\u00e7\u00e3o</label>'
+          +'<input class="fm-inp" type="date" id="np-dt" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+      +'</div>'
+      +'<div class="fm-row" style="margin-top:8px">'
+        +'<div style="flex:2"><label class="fm-lbl">Parte adversa</label>'
+          +'<input class="fm-inp" id="np-adv" placeholder="Preenchido automaticamente"></div>'
+        +'<div><label class="fm-lbl">Tipo de a\u00e7\u00e3o</label>'
+          +'<input class="fm-inp" id="np-tipo-acao" placeholder="Preenchido automaticamente"></div>'
+      +'</div>'
+      +'<div style="margin-top:8px"><label class="fm-lbl">Observa\u00e7\u00f5es</label>'
+        +'<input class="fm-inp" id="np-obs" placeholder="Notas, estrat\u00e9gia..."></div>'
+    +'</div>',
+  function(){
+    var g = function(id){ return (document.getElementById('np-'+id)||{}).value?.trim()||''; };
+    if(!g('nome')) return alert('Nome do cliente obrigat\u00f3rio');
+    if(!g('num')) return alert('N\u00famero do processo obrigat\u00f3rio');
 
-  const sel = (id, opts, cls='') =>
-    `<select id="np-${id}" class="dist-inp${cls?' '+cls:''}">${opts.map(o=>
-      typeof o==='string'?`<option>${o}</option>`:`<option value="${o.v}">${o.l}</option>`
-    ).join('')}</select>`;
-  const inp = (id, ph='', cls='', type='text') =>
-    `<input id="np-${id}" class="dist-inp${cls?' '+cls:''}" placeholder="${ph}" type="${type}">`;
-
-  abrirModal('⚖️ Novo Processo', `
-  <div class="cad-tabs" id="np-tabs">
-    <button class="cad-tab on" onclick="cadSwTab(this,'np-s1')">👤 Cliente</button>
-    <button class="cad-tab"   onclick="cadSwTab(this,'np-s2')">⚖️ Processo</button>
-    <button class="cad-tab"   onclick="cadSwTab(this,'np-s3')">👥 Partes</button>
-    <button class="cad-tab"   onclick="cadSwTab(this,'np-s4')">📝 Pedidos</button>
-  </div>
-
-  <!-- ABA 1: CLIENTE -->
-  <div class="cad-sec on" id="np-s1">
-    <div class="dist-grid dist-grid-2">
-      <div class="dist-field">
-        <label class="dist-lbl">Nome completo <span class="dist-req">*</span></label>
-        ${inp('nome','Nome completo','req')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">CPF <span class="dist-req">*</span></label>
-        ${inp('cpf','000.000.000-00','req')}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Telefone / WhatsApp</label>
-        ${inp('tel','(31) 9 0000-0000')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">E-mail</label>
-        ${inp('email','email@...')}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Data de nascimento</label>
-        ${inp('nasc','','','date')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Estado civil</label>
-        ${sel('ecivil',['—','Solteiro(a)','Casado(a)','Divorciado(a)','Viúvo(a)','União estável','Separado(a)'])}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Naturalidade</label>
-        ${inp('natural','Ex: Belo Horizonte / MG')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Nome da mãe</label>
-        ${inp('mae','')}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Profissão</label>
-        ${inp('prof','')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">NIT / PIS</label>
-        ${inp('nit','000.00000.00-0')}
-      </div>
-    </div>
-    <div style="margin-top:10px;text-align:right">
-      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(2)'),'np-s2')">Pr\u00f3ximo: Processo \u2192</button>
-    </div>
-  </div>
-
-  <!-- ABA 2: PROCESSO -->
-  <div class="cad-sec" id="np-s2">
-    <div class="dist-grid dist-grid-2">
-      <div class="dist-field">
-        <label class="dist-lbl">Número do processo <span class="dist-req">*</span></label>
-        ${inp('num','0000000-00.0000.0.00.0000','req')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Data de distribuição</label>
-        <input id="np-dt" class="dist-inp" type="date" value="${new Date().toISOString().slice(0,10)}">
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Natureza <span class="dist-req">*</span></label>
-        ${sel('nat',['Trabalhista','Previdenciário','Cível','Família','Administrativo','Penal','Bancário','Outro'])}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Tipo de ação</label>
-        ${inp('tipo_acao','Ex: Reclamação Trabalhista, Aposentadoria...')}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-3" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">Comarca <span class="dist-req">*</span></label>
-        ${inp('comarca','Ex: Belo Horizonte','req')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Vara / Juízo</label>
-        ${inp('vara','Ex: 3ª Vara do Trabalho')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Instância</label>
-        ${sel('instancia',['1ª instância','2ª instância','TST','STJ','STF'])}
-      </div>
-    </div>
-    <div style="margin-top:10px;display:flex;justify-content:space-between">
-      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(1)'),'np-s1')">← Voltar</button>
-      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(3)'),'np-s3')">Pr\u00f3ximo: Partes \u2192</button>
-    </div>
-  </div>
-
-  <!-- ABA 3: PARTES -->
-  <div class="cad-sec" id="np-s3">
-    <div class="dist-grid dist-grid-2">
-      <div class="dist-field">
-        <label class="dist-lbl">Cliente é o polo</label>
-        ${sel('polo',[
-          {v:'Autor',l:'Autor (quem propõe)'},
-          {v:'Réu',l:'Réu (quem responde)'},
-          {v:'Requerente',l:'Requerente'},
-          {v:'Requerido',l:'Requerido'},
-          {v:'Reclamante',l:'Reclamante (trabalhista)'},
-          {v:'Reclamado',l:'Reclamado (trabalhista)'},
-          {v:'Apelante',l:'Apelante'},
-        ])}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Parte adversa <span class="dist-req">*</span></label>
-        ${inp('adv','Nome da empresa ou pessoa adversa','req')}
-      </div>
-    </div>
-    <div class="dist-grid dist-grid-2" style="margin-top:8px">
-      <div class="dist-field">
-        <label class="dist-lbl">CPF / CNPJ do adverso</label>
-        ${inp('adv_doc','000.000.000-00')}
-      </div>
-      <div class="dist-field">
-        <label class="dist-lbl">Advogado adverso</label>
-        ${inp('adv_adv','Nome do advogado da outra parte')}
-      </div>
-    </div>
-    <div style="margin-top:10px;display:flex;justify-content:space-between">
-      <button onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(2)'),'np-s2')"
-        style="background:var(--sf3);border:1px solid var(--bd);border-radius:5px;padding:7px 18px;color:var(--of);cursor:pointer;font-size:13px">
-        ← Voltar
-      </button>
-      <button onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(4)'),'np-s4')"
-        style="background:var(--vinho);border:none;border-radius:5px;padding:7px 18px;color:#fff;cursor:pointer;font-size:13px">
-        Próximo: Pedidos →
-      </button>
-    </div>
-  </div>
-
-  <!-- ABA 4: PEDIDOS -->
-  <div class="cad-sec" id="np-s4">
-    <div class="dist-field">
-      <label class="dist-lbl">Valor da causa</label>
-      ${inp('valor','R$ 0,00')}
-    </div>
-    <div class="dist-field" style="margin-top:8px">
-      <label class="dist-lbl">Pedidos principais</label>
-      <textarea id="np-pedidos" class="dist-inp" rows="3"
-        placeholder="Ex: Reconhecimento de vínculo, horas extras, FGTS, dano moral..."></textarea>
-    </div>
-    <div class="dist-field" style="margin-top:8px">
-      <label class="dist-lbl">Observações / Estratégia inicial</label>
-      <textarea id="np-obs" class="dist-inp" rows="2"
-        placeholder="Contexto do caso, pontos de atenção..."></textarea>
-    </div>
-    <div style="margin-top:10px;text-align:left">
-      <button onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(3)'),'np-s3')"
-        style="background:var(--sf3);border:1px solid var(--bd);border-radius:5px;padding:7px 18px;color:var(--of);cursor:pointer;font-size:13px">
-        ← Voltar
-      </button>
-    </div>
-  </div>
-  `, ()=>{
-    const g = id => document.getElementById('np-'+id)?.value.trim()||'';
-
-    // Validações
-    if(!g('nome'))    return alert('Nome do cliente obrigatório (aba Cliente)');
-    if(!g('cpf'))     return alert('CPF obrigatório (aba Cliente)');
-    if(!g('num'))     return alert('Número do processo obrigatório (aba Processo)');
-    if(!g('comarca')) return alert('Comarca obrigatória (aba Processo)');
-    if(!g('adv'))     return alert('Parte adversa obrigatória (aba Partes)');
-
-    // Verificar se cliente já existe pelo nome
     var existente = findClientByName(g('nome'));
     if(existente && !confirm('Cliente "'+g('nome')+'" j\u00e1 existe (Pasta '+existente.pasta+'). Criar novo processo mesmo assim?')) return;
 
     var id = genId();
     var novoCliente = {
-      id:id,
-      pasta: '',
-      cliente: g('nome'),
-      natureza: g('nat'),
-      numero: g('num'),
-      comarca: g('comarca') + (g('vara') ? ' \u2014 '+g('vara') : ''),
-      instancia: g('instancia'),
-      tipo_acao: g('tipo_acao'),
-      adverso: g('adv'),
-      adv_doc: g('adv_doc'),
-      adv_adv: g('adv_adv'),
-      polo: g('polo'),
-      valor_causa: g('valor'),
-      pedidos: g('pedidos'),
-      data_inicio: g('dt'),
-      advogado: 'Clarissa de Oliveira',
-      tipo: 'processo',
-      status_consulta: 'processo',
-      partes: [
-        {nome: g('nome'), condicao: g('polo'), cliente: 'Sim'},
-        {nome: g('adv'),  condicao: _poloAdverso(g('polo')), cliente: 'N\u00e3o'}
+      id:id, pasta:'', cliente:g('nome'), natureza:g('nat'),
+      numero:g('num'), comarca:g('vara'), tipo_acao:g('tipo-acao'),
+      adverso:g('adv'), polo:g('polo'), data_inicio:g('dt'),
+      advogado:'Clarissa de Oliveira', tipo:'processo', status_consulta:'processo',
+      partes:[
+        {nome:g('nome'), condicao:g('polo'), cliente:'Sim'},
+        {nome:g('adv'), condicao:_poloAdverso(g('polo')), cliente:'N\u00e3o'}
       ],
-      movimentacoes: [], agenda: []
+      movimentacoes:[], agenda:[]
     };
 
-    // Dados extra (privados)
-    tasks[id] = { extra: {
-      cpf: g('cpf'), nasc: g('nasc'), ecivil: g('ecivil'),
-      natural: g('natural'), mae: g('mae'),
-      tel: g('tel'), email: g('email'),
-      prof: g('prof'), nit: g('nit')
-    }};
-
-    // Observações
-    const notas = [];
-    if(g('pedidos')) notas.push('Pedidos: '+g('pedidos'));
-    if(g('obs'))     notas.push('Obs: '+g('obs'));
-    if(notas.length) notes[id] = notas.join('\n');
+    tasks[id] = { extra:{ cpf:g('cpf') }};
+    if(g('obs')) notes[id] = g('obs');
 
     CLIENTS.push(novoCliente);
     sbSet('co_tasks', tasks);
@@ -8595,10 +8426,85 @@ function novoProcesso(){
     montarClientesAgrupados();
     fecharModal();
     doSearch();
-    // Abrir ficha do novo cliente
-    setTimeout(()=>{ const item=document.querySelector('.citem[data-id="'+id+'"]'); if(item) item.click(); },300);
-  }, '⚖️ Cadastrar processo', '#1d4ed8');
+    showToast('Processo cadastrado \u2713');
+  }, '\u2696 Cadastrar processo');
 }
+
+// Buscar dados do tribunal ao cadastrar processo
+function _npBuscarDataJud(){
+  var num = (document.getElementById('np-num')||{}).value?.trim();
+  if(!num){ showToast('Informe o n\u00famero do processo'); return; }
+  var el = document.getElementById('np-dj-status');
+  if(el) el.innerHTML = '<div style="text-align:center;padding:8px;color:var(--mu)"><span style="font-size:16px">\u23f3</span> Consultando tribunal...</div>';
+
+  djConsultar(num, function(proc, erro){
+    if(erro){
+      if(el) el.innerHTML = '<div style="padding:8px;color:#f59e0b;font-size:11px">\u26a0 '+escapeHtml(erro)+' \u2014 preencha manualmente</div>';
+      return;
+    }
+    if(el) el.innerHTML = '<div style="padding:8px;color:#4ade80;font-size:11px">\u2713 Dados encontrados no tribunal</div>';
+
+    // Preencher campos
+    if(proc.classe && proc.classe.nome){
+      var inp = document.getElementById('np-tipo-acao');
+      if(inp) inp.value = proc.classe.nome;
+      // Detectar natureza pela classe
+      var cls = proc.classe.nome.toLowerCase();
+      var sel = document.getElementById('np-nat');
+      if(sel){
+        if(/trabalh|reclama/i.test(cls)) sel.value='Trabalhista';
+        else if(/previden|aposentad|auxilio|beneficio|inss/i.test(cls)) sel.value='Previdenci\u00e1rio';
+        else if(/fam|divor|aliment|guard|invent/i.test(cls)) sel.value='Fam\u00edlia';
+        else if(/penal|crim/i.test(cls)) sel.value='Penal';
+        else sel.value='C\u00edvel';
+      }
+      // Polo baseado no tipo
+      var polSel = document.getElementById('np-polo');
+      if(polSel){
+        if(/reclam/i.test(cls)) polSel.value='Reclamante';
+        else if(/requer/i.test(cls)) polSel.value='Requerente';
+      }
+    }
+
+    if(proc.orgaoJulgador && proc.orgaoJulgador.nome){
+      var vara = document.getElementById('np-vara');
+      if(vara) vara.value = proc.orgaoJulgador.nome;
+    }
+
+    if(proc.dataAjuizamento){
+      var dt = document.getElementById('np-dt');
+      if(dt) dt.value = proc.dataAjuizamento.slice(0,10);
+    }
+
+    // Preencher adverso a partir das partes
+    if(proc.partes && proc.partes.length){
+      var nomeCliente = (document.getElementById('np-nome')||{}).value?.toLowerCase().trim()||'';
+      var adversos = proc.partes.filter(function(p){
+        return (p.nome||'').toLowerCase()!==nomeCliente && p.polo!=='ATIVO';
+      });
+      if(adversos.length){
+        var advInp = document.getElementById('np-adv');
+        if(advInp) advInp.value = adversos[0].nome||'';
+      }
+      // Se não preencheu nome do cliente, tentar da parte ativa
+      if(!nomeCliente){
+        var ativos = proc.partes.filter(function(p){ return p.polo==='ATIVO'; });
+        if(ativos.length){
+          var nomeInp = document.getElementById('np-nome');
+          if(nomeInp && !nomeInp.value) nomeInp.value = ativos[0].nome||'';
+        }
+      }
+    }
+
+    // Movimentações recentes
+    if(proc.movimentos && proc.movimentos.length){
+      var ultMov = proc.movimentos[0];
+      var dtMov = (ultMov.dataHora||'').slice(0,10);
+      if(el) el.innerHTML += '<div style="font-size:10px;color:var(--mu);margin-top:4px">\u00daltima mov: '+fDt(dtMov)+' \u2014 '+(ultMov.nome||'')+'</div>';
+    }
+  });
+}
+
 
 // ═══════════════════════════════════════════════════
 // ── DASHBOARD FINANCEIRO — HOME ──
