@@ -12055,64 +12055,55 @@ function cmCliChange(){
 
 function novoContato(){
   document.getElementById('novo-menu').style.display='none';
-  abrirModal('👤 Novo Contato', `
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="ctc-tipo-btn on" id="ctc-pf-btn" onclick="setCtcTipo('pf')">🧑 Pessoa Física</button>
-      <button class="ctc-tipo-btn" id="ctc-pj-btn" onclick="setCtcTipo('pj')">🏢 Pessoa Jurídica</button>
-    </div>
-    <div style="margin-bottom:10px">
-      <label class="fm-lbl">Nome completo *</label>
-      <input class="fm-inp" id="nc-nome" placeholder="Nome...">
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <div style="flex:1">
-        <label class="fm-lbl" id="ctc-doc-lbl">CPF</label>
-        <input class="fm-inp" id="nc-doc" placeholder="000.000.000-00" oninput="fmtDocContato()">
-      </div>
-      <div style="flex:1">
-        <label class="fm-lbl">Telefone</label>
-        <input class="fm-inp" id="nc-tel" placeholder="(00) 00000-0000">
-      </div>
-    </div>
-    <div id="nc-pis-row" style="display:flex;gap:8px;margin-bottom:10px">
-      <div style="flex:1">
-        <label class="fm-lbl">PIS/PASEP/NIT</label>
-        <input class="fm-inp" id="nc-pis" placeholder="000.00000.00-0">
-      </div>
-      <div style="flex:1">
-        <label class="fm-lbl">E-mail</label>
-        <input class="fm-inp" id="nc-email" type="email" placeholder="email@exemplo.com">
-      </div>
-    </div>
-    <div style="margin-bottom:10px">
-      <label class="fm-lbl">Observações</label>
-      <input class="fm-inp" id="nc-obs" placeholder="Cargo, relação, notas...">
-    </div>
-  `, async ()=>{
-    var nome = document.getElementById('nc-nome')?.value.trim();
+  abrirModal('\ud83d\udc64 Novo Contato', ''
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+      +'<button class="ctc-tipo-btn on" id="ctc-pf-btn" onclick="setCtcTipo(\'pf\')">\ud83e\uddd1 Pessoa F\u00edsica</button>'
+      +'<button class="ctc-tipo-btn" id="ctc-pj-btn" onclick="setCtcTipo(\'pj\')">\ud83c\udfe2 Pessoa Jur\u00eddica</button>'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><label class="fm-lbl">Nome completo *</label>'
+      +'<input class="fm-inp" id="nc-nome" placeholder="Nome..."></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+      +'<div style="flex:1"><label class="fm-lbl" id="ctc-doc-lbl">CPF</label>'
+        +'<input class="fm-inp" id="nc-doc" placeholder="000.000.000-00" oninput="fmtDocContato()"></div>'
+      +'<div style="flex:1" id="nc-rg-row"><label class="fm-lbl">RG</label>'
+        +'<input class="fm-inp" id="nc-rg" placeholder="MG-00.000.000"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+      +'<div style="flex:1"><label class="fm-lbl">Telefone</label>'
+        +'<input class="fm-inp" id="nc-tel" placeholder="(00) 00000-0000"></div>'
+      +'<div style="flex:1"><label class="fm-lbl">E-mail</label>'
+        +'<input class="fm-inp" id="nc-email" type="email" placeholder="email@exemplo.com"></div>'
+    +'</div>'
+    +'<div id="nc-pis-row" style="display:flex;gap:8px;margin-bottom:10px">'
+      +'<div style="flex:1"><label class="fm-lbl">PIS/PASEP/NIT</label>'
+        +'<input class="fm-inp" id="nc-pis" placeholder="000.00000.00-0"></div>'
+      +'<div style="flex:1"><label class="fm-lbl">Endere\u00e7o</label>'
+        +'<input class="fm-inp" id="nc-end" placeholder="Rua, n\u00ba, bairro, cidade"></div>'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><label class="fm-lbl">Observa\u00e7\u00f5es</label>'
+      +'<input class="fm-inp" id="nc-obs" placeholder="Cargo, rela\u00e7\u00e3o, notas..."></div>',
+  function(){
+    var nome = (document.getElementById('nc-nome')?.value||'').trim();
     if(!nome){ showToast('Informe o nome'); return; }
+    // Verificar duplicata por nome
+    var dup = ctcTodos().find(function(c){ return (c.nome||'').toLowerCase().trim()===nome.toLowerCase(); });
+    if(dup && !confirm('Contato "'+nome+'" j\u00e1 existe. Criar mesmo assim?')) return;
     var tipo = document.getElementById('ctc-pj-btn')?.classList.contains('on') ? 'pj' : 'pf';
     var novoCtc = {
-      id:'ctc'+genId(), nome:nome,
-      tipo:tipo, doc: document.getElementById('nc-doc')?.value||'',
-      pis: document.getElementById('nc-pis')?.value||'',
-      tel:  document.getElementById('nc-tel')?.value||'',
-      email:document.getElementById('nc-email')?.value||'',
-      obs:  document.getElementById('nc-obs')?.value||''
+      id:'ctc'+genId(), nome:nome, tipo:tipo,
+      doc: (document.getElementById('nc-doc')?.value||'').trim(),
+      rg: (document.getElementById('nc-rg')?.value||'').trim(),
+      pis: (document.getElementById('nc-pis')?.value||'').trim(),
+      tel: (document.getElementById('nc-tel')?.value||'').trim(),
+      email: (document.getElementById('nc-email')?.value||'').trim(),
+      endereco: (document.getElementById('nc-end')?.value||'').trim(),
+      obs: (document.getElementById('nc-obs')?.value||'').trim()
     };
     localContatos.push(novoCtc); invalidarCtcCache();
-    // Salvar localmente primeiro (imediato)
-    lsSet('co_ctc', JSON.stringify(localContatos));
-    // Depois enviar ao Supabase com confirmação visual
-    fecharModal();
+    sbSet('co_ctc', localContatos);
+    marcarAlterado(); fecharModal();
     ctcRender();
-    showToast('Salvando contato...');
-    sbSet('co_ctc', localContatos).then(()=>{
-      ctcRender();
-    }).catch(()=>{
-      showToast('⚠ Contato salvo localmente — sincronizará ao reconectar');
-    });
-    showToast('Contato adicionado ✓');
+    showToast('Contato adicionado \u2713');
   }, 'Salvar');
 }
 function fmtDocContato(){
@@ -12937,16 +12928,19 @@ function setCtcTipo(tipo){
   var lbl = document.getElementById('ctc-doc-lbl');
   var inp = document.getElementById('nc-doc');
   var pisRow = document.getElementById('nc-pis-row');
+  var rgRow = document.getElementById('nc-rg-row');
   if(tipo==='pf'){
     pfBtn?.classList.add('on'); pjBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CPF';
     if(inp) inp.placeholder='000.000.000-00';
     if(pisRow) pisRow.style.display='flex';
+    if(rgRow) rgRow.style.display='block';
   } else {
     pjBtn?.classList.add('on'); pfBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CNPJ';
     if(inp) inp.placeholder='00.000.000/0000-00';
     if(pisRow) pisRow.style.display='none';
+    if(rgRow) rgRow.style.display='none';
   }
 }
 
