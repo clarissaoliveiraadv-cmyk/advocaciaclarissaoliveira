@@ -39,6 +39,8 @@ var _SB_SYNC = new Set([
 
 var _sbOnline = false;
 var _sbUsuario = localStorage.getItem('co_usuario')||'clarissa';
+// ID único desta sessão/aba — evita que realtime ignore updates do mesmo usuário em outro computador
+var _sbSessionId = 'sess_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
 
 // ═══════════════════════════════════════════════════════
 // ══ ISOLAMENTO POR USUÁRIO — prefixo nas chaves ══════
@@ -48,9 +50,9 @@ var _sbUsuario = localStorage.getItem('co_usuario')||'clarissa';
 // Evita vazamento de dados ao trocar de conta.
 //
 function _lsKey(chave){
-  // Chaves de sistema (sem prefixo)
-  if(chave==='co_usuario'||chave==='co_last_user') return chave;
-  return _sbUsuario+'::'+chave;
+  // Escritório compartilhado — todos os usuários acessam os mesmos dados
+  // Prefixo removido para garantir sync entre computadores
+  return chave;
 }
 
 // Wrappers de localStorage com prefixo por usuário
@@ -190,7 +192,8 @@ async function sbSet(chave, valor){
         headers:Object.assign({}, _sbH(), {'Prefer':'resolution=merge-duplicates,return=minimal'}),
         body: JSON.stringify({chave:chave, valor:valor,
           updated_at: new Date().toISOString(),
-          updated_by: _sbUsuario
+          updated_by: _sbUsuario,
+          _session_id: _sbSessionId
         })
       });
       if(r.ok) return;
@@ -281,7 +284,9 @@ function sbRealtime(){
       try{
         const msg = JSON.parse(e.data);
         const rec = msg.payload?.data?.record;
-        if(!rec||rec.updated_by===_sbUsuario) return;
+        if(!rec) return;
+        // Ignorar apenas updates DESTA sessão (não de outro computador do mesmo usuário)
+        if(rec._session_id && rec._session_id===_sbSessionId) return;
         const {chave,valor,updated_by} = rec;
         // Merge com dados locais antes de aplicar
         try {
