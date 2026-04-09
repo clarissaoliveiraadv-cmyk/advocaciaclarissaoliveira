@@ -14289,7 +14289,14 @@ function goView(v,btn){
   var navId=navMap[v];
   if(navId){ var nb=document.getElementById(navId); if(nb) nb.classList.add('on'); }
   if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); renderHomeIniciais(); }
-  if(v==='vcl'){ doSearch(); }
+  if(v==='vcl'){
+    // Restaurar sidebar de clientes se estava escondida
+    var vclWrap=document.querySelector('.vcl-wrap');
+    if(vclWrap) vclWrap.classList.remove('fin-hidden');
+    var fichaVcl=document.getElementById('ficha-vcl');
+    if(fichaVcl&&!AC){ fichaVcl.classList.remove('on'); fichaVcl.innerHTML=''; var emp2=document.getElementById('emp2'); if(emp2) emp2.style.display='flex'; }
+    doSearch();
+  }
   if(v==='vf'){ renderFinGlobal(); var baj=document.getElementById('btn-ajuda-fin'); if(baj) baj.style.display='flex'; }
   else { var baj2=document.getElementById('btn-ajuda-fin'); if(baj2) baj2.style.display='none'; }
   if(v==='vcalc'){ calcRender(); }
@@ -14827,9 +14834,25 @@ function _renderFichaPessoa(grp){
   html += '</div>';
 
   // Botão voltar
-  html += '<button onclick="AC=null;AC_PROC=null;var e=document.getElementById(\'emp2\');if(e)e.style.display=\'flex\';var f=document.getElementById(\'ficha-vcl\');if(f){f.classList.remove(\'on\');f.innerHTML=\'\';};renderVclEmpty();doSearch()" style="font-size:11px;padding:6px 14px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u2190 Voltar para lista</button>';
+  html += '<button onclick="voltarParaLista()" style="font-size:11px;padding:6px 14px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u2190 Voltar para lista</button>';
 
   return html+'</div>';
+}
+
+// Voltar da ficha da pessoa/processo para a lista de clientes
+function voltarParaLista(){
+  AC=null; AC_PROC=null;
+  var vclWrap = document.querySelector('.vcl-wrap');
+  if(vclWrap){ vclWrap.classList.remove('fin-hidden'); if(_vclView==='table') vclWrap.classList.add('vcl-full'); }
+  _finRemoverSidebar();
+  var vclMain = document.querySelector('.vcl-main');
+  if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
+  var emp2 = document.getElementById('emp2');
+  if(emp2) emp2.style.display='flex';
+  var ficha = document.getElementById('ficha-vcl');
+  if(ficha){ ficha.classList.remove('on'); ficha.innerHTML=''; }
+  renderVclEmpty();
+  doSearch();
 }
 
 // Abrir processo específico (a ficha completa com abas)
