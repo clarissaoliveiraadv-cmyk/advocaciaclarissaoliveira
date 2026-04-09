@@ -10718,23 +10718,23 @@ function sbSalvarClientes(){
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
 async function sbCarregarClientes(){
   try{
-    const r = await fetch(
-      `${_SB_URL}/rest/v1/${_SB_TBL}?chave=in.(co_clientes,co_clientes_consulta)&select=chave,valor`,
+    var r = await fetch(
+      _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=in.(co_clientes,co_clientes_consulta)&select=chave,valor',
       {headers:_sbH(), signal:AbortSignal.timeout(6000)}
     );
     if(!r.ok) return false;
-    const rows = await r.json();
-    if(!rows.length) return false; // nunca foi salvo — usar embutidos
-    let processos = [], consultas = [];
-    rows.forEach(row=>{
-      if(row.chave==='co_clientes') processos = Array.isArray(row.valor)?row.valor:[];
-      if(row.chave==='co_clientes_consulta') consultas = Array.isArray(row.valor)?row.valor:[];
+    var rows = await r.json();
+    if(!rows.length) return false;
+    var remoto = [];
+    rows.forEach(function(row){
+      if(Array.isArray(row.valor)) remoto = remoto.concat(row.valor);
     });
-    if(processos.length){
-      CLIENTS = [...processos, ...consultas];
-      return true;
-    }
-    return false;
+    if(!remoto.length) return false;
+    // MERGE com dados locais — preservar novos processos que ainda não chegaram ao Supabase
+    var merged = _sbMergeArrays(CLIENTS, remoto);
+    CLIENTS.length = 0;
+    merged.forEach(function(c){ CLIENTS.push(c); });
+    return true;
   }catch(e){ return false; }
 }
 
