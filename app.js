@@ -11639,6 +11639,26 @@ function _finAutoStatusVencidos(){
 // Executar auto-status ao carregar
 try { _finAutoStatusVencidos(); } catch(e){}
 
+// Corrigir dt_baixa de lançamentos recebidos que ficaram com data errada
+(function _corrigirDtBaixa(){
+  var corrigidos = 0;
+  (localLanc||[]).forEach(function(l){
+    if(!isRec(l)) return;
+    if(!l.data) return;
+    // Se dt_baixa é diferente da data do lançamento E é de abril 2026 (data do bug)
+    if(l.dt_baixa && l.dt_baixa !== l.data && l.dt_baixa.startsWith('2026-04')){
+      l.dt_baixa = l.data;
+      corrigidos++;
+    }
+    // Se não tem dt_baixa mas está recebido
+    if(!l.dt_baixa && isRec(l)){
+      l.dt_baixa = l.data;
+      corrigidos++;
+    }
+  });
+  if(corrigidos > 0) sbSet('co_localLanc', localLanc);
+})();
+
 // ── Limpeza: remover registros de teste de todos os módulos ──
 (function _limparTestes(){
   var testRe = /\bteste?\b/i;
