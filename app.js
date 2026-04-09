@@ -10745,7 +10745,20 @@ async function carregarDados(){
 }
 
 function carregarDadosObj(d){
-  CLIENTS   = d.clientes  || d.clients || [];
+  // Tentar carregar CLIENTS do localStorage primeiro (preserva novos processos)
+  var localClients = null;
+  try { localClients = JSON.parse(lsGet('co_clientes')||'null'); } catch(e){}
+  var embutidos = d.clientes || d.clients || [];
+  if(Array.isArray(localClients) && localClients.length > 0){
+    // Merge: local tem prioridade, embutidos completam
+    CLIENTS = localClients;
+    var localIds = new Set(CLIENTS.map(function(c){return String(c.id);}));
+    embutidos.forEach(function(c){
+      if(!localIds.has(String(c.id))) CLIENTS.push(c);
+    });
+  } else {
+    CLIENTS = embutidos;
+  }
   ALL_LANC  = d.all_lanc  || [];
   FIN_XLSX  = d.financeiro_xlsx || [];
   PEND      = (d.agenda   || d.agenda_pendentes || []).map(p=>({...p,
