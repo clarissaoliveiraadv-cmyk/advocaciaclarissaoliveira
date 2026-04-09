@@ -71,61 +71,57 @@
 </div>
 <div style="margin-left:56px">
 
-<!-- VIEW HOME — DASHBOARD ESTILO PROJURIS -->
+<!-- VIEW HOME — DASHBOARD -->
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- TOPO: KPIs em linha -->
+    <!-- TOPO: KPIs urgentes + botão Novo -->
     <div class="dsh-top-bar">
       <div class="dsh-stats-row">
-        <div class="dsh-stat" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
-          <div id="dsc-ativos" class="dsh-stat-val">—</div>
-          <div class="dsh-stat-lbl">Clientes</div>
-        </div>
-        <div class="dsh-stat" onclick="goView('va',document.getElementById('nav-agenda'))">
+        <div class="dsh-stat" onclick="goView('va',document.getElementById('nav-agenda'))" style="border-color:rgba(201,72,74,.3)">
           <div id="dsc-vencidos" class="dsh-stat-val" style="color:#c9484a">—</div>
-          <div class="dsh-stat-lbl">Prazos vencidos</div>
+          <div class="dsh-stat-lbl">Vencidos</div>
         </div>
-        <div class="dsh-stat" id="dsh-kpi-prazos7">
+        <div class="dsh-stat" id="dsh-kpi-prazos7" style="border-color:rgba(245,158,11,.3)">
           <div id="dsc-prazos7" class="dsh-stat-val" style="color:#f59e0b">—</div>
-          <div class="dsh-stat-lbl">Prazos 7 dias</div>
+          <div class="dsh-stat-lbl">Prazos 7d</div>
         </div>
-        <div class="dsh-stat" id="dsh-kpi-aud7">
+        <div class="dsh-stat" id="dsh-kpi-aud7" style="border-color:rgba(248,118,118,.3)">
           <div id="dsc-aud7" class="dsh-stat-val" style="color:#f87676">—</div>
           <div class="dsh-stat-lbl">Audiências 7d</div>
         </div>
         <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
-          <div id="dsc-fin" class="dsh-stat-val" style="color:#4caf7d">—</div>
-          <div class="dsh-stat-lbl">A receber</div>
-        </div>
-        <div class="dsh-stat" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
           <div id="dsc-saldo" class="dsh-stat-val" style="color:#4ade80">—</div>
-          <div class="dsh-stat-lbl">Saldo escritório</div>
+          <div class="dsh-stat-lbl">Saldo</div>
         </div>
         <div class="dsh-stat" style="cursor:pointer" onclick="_dshRefresh()" title="Clique para atualizar">
           <div id="dsc-lastupd" class="dsh-stat-val" style="color:var(--mu);font-size:12px">—</div>
           <div class="dsh-stat-lbl">Atualizado</div>
         </div>
       </div>
-      <div class="dsh-atalhos-bar">
-        <div class="dsh-at-item" onclick="novoProcesso()"><span class="dsh-at-ico" style="background:rgba(107,20,22,.25)">⚖️</span>Processo</div>
-        <div class="dsh-at-item" onclick="novoTarefaDia()"><span class="dsh-at-ico" style="background:rgba(212,175,55,.12)">📋</span>Tarefa</div>
-        <div class="dsh-at-item" onclick="novoCompromisso()"><span class="dsh-at-ico" style="background:rgba(96,165,250,.12)">📅</span>Compromisso</div>
-        <div class="dsh-at-item" onclick="novoAtendimento()"><span class="dsh-at-ico" style="background:rgba(45,212,191,.12)">💬</span>Atendimento</div>
-        <div class="dsh-at-item" onclick="novoContato()"><span class="dsh-at-ico" style="background:rgba(168,130,255,.12)">👤</span>Contato</div>
-        <div class="dsh-at-item" onclick="abrirColarPublicacao()"><span class="dsh-at-ico" style="background:rgba(239,68,68,.12)">📰</span>Publicação</div>
+      <!-- Botão + Novo com dropdown -->
+      <div style="position:relative;flex-shrink:0">
+        <button onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'" class="btn-bordo" style="padding:8px 16px;font-size:12px">+ Novo</button>
+        <div id="dsh-novo-dd" style="display:none;position:absolute;right:0;top:42px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:100;min-width:180px;overflow:hidden">
+          <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
+          <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
+          <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
+          <div class="dsh-dd-item" onclick="novoAtendimento();document.getElementById('dsh-novo-dd').style.display='none'">💬 Atendimento</div>
+          <div class="dsh-dd-item" onclick="novoContato();document.getElementById('dsh-novo-dd').style.display='none'">👤 Contato</div>
+          <div class="dsh-dd-item" onclick="abrirColarPublicacao();document.getElementById('dsh-novo-dd').style.display='none'">📰 Publicação</div>
+          <div class="dsh-dd-item" onclick="goView('vini');iniRender();document.getElementById('dsh-novo-dd').style.display='none'">📝 Inicial</div>
+        </div>
       </div>
     </div>
 
-    <!-- ALERTAS COMPACTOS (grid 2 colunas) -->
+    <!-- ALERTAS (só se houver) -->
     <div id="home-alerts" class="dsh-alerts-compact"></div>
 
-    <!-- 2 COLUNAS: TAREFAS + PRÓXIMOS COMPROMISSOS | FINANCEIRO -->
+    <!-- 2 COLUNAS -->
     <div class="dsh-grid2">
 
-      <!-- COLUNA 1: TAREFAS + COMPROMISSOS -->
+      <!-- COLUNA 1: TAREFAS -->
       <div class="dsh-col">
-        <!-- Tarefas -->
         <div class="dsh-card">
           <div class="dsh-card-head">
             <div class="dsh-card-title">
@@ -141,24 +137,29 @@
               <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
             </div>
           </div>
-          <div class="dsh-card-body" style="max-height:280px;overflow-y:auto">
+          <div class="dsh-card-body" style="max-height:260px;overflow-y:auto">
             <div id="hc-list"></div>
             <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
           </div>
         </div>
-        <!-- Próximos compromissos (lista, não calendário) -->
+      </div>
+
+      <!-- COLUNA 2: COMPROMISSOS -->
+      <div class="dsh-col">
         <div class="dsh-card">
           <div class="dsh-card-head">
             <span class="dsh-card-title">Próximos Compromissos</span>
             <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
           </div>
-          <div class="dsh-card-body" style="max-height:220px;overflow-y:auto">
+          <div class="dsh-card-body" style="max-height:260px;overflow-y:auto">
             <div id="home-proximos"></div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- COLUNA 2: FINANCEIRO + CALENDÁRIO -->
+    <!-- LINHA INFERIOR: FINANCEIRO + INICIAIS -->
+    <div class="dsh-grid2" style="margin-top:0">
       <div class="dsh-col">
         <div class="dsh-card">
           <div class="dsh-card-head">
@@ -167,6 +168,17 @@
           </div>
           <div class="dsh-card-body">
             <div id="home-fin-dash"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dsh-col">
+        <div class="dsh-card">
+          <div class="dsh-card-head">
+            <span class="dsh-card-title">Iniciais Pendentes</span>
+            <button onclick="goView('vini');iniRender()" class="dsh-btn dsh-btn-ghost">Ver →</button>
+          </div>
+          <div class="dsh-card-body" style="max-height:200px;overflow-y:auto">
+            <div id="home-iniciais"></div>
           </div>
         </div>
         <div class="dsh-card">
@@ -178,6 +190,7 @@
           </div>
         </div>
       </div>
+    </div>
 
     </div>
   </div>

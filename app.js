@@ -8767,6 +8767,14 @@ function _dshUpdateTimestamp(){
   var el = document.getElementById('dsc-lastupd');
   if(el) el.textContent = _dshLastUpdate.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
+// Fechar dropdown ao clicar fora
+document.addEventListener('click',function(e){
+  var dd = document.getElementById('dsh-novo-dd');
+  if(dd && dd.style.display==='block' && !e.target.closest('[onclick*="dsh-novo-dd"]') && !dd.contains(e.target)){
+    dd.style.display='none';
+  }
+});
+
 function _dshRefresh(){
   invalidarAllPend();
   _finLocaisCache = {};
@@ -8775,6 +8783,7 @@ function _dshRefresh(){
   renderChecklist();
   renderHomeWeek();
   if(typeof renderFinDash==='function') renderFinDash();
+  if(typeof renderHomeIniciais==='function') renderHomeIniciais();
   if(typeof atualizarStats==='function') atualizarStats();
   showToast('\u2713 Dashboard atualizado');
 }
@@ -9001,6 +9010,29 @@ function mostrarTxtModal(txt){
   abrirModal('Resumo do Dia',
     '<div style="background:var(--sf3);border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;color:var(--tx);max-height:300px;overflow-y:auto">'+txt.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>',
     null,null);
+}
+
+// ── Iniciais pendentes no dashboard ──
+function renderHomeIniciais(){
+  var el = document.getElementById('home-iniciais');
+  if(!el) return;
+  var pend = (_iniciais||[]).filter(function(i){return i.status==='pendente'||i.status==='fazendo';});
+  if(!pend.length){
+    el.innerHTML = '<div style="padding:12px;text-align:center;font-size:11px;color:var(--mu)">Nenhuma inicial pendente</div>';
+    return;
+  }
+  var html = '';
+  pend.slice(0,5).forEach(function(i){
+    var corSt = i.status==='fazendo'?'#60a5fa':'#f59e0b';
+    var lblSt = i.status==='fazendo'?'Fazendo':'Pendente';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">'
+      +'<span style="font-size:9px;font-weight:700;color:'+corSt+';min-width:50px">'+lblSt+'</span>'
+      +'<span style="flex:1;font-size:11px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(i.cliente||'\u2014')+'</span>'
+      +'<span style="font-size:9px;color:var(--mu)">'+escapeHtml(i.area||'')+'</span>'
+    +'</div>';
+  });
+  if(pend.length>5) html += '<div style="font-size:10px;color:var(--mu);text-align:center;padding:4px">+' +(pend.length-5)+' mais</div>';
+  el.innerHTML = html;
 }
 
 function renderFinDash(){
@@ -14262,7 +14294,7 @@ function goView(v,btn){
     'vk':'nav-tasks','vct':'nav-contatos','vcalc':'nav-calc','vaudit':'nav-audit'};
   var navId=navMap[v];
   if(navId){ var nb=document.getElementById(navId); if(nb) nb.classList.add('on'); }
-  if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); }
+  if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); renderHomeIniciais(); }
   if(v==='vcl'){ doSearch(); }
   if(v==='vf'){ renderFinGlobal(); var baj=document.getElementById('btn-ajuda-fin'); if(baj) baj.style.display='flex'; }
   else { var baj2=document.getElementById('btn-ajuda-fin'); if(baj2) baj2.style.display='none'; }
