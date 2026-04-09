@@ -75,8 +75,13 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- KPIs com esferas animadas -->
+    <!-- KPIs com esferas -->
     <div class="dsh-kpi-row">
+      <div class="dsh-orb dsh-orb-muted" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
+        <div class="dsh-orb-glow"></div>
+        <div class="dsh-orb-val" id="dsc-ativos">—</div>
+        <div class="dsh-orb-lbl">Clientes</div>
+      </div>
       <div class="dsh-orb dsh-orb-red" onclick="goView('va',document.getElementById('nav-agenda'))">
         <div class="dsh-orb-glow"></div>
         <div class="dsh-orb-val" id="dsc-vencidos">—</div>

@@ -2757,29 +2757,17 @@ body.light #home-proximos { color:#1C1C1E; }
 /* KPI row */
 .dsh-kpi-row {
   display:flex; align-items:center; justify-content:center;
-  gap:16px; padding:16px 20px; flex-wrap:wrap;
+  gap:12px; padding:10px 16px; flex-wrap:wrap;
 }
 
-/* Esfera */
+/* Esfera — estática */
 .dsh-orb {
-  width:88px; height:88px; border-radius:50%;
+  width:76px; height:76px; border-radius:50%;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   position:relative; cursor:pointer;
-  transition:transform .25s ease, box-shadow .25s ease;
-  animation:orbFloat 4s ease-in-out infinite;
+  transition:transform .2s ease, box-shadow .2s ease;
 }
-.dsh-orb:nth-child(2) { animation-delay:.5s; }
-.dsh-orb:nth-child(3) { animation-delay:1s; }
-.dsh-orb:nth-child(4) { animation-delay:1.5s; }
-.dsh-orb:nth-child(5) { animation-delay:2s; }
-.dsh-orb:nth-child(6) { animation-delay:2.5s; }
-
-.dsh-orb:hover { transform:scale(1.12); }
-
-@keyframes orbFloat {
-  0%,100% { transform:translateY(0); }
-  50% { transform:translateY(-4px); }
-}
+.dsh-orb:hover { transform:scale(1.08); }
 
 /* Glow interno */
 .dsh-orb-glow {
@@ -2815,22 +2803,27 @@ body.light #home-proximos { color:#1C1C1E; }
 .dsh-orb-vinho .dsh-orb-val { color:var(--ouro); }
 
 /* Texto da esfera */
-.dsh-orb-val { font-size:20px; font-weight:800; z-index:1; line-height:1.1; }
-.dsh-orb-lbl { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); z-index:1; margin-top:2px; }
+.dsh-orb-val { font-size:17px; font-weight:800; z-index:1; line-height:1.1; }
+.dsh-orb-lbl { font-size:7px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); z-index:1; margin-top:2px; }
 
 /* Glass cards com profundidade */
 .dsh-card-glass {
   background:linear-gradient(135deg,rgba(28,28,28,.9),rgba(22,22,22,.95)) !important;
   border:1px solid rgba(255,255,255,.06) !important;
-  box-shadow:0 4px 24px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.04) !important;
-  border-radius:14px !important;
+  box-shadow:0 4px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  border-radius:12px !important;
   backdrop-filter:blur(12px);
-  transition:box-shadow .25s ease, transform .15s ease;
+  transition:box-shadow .2s ease, transform .15s ease;
 }
 .dsh-card-glass:hover {
-  box-shadow:0 8px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06) !important;
+  box-shadow:0 6px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06) !important;
   transform:translateY(-1px);
 }
+
+/* Grid proporcional */
+.dsh-grid2 { gap:12px !important; padding:0 16px !important; margin-bottom:12px !important; }
+.dsh-card-glass .dsh-card-body { padding:10px 14px !important; }
+.dsh-card-glass .dsh-card-head { padding:10px 14px !important; }
 
 /* Light mode esferas */
 body.light .dsh-orb-red { background:radial-gradient(circle at 35% 35%,#fef2f2,#fce8e8); border-color:#991b1b; }
