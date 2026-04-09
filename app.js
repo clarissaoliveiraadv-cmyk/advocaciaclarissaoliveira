@@ -8439,6 +8439,88 @@ function novoProcesso(){
 }
 
 // Buscar dados do tribunal ao cadastrar processo
+// Novo processo a partir de cliente existente (como Autor ou Réu)
+function _novoProcessoDoCliente(cid, polo){
+  var c = findClientById(cid);
+  if(!c) return;
+  // Fechar menu de opções
+  var dd = document.querySelector('.pj-opcoes-dd'); if(dd) dd.style.display='none';
+
+  abrirModal('\u2696 Novo Processo \u2014 '+escapeHtml(c.cliente)+' como '+polo,
+    '<div style="margin-bottom:12px;background:var(--sf3);border-radius:8px;padding:10px 14px">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--tx)">'+escapeHtml(c.cliente)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu)">Polo: <strong style="color:var(--ouro)">'+polo+'</strong></div>'
+    +'</div>'
+    +'<div class="fm-row">'
+      +'<div style="flex:2"><label class="fm-lbl">N\u00famero do processo <span class="req">*</span></label>'
+        +'<input class="fm-inp" id="npc-num" placeholder="0000000-00.0000.0.00.0000"></div>'
+      +'<div><label class="fm-lbl">&nbsp;</label>'
+        +'<button onclick="_npcBuscarDJ()" class="btn-bordo" style="width:100%;padding:8px 12px">\ud83d\udd0d Buscar</button></div>'
+    +'</div>'
+    +'<div id="npc-dj-status" style="margin-top:8px"></div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div><label class="fm-lbl">Natureza</label>'
+        +'<select class="fm-inp" id="npc-nat"><option>Trabalhista</option><option>Previdenci\u00e1rio</option><option>C\u00edvel</option><option>Fam\u00edlia</option><option>Outro</option></select></div>'
+      +'<div style="flex:2"><label class="fm-lbl">Vara</label>'
+        +'<input class="fm-inp" id="npc-vara" placeholder="Preenchido automaticamente"></div>'
+    +'</div>'
+    +'<div class="fm-row" style="margin-top:8px">'
+      +'<div style="flex:2"><label class="fm-lbl">Parte adversa</label>'
+        +'<input class="fm-inp" id="npc-adv" placeholder="Preenchido automaticamente"></div>'
+      +'<div><label class="fm-lbl">Tipo de a\u00e7\u00e3o</label>'
+        +'<input class="fm-inp" id="npc-tipo" placeholder="Preenchido automaticamente"></div>'
+    +'</div>',
+  function(){
+    var num = (document.getElementById('npc-num')||{}).value?.trim();
+    if(!num){ showToast('Informe o n\u00famero do processo'); return; }
+    var id = genId();
+    var novoProc = {
+      id:id, pasta:'', cliente:c.cliente, natureza:document.getElementById('npc-nat')?.value||'',
+      numero:num, comarca:document.getElementById('npc-vara')?.value||'',
+      tipo_acao:document.getElementById('npc-tipo')?.value||'',
+      adverso:document.getElementById('npc-adv')?.value||'',
+      polo:polo, data_inicio:new Date().toISOString().slice(0,10),
+      advogado:'Clarissa de Oliveira', tipo:'processo', status_consulta:'processo',
+      partes:[
+        {nome:c.cliente, condicao:polo, cliente:'Sim'},
+        {nome:document.getElementById('npc-adv')?.value||'', condicao:_poloAdverso(polo), cliente:'N\u00e3o'}
+      ],
+      movimentacoes:[], agenda:[]
+    };
+    // Copiar dados extras do cliente original
+    if(tasks[cid]?.extra) tasks[id] = {extra:Object.assign({},tasks[cid].extra)};
+    CLIENTS.push(novoProc);
+    sbSet('co_tasks', tasks);
+    sbSalvarClientes();
+    marcarAlterado();
+    montarClientesAgrupados();
+    fecharModal();
+    doSearch();
+    showToast('Processo cadastrado para '+c.cliente+' como '+polo+' \u2713');
+  }, '\u2696 Cadastrar');
+}
+
+function _npcBuscarDJ(){
+  var num = (document.getElementById('npc-num')||{}).value?.trim();
+  if(!num){ showToast('Informe o n\u00famero'); return; }
+  var el = document.getElementById('npc-dj-status');
+  if(el) el.innerHTML = '<div style="text-align:center;padding:6px;color:var(--mu)">\u23f3 Consultando...</div>';
+  djConsultar(num, function(proc, erro){
+    if(erro){ if(el) el.innerHTML = '<div style="padding:6px;color:#f59e0b;font-size:11px">\u26a0 '+escapeHtml(erro)+'</div>'; return; }
+    if(el) el.innerHTML = '<div style="padding:6px;color:#4ade80;font-size:11px">\u2713 Dados encontrados</div>';
+    if(proc.classe?.nome){
+      var inp = document.getElementById('npc-tipo'); if(inp) inp.value=proc.classe.nome;
+      var cls=proc.classe.nome.toLowerCase(), sel=document.getElementById('npc-nat');
+      if(sel){ if(/trabalh|reclama/.test(cls)) sel.value='Trabalhista'; else if(/previden/.test(cls)) sel.value='Previdenci\u00e1rio'; else sel.value='C\u00edvel'; }
+    }
+    if(proc.orgaoJulgador?.nome){ var v=document.getElementById('npc-vara'); if(v) v.value=proc.orgaoJulgador.nome; }
+    if(proc.partes?.length){
+      var advs = proc.partes.filter(function(p){return p.polo!=='ATIVO';});
+      if(advs.length){ var a=document.getElementById('npc-adv'); if(a) a.value=advs[0].nome||''; }
+    }
+  });
+}
+
 function _npBuscarDataJud(){
   var num = (document.getElementById('np-num')||{}).value?.trim();
   if(!num){ showToast('Informe o n\u00famero do processo'); return; }
@@ -15398,6 +15480,10 @@ function renderFicha(c, grp=null){
               <div class="pj-opcoes-item" onclick="reativarProcesso(${c.id})">↩ Reativar Processo</div>
               `}
               ${c.numero?`<div class="pj-opcoes-item" onclick="djSincronizar(${c.id})">🔄 Verificar Tribunal</div>`:''}
+              <div class="pj-opcoes-sep"></div>
+              <div class="pj-opcoes-group">Novo Processo</div>
+              <div class="pj-opcoes-item" onclick="_novoProcessoDoCliente(${c.id},'Autor')">\u2696 Novo processo como Autor</div>
+              <div class="pj-opcoes-item" onclick="_novoProcessoDoCliente(${c.id},'R\u00e9u')">\u2696 Novo processo como R\u00e9u</div>
               <div class="pj-opcoes-sep"></div>
               <div class="pj-opcoes-group">Adicionar</div>
               <div class="pj-opcoes-item" onclick="abrirModalMov(${c.id})">📋 Adicionar Movimentação</div>
