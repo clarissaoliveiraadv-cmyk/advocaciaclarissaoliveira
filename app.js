@@ -8984,6 +8984,11 @@ function finBaixarLanc(cid, lid, direcao){
   }, 'Confirmar baixa');
 }
 
+function _poloAdverso(polo){
+  var mapa = {'Autor':'R\u00e9u','R\u00e9u':'Autor','Requerente':'Requerido','Requerido':'Requerente','Reclamante':'Reclamado','Reclamado':'Reclamante','Apelante':'Apelado'};
+  return mapa[polo]||'R\u00e9u';
+}
+
 function novoProcesso(){
   document.getElementById('novo-menu').style.display='none';
 
@@ -9055,7 +9060,7 @@ function novoProcesso(){
       </div>
     </div>
     <div style="margin-top:10px;text-align:right">
-      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(2)'),'np-s2')"></button>
+      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(2)'),'np-s2')">Pr\u00f3ximo: Processo \u2192</button>
     </div>
   </div>
 
@@ -9097,7 +9102,7 @@ function novoProcesso(){
     </div>
     <div style="margin-top:10px;display:flex;justify-content:space-between">
       <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(1)'),'np-s1')">← Voltar</button>
-      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(3)'),'np-s3')"></button>
+      <button class="btn-bordo btn-bordo-sm" onclick="cadSwTab(document.querySelector('#np-tabs .cad-tab:nth-child(3)'),'np-s3')">Pr\u00f3ximo: Partes \u2192</button>
     </div>
   </div>
 
@@ -9176,14 +9181,18 @@ function novoProcesso(){
     if(!g('comarca')) return alert('Comarca obrigatória (aba Processo)');
     if(!g('adv'))     return alert('Parte adversa obrigatória (aba Partes)');
 
-    const id = Date.now();
-    const novoCliente = {
-      id,
-      pasta: 'P-'+id,
+    // Verificar se cliente já existe pelo nome
+    var existente = findClientByName(g('nome'));
+    if(existente && !confirm('Cliente "'+g('nome')+'" j\u00e1 existe (Pasta '+existente.pasta+'). Criar novo processo mesmo assim?')) return;
+
+    var id = genId();
+    var novoCliente = {
+      id:id,
+      pasta: '',
       cliente: g('nome'),
       natureza: g('nat'),
       numero: g('num'),
-      comarca: g('comarca') + (g('vara') ? ' — '+g('vara') : ''),
+      comarca: g('comarca') + (g('vara') ? ' \u2014 '+g('vara') : ''),
       instancia: g('instancia'),
       tipo_acao: g('tipo_acao'),
       adverso: g('adv'),
@@ -9198,7 +9207,7 @@ function novoProcesso(){
       status_consulta: 'processo',
       partes: [
         {nome: g('nome'), condicao: g('polo'), cliente: 'Sim'},
-        {nome: g('adv'),  condicao: g('polo')==='Autor'?'Réu':'Autor', cliente: 'Não'}
+        {nome: g('adv'),  condicao: _poloAdverso(g('polo')), cliente: 'N\u00e3o'}
       ],
       movimentacoes: [], agenda: []
     };
