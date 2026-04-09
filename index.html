@@ -12,7 +12,7 @@
 <meta name="description" content="Sistema de gestão para escritório de advocacia">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23510f10' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' fill='%23D4AF37' text-anchor='middle' font-family='serif'>CO</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=50">
+<link rel="stylesheet" href="styles.css?v=51">
 </head>
 <body>
 
@@ -75,46 +75,17 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- KPIs com esferas -->
+    <!-- KPIs circulares -->
     <div class="dsh-kpi-row">
-      <div class="dsh-orb dsh-orb-muted" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-ativos">—</div>
-        <div class="dsh-orb-lbl">Clientes</div>
-      </div>
-      <div class="dsh-orb dsh-orb-red" onclick="goView('va',document.getElementById('nav-agenda'))">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-vencidos">—</div>
-        <div class="dsh-orb-lbl">Vencidos</div>
-      </div>
-      <div class="dsh-orb dsh-orb-amber" id="dsh-kpi-prazos7">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-prazos7">—</div>
-        <div class="dsh-orb-lbl">Prazos 7d</div>
-      </div>
-      <div class="dsh-orb dsh-orb-rose" id="dsh-kpi-aud7">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-aud7">—</div>
-        <div class="dsh-orb-lbl">Audiências</div>
-      </div>
-      <div class="dsh-orb dsh-orb-green" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-saldo">—</div>
-        <div class="dsh-orb-lbl">Saldo</div>
-      </div>
-      <div class="dsh-orb dsh-orb-muted" onclick="_dshRefresh()" title="Atualizar">
-        <div class="dsh-orb-glow"></div>
-        <div class="dsh-orb-val" id="dsc-lastupd" style="font-size:13px">—</div>
-        <div class="dsh-orb-lbl">Atualizado</div>
-      </div>
-      <!-- + Novo -->
+      <div class="dsh-orb dsh-orb-muted" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-ativos">—</div><div class="dsh-orb-lbl">Clientes</div></div>
+      <div class="dsh-orb dsh-orb-red" onclick="goView('va',document.getElementById('nav-agenda'))"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-vencidos">—</div><div class="dsh-orb-lbl">Vencidos</div></div>
+      <div class="dsh-orb dsh-orb-amber"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-prazos7">—</div><div class="dsh-orb-lbl">Prazos 7d</div></div>
+      <div class="dsh-orb dsh-orb-rose"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-aud7">—</div><div class="dsh-orb-lbl">Audiências</div></div>
+      <div class="dsh-orb dsh-orb-green" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-saldo">—</div><div class="dsh-orb-lbl">Saldo</div></div>
+      <div class="dsh-orb dsh-orb-muted" onclick="_dshRefresh()" title="Atualizar"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-lastupd" style="font-size:13px">—</div><div class="dsh-orb-lbl">Atualizado</div></div>
       <div style="position:relative">
-        <div class="dsh-orb dsh-orb-vinho" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'">
-          <div class="dsh-orb-glow"></div>
-          <div class="dsh-orb-val" style="font-size:22px">+</div>
-          <div class="dsh-orb-lbl">Novo</div>
-        </div>
-        <div id="dsh-novo-dd" style="display:none;position:absolute;left:50%;transform:translateX(-50%);top:100px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:100;min-width:200px;overflow:hidden">
+        <div class="dsh-orb dsh-orb-vinho" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" style="font-size:22px">+</div><div class="dsh-orb-lbl">Novo</div></div>
+        <div id="dsh-novo-dd" style="display:none;position:absolute;left:50%;transform:translateX(-50%);top:82px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:100;min-width:200px;overflow:hidden">
           <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
           <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
           <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
@@ -127,66 +98,56 @@
     </div>
 
     <!-- ALERTAS -->
-    <div id="home-alerts" class="dsh-alerts-compact"></div>
+    <div id="home-alerts" class="dsh-alerts-compact" style="padding:0 16px"></div>
 
-    <!-- 2 COLUNAS SIMÉTRICAS -->
-    <div class="dsh-grid2">
-      <!-- COLUNA 1 -->
-      <div class="dsh-col">
-        <div class="dsh-card dsh-card-glass">
-          <div class="dsh-card-head">
-            <div class="dsh-card-title">
-              <span>Tarefas do Dia</span>
-              <div class="dsh-tabs-mini">
-                <button onclick="hcSetTab('tarefas',this)" id="hctab-tarefas" class="dsh-tab-btn on">Tarefas <span id="hctab-tarefas-n"></span></button>
-                <button onclick="hcSetTab('sistema',this)" id="hctab-sistema" class="dsh-tab-btn">Admin</button>
-              </div>
-            </div>
-            <div class="dsh-card-actions">
-              <button onclick="novoTarefaDia()" class="dsh-btn">+ Nova</button>
-              <button onclick="gerarResumoWpp()" class="dsh-btn dsh-btn-wpp">📲 WPP</button>
-              <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
-            </div>
+    <!-- GRID 3 COLUNAS -->
+    <div class="dsh-grid3">
+      <!-- COL 1: Tarefas -->
+      <div class="dsh-panel">
+        <div class="dsh-panel-head">
+          <span class="dsh-panel-title">Tarefas do Dia</span>
+          <div class="dsh-tabs-mini">
+            <button onclick="hcSetTab('tarefas',this)" id="hctab-tarefas" class="dsh-tab-btn on">Tarefas <span id="hctab-tarefas-n"></span></button>
+            <button onclick="hcSetTab('sistema',this)" id="hctab-sistema" class="dsh-tab-btn">Admin</button>
           </div>
-          <div class="dsh-card-body" style="max-height:280px;overflow-y:auto">
-            <div id="hc-list"></div>
-            <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
+          <div class="dsh-panel-actions">
+            <button onclick="novoTarefaDia()" class="dsh-btn">+ Nova</button>
+            <button onclick="gerarResumoWpp()" class="dsh-btn dsh-btn-wpp">📲 WPP</button>
+            <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
           </div>
         </div>
-        <div class="dsh-card dsh-card-glass">
-          <div class="dsh-card-head">
-            <span id="fin-mes-lbl" class="dsh-card-title">Financeiro</span>
-            <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
-          </div>
-          <div class="dsh-card-body">
-            <div id="home-fin-dash"></div>
-          </div>
+        <div class="dsh-panel-body" style="max-height:320px;overflow-y:auto">
+          <div id="hc-list"></div>
+          <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
         </div>
       </div>
-      <!-- COLUNA 2 -->
-      <div class="dsh-col">
-        <div class="dsh-card dsh-card-glass">
-          <div class="dsh-card-head">
-            <span class="dsh-card-title">Próximos Compromissos</span>
-            <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
-          </div>
-          <div class="dsh-card-body" style="max-height:280px;overflow-y:auto">
-            <div id="home-proximos"></div>
-          </div>
+
+      <!-- COL 2: Compromissos + Calendário -->
+      <div class="dsh-panel">
+        <div class="dsh-panel-head">
+          <span class="dsh-panel-title">Compromissos</span>
+          <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
         </div>
-        <div class="dsh-card dsh-card-glass">
-          <div class="dsh-card-head">
-            <span class="dsh-card-title">Iniciais Pendentes</span>
-            <button onclick="goView('vini');iniRender()" class="dsh-btn dsh-btn-ghost">Ver →</button>
-          </div>
-          <div class="dsh-card-body" style="max-height:160px;overflow-y:auto">
-            <div id="home-iniciais"></div>
-          </div>
+        <div class="dsh-panel-body" style="max-height:200px;overflow-y:auto">
+          <div id="home-proximos"></div>
         </div>
-        <div class="dsh-card dsh-card-glass">
-          <div class="dsh-card-head"><span class="dsh-card-title">Calendário</span></div>
-          <div class="dsh-card-body"><div id="home-week"></div></div>
+        <div class="dsh-panel-divider"></div>
+        <div class="dsh-panel-body"><div id="home-week"></div></div>
+      </div>
+
+      <!-- COL 3: Financeiro + Iniciais -->
+      <div class="dsh-panel">
+        <div class="dsh-panel-head">
+          <span id="fin-mes-lbl" class="dsh-panel-title">Financeiro</span>
+          <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
         </div>
+        <div class="dsh-panel-body"><div id="home-fin-dash"></div></div>
+        <div class="dsh-panel-divider"></div>
+        <div class="dsh-panel-head">
+          <span class="dsh-panel-title">Iniciais Pendentes</span>
+          <button onclick="goView('vini');iniRender()" class="dsh-btn dsh-btn-ghost">Ver →</button>
+        </div>
+        <div class="dsh-panel-body" style="max-height:140px;overflow-y:auto"><div id="home-iniciais"></div></div>
       </div>
     </div>
 

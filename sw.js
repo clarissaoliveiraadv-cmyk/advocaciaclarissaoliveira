@@ -1,6 +1,6 @@
 // Service Worker — Clarissa Oliveira Advocacia
 // Phase 4: cache offline para uso em campo sem internet
-const CACHE_NAME = 'co-advocacia-v50';
+const CACHE_NAME = 'co-advocacia-v51';
 const ASSETS = [
   './',
   './index.html',
