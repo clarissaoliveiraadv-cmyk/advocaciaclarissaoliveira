@@ -1327,12 +1327,15 @@ function novoTarefaDia(){
   `,()=>{
     const texto = document.getElementById('ntd-txt')?.value.trim();
     if(!texto) return alert('Descreva a tarefa');
+    var cliNome = document.getElementById('ntd-cli')?.value.trim()||'';
+    var cliMatch = cliNome ? findClientByName(cliNome) : null;
     vkTasks.push({
-      id: 'vk'+Date.now(),
+      id: 'vk'+genId(),
       titulo: texto,
       tipo:        document.getElementById('ntd-tipo')?.value||'tarefa',
       responsavel: document.getElementById('ntd-resp')?.value||'Clarissa',
-      cliente:     document.getElementById('ntd-cli')?.value.trim()||'',
+      cliente:     cliNome,
+      processo:    cliMatch ? cliMatch.id : 0,
       prioridade: 'media',
       prazo: hoje, paraHoje: hoje,
       status: 'todo', origem: 'manual'
@@ -1341,6 +1344,12 @@ function novoTarefaDia(){
     fecharModal();
     renderChecklist();
     marcarAlterado();
+    // Re-renderizar pasta se aberta
+    if(cliMatch){
+      var elTp = document.getElementById('tp7-list-'+cliMatch.id);
+      if(elTp) elTp.innerHTML = _renderTarefasPasta(cliMatch.id);
+    }
+    showToast('Tarefa criada \u2713');
   },'Adicionar');
 }
 
@@ -1901,6 +1910,11 @@ function vkNovaTask(tipoDefault='tarefa'){
       origem:'manual'
     });
     vkSalvar(); fecharModal(); vkRender(); marcarAlterado();
+    // Re-renderizar pasta se vinculada
+    if(_procId){
+      var elTp = document.getElementById('tp7-list-'+_procId);
+      if(elTp) elTp.innerHTML = _renderTarefasPasta(_procId);
+    }
     showToast('Tarefa criada \u2713');
   },'\u2705 Criar Tarefa');
 }
