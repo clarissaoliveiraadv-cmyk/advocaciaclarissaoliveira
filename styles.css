@@ -2749,3 +2749,98 @@ body.light #home-proximos { color:#1C1C1E; }
 }
 .dsh-dd-item:hover { background:var(--sf3); }
 .dsh-dd-item:last-child { border-bottom:none; }
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD — ESFERAS ANIMADAS + GLASS CARDS
+═══════════════════════════════════════════════ */
+
+/* KPI row */
+.dsh-kpi-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:16px; padding:16px 20px; flex-wrap:wrap;
+}
+
+/* Esfera */
+.dsh-orb {
+  width:88px; height:88px; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  position:relative; cursor:pointer;
+  transition:transform .25s ease, box-shadow .25s ease;
+  animation:orbFloat 4s ease-in-out infinite;
+}
+.dsh-orb:nth-child(2) { animation-delay:.5s; }
+.dsh-orb:nth-child(3) { animation-delay:1s; }
+.dsh-orb:nth-child(4) { animation-delay:1.5s; }
+.dsh-orb:nth-child(5) { animation-delay:2s; }
+.dsh-orb:nth-child(6) { animation-delay:2.5s; }
+
+.dsh-orb:hover { transform:scale(1.12); }
+
+@keyframes orbFloat {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-4px); }
+}
+
+/* Glow interno */
+.dsh-orb-glow {
+  position:absolute; inset:0; border-radius:50%;
+  opacity:.2; filter:blur(8px);
+  transition:opacity .3s;
+}
+.dsh-orb:hover .dsh-orb-glow { opacity:.4; }
+
+/* Cores */
+.dsh-orb-red { background:radial-gradient(circle at 35% 35%,#3a1111,#1a0808); border:2px solid #c9484a; box-shadow:0 4px 20px rgba(201,72,74,.2); }
+.dsh-orb-red .dsh-orb-glow { background:#c9484a; }
+.dsh-orb-red .dsh-orb-val { color:#f87676; }
+
+.dsh-orb-amber { background:radial-gradient(circle at 35% 35%,#2a1f08,#1a1408); border:2px solid #f59e0b; box-shadow:0 4px 20px rgba(245,158,11,.15); }
+.dsh-orb-amber .dsh-orb-glow { background:#f59e0b; }
+.dsh-orb-amber .dsh-orb-val { color:#fbbf24; }
+
+.dsh-orb-rose { background:radial-gradient(circle at 35% 35%,#2a0e0e,#1a0808); border:2px solid #f87676; box-shadow:0 4px 20px rgba(248,118,118,.15); }
+.dsh-orb-rose .dsh-orb-glow { background:#f87676; }
+.dsh-orb-rose .dsh-orb-val { color:#fca5a5; }
+
+.dsh-orb-green { background:radial-gradient(circle at 35% 35%,#0a1f12,#081a0e); border:2px solid #4ade80; box-shadow:0 4px 20px rgba(76,175,125,.2); }
+.dsh-orb-green .dsh-orb-glow { background:#4ade80; }
+.dsh-orb-green .dsh-orb-val { color:#4ade80; }
+
+.dsh-orb-muted { background:radial-gradient(circle at 35% 35%,#1f1f1f,#141414); border:2px solid var(--bd); box-shadow:0 4px 12px rgba(0,0,0,.2); }
+.dsh-orb-muted .dsh-orb-glow { background:var(--bd); }
+.dsh-orb-muted .dsh-orb-val { color:var(--mu); }
+
+.dsh-orb-vinho { background:radial-gradient(circle at 35% 35%,#2a0a0b,#1a0606); border:2px solid var(--vinho-l); box-shadow:0 4px 20px rgba(107,20,22,.3); }
+.dsh-orb-vinho .dsh-orb-glow { background:var(--vinho-l); }
+.dsh-orb-vinho .dsh-orb-val { color:var(--ouro); }
+
+/* Texto da esfera */
+.dsh-orb-val { font-size:20px; font-weight:800; z-index:1; line-height:1.1; }
+.dsh-orb-lbl { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--mu); z-index:1; margin-top:2px; }
+
+/* Glass cards com profundidade */
+.dsh-card-glass {
+  background:linear-gradient(135deg,rgba(28,28,28,.9),rgba(22,22,22,.95)) !important;
+  border:1px solid rgba(255,255,255,.06) !important;
+  box-shadow:0 4px 24px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  border-radius:14px !important;
+  backdrop-filter:blur(12px);
+  transition:box-shadow .25s ease, transform .15s ease;
+}
+.dsh-card-glass:hover {
+  box-shadow:0 8px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06) !important;
+  transform:translateY(-1px);
+}
+
+/* Light mode esferas */
+body.light .dsh-orb-red { background:radial-gradient(circle at 35% 35%,#fef2f2,#fce8e8); border-color:#991b1b; }
+body.light .dsh-orb-red .dsh-orb-val { color:#991b1b; }
+body.light .dsh-orb-amber { background:radial-gradient(circle at 35% 35%,#fffbeb,#fef3c7); border-color:#92400e; }
+body.light .dsh-orb-amber .dsh-orb-val { color:#92400e; }
+body.light .dsh-orb-rose { background:radial-gradient(circle at 35% 35%,#fff1f2,#ffe4e6); border-color:#9f1239; }
+body.light .dsh-orb-rose .dsh-orb-val { color:#9f1239; }
+body.light .dsh-orb-green { background:radial-gradient(circle at 35% 35%,#f0fdf4,#dcfce7); border-color:#15803d; }
+body.light .dsh-orb-green .dsh-orb-val { color:#15803d; }
+body.light .dsh-orb-muted { background:radial-gradient(circle at 35% 35%,#f5f5f5,#e5e5e5); border-color:#d1d5db; }
+body.light .dsh-orb-vinho { background:radial-gradient(circle at 35% 35%,#fef2f2,#fce8e8); border-color:#8b1a1a; }
+body.light .dsh-card-glass { background:rgba(255,255,255,.85) !important; border-color:rgba(0,0,0,.08) !important; box-shadow:0 4px 24px rgba(0,0,0,.08) !important; }
