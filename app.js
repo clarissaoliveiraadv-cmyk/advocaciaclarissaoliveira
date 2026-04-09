@@ -2181,7 +2181,7 @@ function _vfConsolidar(mesP){
     } else if(!isRep && !isDesp && rec){
       var calc = _finCalcLanc(l);
       recebimentos.push({
-        data: l.dt_baixa||l.data||'',
+        data: l.data||l.dt_baixa||'',
         cliente: l.cliente||'',
         processo: l.desc||'',
         descricao: l.desc||'',
@@ -7251,7 +7251,7 @@ function _finToggleRecebido(cid, lid){
   localLanc[i].recebido = rec;
   localLanc[i].pago = rec;
   localLanc[i].status = rec ? 'pago' : 'pendente';
-  localLanc[i].dt_baixa = rec ? new Date().toISOString().slice(0,10) : '';
+  localLanc[i].dt_baixa = rec ? (localLanc[i].data||new Date().toISOString().slice(0,10)) : '';
   sbSet('co_localLanc', localLanc);
   marcarAlterado();
   _finLocaisCache = {};
