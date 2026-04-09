@@ -14742,32 +14742,150 @@ function renderList(lst, isEncView=false){
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// ══ FICHA DA PESSOA — tela intermediária antes do processo
+// ═══════════════════════════════════════════════════════
+
+function _renderFichaPessoa(grp){
+  if(!grp||!grp.processos) return '';
+  var nome = grp.nome||'';
+  var procs = grp.processos;
+  var encIds = getEncIds();
+
+  // Pegar dados extras do primeiro processo
+  var firstProc = procs[0];
+  var ex = (tasks[firstProc.id]||{}).extra||{};
+  var tel = ex.tel||firstProc.tel||'';
+  var email = ex.email||firstProc.email||'';
+  var cpf = ex.cpf||firstProc.cpf||'';
+  var nasc = ex.nasc||'';
+
+  // Iniciais para avatar
+  var iniciais = nome.split(' ').map(function(p){return p[0];}).slice(0,2).join('').toUpperCase();
+
+  var html = '<div style="padding:24px;max-width:900px;margin:0 auto">';
+
+  // Header da pessoa
+  html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">'
+    +'<div style="width:64px;height:64px;border-radius:50%;background:var(--vinho);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--ouro);flex-shrink:0">'+iniciais+'</div>'
+    +'<div style="flex:1">'
+      +'<div style="font-size:20px;font-weight:800;color:var(--tx)">'+escapeHtml(nome)+'</div>'
+      +'<div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap">'
+        +(cpf?'<span style="font-size:11px;color:var(--mu)">CPF: '+escapeHtml(cpf)+'</span>':'')
+        +(nasc?'<span style="font-size:11px;color:var(--mu)">Nasc: '+fDt(nasc)+'</span>':'')
+      +'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px;flex-shrink:0">'
+      +(tel?'<a href="tel:'+escapeHtml(tel)+'" style="padding:6px 12px;border-radius:6px;background:rgba(76,175,125,.1);border:1px solid rgba(76,175,125,.3);color:#4ade80;font-size:11px;font-weight:700;text-decoration:none">\ud83d\udcde '+escapeHtml(tel)+'</a>':'')
+      +(tel?'<a href="https://wa.me/55'+tel.replace(/\D/g,'')+'" target="_blank" style="padding:6px 12px;border-radius:6px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.3);color:#25d366;font-size:11px;font-weight:700;text-decoration:none">\ud83d\udcac WhatsApp</a>':'')
+    +'</div>'
+  +'</div>';
+
+  // Contato
+  html += '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:10px;letter-spacing:.05em">Informa\u00e7\u00f5es de contato</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">'
+      +(tel?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Telefone</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+escapeHtml(tel)+'</div></div>':'')
+      +(email?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Email</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+escapeHtml(email)+'</div></div>':'')
+      +(cpf?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">CPF</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+escapeHtml(cpf)+'</div></div>':'')
+      +(nasc?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Nascimento</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+fDt(nasc)+'</div></div>':'')
+      +(ex.ecivil?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Estado civil</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+escapeHtml(ex.ecivil)+'</div></div>':'')
+      +(ex.prof?'<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase">Profiss\u00e3o</div><div style="font-size:13px;color:var(--tx);font-weight:600">'+escapeHtml(ex.prof)+'</div></div>':'')
+    +'</div>'
+  +'</div>';
+
+  // Processos
+  html += '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mu);letter-spacing:.05em">'+procs.length+' Processo'+(procs.length!==1?'s':'')+'</div>'
+      +'<div style="display:flex;gap:6px">'
+        +'<button onclick="_novoProcessoDoCliente('+firstProc.id+',\'Autor\')" class="dsh-btn" style="font-size:10px">\u2696 Novo como Autor</button>'
+        +'<button onclick="_novoProcessoDoCliente('+firstProc.id+',\'R\u00e9u\')" class="dsh-btn dsh-btn-ghost" style="font-size:10px">\u2696 Novo como R\u00e9u</button>'
+      +'</div>'
+    +'</div>';
+
+  procs.forEach(function(p){
+    var enc = encIds.has(p.id);
+    var polo = p.polo||p.condicao||'Autor';
+    var poloCor = /autor|reclamante|requerente/i.test(polo) ? '#4ade80' : '#f87676';
+    var natureza = p.natureza||'';
+    html += '<div onclick="openProc('+p.id+')" style="display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:8px;background:var(--sf3);border:1px solid var(--bd);border-radius:10px;cursor:pointer;transition:all .15s'+(enc?';opacity:.5':'')+'" onmouseover="this.style.borderColor=\'var(--ouro)\'" onmouseout="this.style.borderColor=\'var(--bd)\'">'
+      +'<div style="font-size:14px;font-weight:800;color:var(--ouro);min-width:50px">'+escapeHtml(p.pasta||'\u2014')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:12px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.numero||'Sem n\u00famero')+'</div>'
+        +'<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">'
+          +(natureza?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(201,72,74,.15);color:#c9484a;font-weight:700;text-transform:uppercase">'+escapeHtml(natureza)+'</span>':'')
+          +'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:'+poloCor+'20;color:'+poloCor+';font-weight:700">'+escapeHtml(polo)+'</span>'
+          +(p.adverso?'<span style="font-size:9px;color:var(--mu)">vs '+escapeHtml(p.adverso)+'</span>':'')
+          +(enc?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(156,163,175,.15);color:#9ca3af;font-weight:700">ENCERRADO</span>':'')
+        +'</div>'
+      +'</div>'
+      +'<div style="font-size:16px;color:var(--mu)">\u203a</div>'
+    +'</div>';
+  });
+
+  html += '</div>';
+
+  // Botão voltar
+  html += '<button onclick="AC=null;AC_PROC=null;var e=document.getElementById(\'emp2\');if(e)e.style.display=\'flex\';var f=document.getElementById(\'ficha-vcl\');if(f){f.classList.remove(\'on\');f.innerHTML=\'\';};renderVclEmpty();doSearch()" style="font-size:11px;padding:6px 14px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u2190 Voltar para lista</button>';
+
+  return html+'</div>';
+}
+
+// Abrir processo específico (a ficha completa com abas)
+function openProc(cid){
+  var c = findClientById(cid);
+  if(!c) return;
+  var grp = CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===cid;});});
+  AC = c;
+  AC_PROC = grp;
+  renderFicha(AC, grp);
+}
+
 function openC(id, procId=null){
-  const grp=CLIENTES_AGRUPADOS.find(g=>g.processos&&g.processos.some(p=>p.id===id));
+  var grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===id;});});
   if(!grp) return;
-  const procAlvo=procId
-    ? grp.processos.find(p=>p.id===procId)
-    : (grp.processos.find(p=>!(encerrados[p.id]||encerrados[String(p.id)])) || grp.processos[0]);
-  AC=procAlvo;
-  AC_PROC=grp;
-  // Garantir que estamos na view Clientes
-  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
-  document.querySelectorAll('.hnav-btn').forEach(x=>x.classList.remove('on'));
+
+  // Se foi chamado com procId, abrir processo direto
+  if(procId){
+    var procAlvo = grp.processos.find(function(p){return p.id===procId;});
+    if(procAlvo){ AC=procAlvo; AC_PROC=grp; }
+  } else {
+    AC_PROC=grp;
+  }
+
+  // Garantir view Clientes
+  document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});
   document.getElementById('vcl').classList.add('on');
-  const navCli = document.getElementById('nav-clientes');
-  if(navCli) navCli.classList.add('on');
   doSearch();
-  // Esconder sidebar de clientes ao abrir qualquer cliente — tela toda pro cliente
+
   var vclWrap = document.querySelector('.vcl-wrap');
   if(vclWrap){ vclWrap.classList.add('fin-hidden'); vclWrap.classList.remove('vcl-full'); }
-  // Limpar sidebar financeira se existir (será recriada se clicar em Financeiro)
   _finRemoverSidebar();
   var vclMain = document.querySelector('.vcl-main');
   if(vclMain){ vclMain.style.display=''; vclMain.style.flexDirection=''; }
-  // Esconder empty e mostrar ficha dentro de vcl
-  const emp2=document.getElementById('emp2');
+
+  var emp2=document.getElementById('emp2');
   if(emp2) emp2.style.display='none';
-  renderFicha(AC, grp);
+
+  var fichaEl = document.getElementById('ficha-vcl');
+
+  // Se procId fornecido → abrir processo direto
+  if(procId && AC){
+    renderFicha(AC, grp);
+  }
+  // Se só 1 processo → abrir direto também
+  else if(grp.processos.length===1){
+    AC = grp.processos[0];
+    renderFicha(AC, grp);
+  }
+  // Se múltiplos processos → abrir ficha da pessoa
+  else {
+    if(fichaEl){
+      fichaEl.classList.add('on');
+      fichaEl.innerHTML = _renderFichaPessoa(grp);
+    }
+  }
   setTimeout(_updateNavBtn, 100);
 }
 
