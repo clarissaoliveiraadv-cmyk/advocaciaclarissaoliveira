@@ -17796,8 +17796,12 @@ function _processarPublicacao(texto){
   if(mVara) vara = mVara[1].trim();
 
   var tipoPub = '';
-  var mTipo = texto.match(/Publica[çc][aã]o\s*:?\s*([^\n]+)/i);
-  if(mTipo) tipoPub = mTipo[1].trim();
+  // Pegar "Publicação:" que NÃO é precedido de "Data de" e NÃO é só número
+  var allTipos = texto.match(/(?<![Dd]ata de )Publica[çc][aã]o\s*:\s*([^\n]+)/gi)||[];
+  allTipos.forEach(function(t){
+    var val = t.replace(/Publica[çc][aã]o\s*:\s*/i,'').trim();
+    if(val && !/^\d+\.?$/.test(val) && !/^\d{2}\/\d{2}\/\d{4}/.test(val)) tipoPub = val;
+  });
 
   var jornal = '';
   var mJorn = texto.match(/Jornal\s*:?\s*([^\n]+)/i);
