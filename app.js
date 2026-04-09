@@ -57,15 +57,13 @@ function _lsKey(chave){
 
 // Wrappers de localStorage com prefixo por usuário
 function lsGet(chave){
-  // Tentar com prefixo primeiro; fallback para legado sem prefixo (migração)
-  var v = localStorage.getItem(_lsKey(chave));
+  var v = localStorage.getItem(chave);
   if(v!==null) return v;
-  // Migração: se existe sem prefixo, mover para com prefixo
-  var leg = localStorage.getItem(chave);
-  if(leg!==null){
-    localStorage.setItem(_lsKey(chave), leg);
-    // Não remover o legado ainda (pode ter outro usuário usando)
-    return leg;
+  // Fallback: tentar com prefixo antigo (migração)
+  var prefixado = localStorage.getItem(_sbUsuario+'::'+chave);
+  if(prefixado!==null){
+    localStorage.setItem(chave, prefixado); // migrar
+    return prefixado;
   }
   return null;
 }
