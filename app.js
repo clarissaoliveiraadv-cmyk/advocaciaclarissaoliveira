@@ -17654,6 +17654,164 @@ function iniExcluir(id){
 }
 
 
+// ═══════════════════════════════════════════════════════
+// ══ RELATÓRIO DE PARCEIRO/COLABORADOR ═════════════════
+// ═══════════════════════════════════════════════════════
+
+function abrirRelatorioParceiro(){
+  var hoje = getTodayKey();
+  var mesAtual = hoje.slice(0,7);
+  // Listar parceiros/colaboradores encontrados nos lançamentos
+  var parceiros = {};
+  (localLanc||[]).forEach(function(l){
+    if(l.parceiro_nome) parceiros[l.parceiro_nome] = 1;
+    if(l.pago_por) parceiros[l.pago_por] = 1;
+  });
+  (_colaboradores||[]).forEach(function(c){ parceiros[c.nome] = 1; });
+  var lista = Object.keys(parceiros).sort();
+
+  var opts = lista.map(function(n){return '<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>';}).join('');
+
+  abrirModal('\ud83d\udcca Relat\u00f3rio de Parceiro / Colaborador',
+    '<div class="fm-row">'
+      +'<div style="flex:2"><label class="fm-lbl">Parceiro / Colaborador *</label>'
+        +'<select class="fm-inp" id="rp-nome"><option value="">Selecione...</option>'+opts+'</select></div>'
+      +'<div><label class="fm-lbl">M\u00eas</label>'
+        +'<input class="fm-inp" type="month" id="rp-mes" value="'+mesAtual+'"></div>'
+    +'</div>',
+  function(){
+    var nome = document.getElementById('rp-nome')?.value;
+    var mes = document.getElementById('rp-mes')?.value||mesAtual;
+    if(!nome){ showToast('Selecione o parceiro'); return; }
+    fecharModal();
+    _gerarRelatorioParceiro(nome, mes);
+  }, '\ud83d\udcca Gerar relat\u00f3rio');
+}
+
+function _gerarRelatorioParceiro(nome, mes){
+  var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var nomeLower = nome.toLowerCase().trim();
+  var MA = ['Janeiro','Fevereiro','Mar\u00e7o','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var mesLabel = MA[parseInt(mes.slice(5))-1]+' '+mes.slice(0,4);
+
+  // 1. Honorários onde parceiro_nome = nome
+  var honorarios = [];
+  (localLanc||[]).forEach(function(l){
+    if(!l.parceiro_nome) return;
+    if(l.parceiro_nome.toLowerCase().trim()!==nomeLower) return;
+    if(!(l.data||'').startsWith(mes)) return;
+    if(!isRec(l)) return; // só recebidos
+    var calc = _finCalcLanc(l);
+    honorarios.push({
+      cliente: l.cliente||'\u2014',
+      data: l.data,
+      desc: l.desc||'',
+      valor: calc.base_calculo,
+      comissao: calc.valor_parceiro,
+      perc: l.parceiro_percentual||0
+    });
+  });
+
+  // 2. Reembolsos (despesas pagas pelo parceiro)
+  var reembolsos = [];
+  (localLanc||[]).forEach(function(l){
+    if(!l.pago_por) return;
+    if(l.pago_por.toLowerCase().trim()!==nomeLower) return;
+    if(!(l.data||'').startsWith(mes)) return;
+    reembolsos.push({
+      desc: l.desc||'\u2014',
+      data: l.data,
+      valor: parseFloat(l.valor)||0
+    });
+  });
+
+  var totalComissao = honorarios.reduce(function(s,h){return s+h.comissao;},0);
+  var totalReembolso = reembolsos.reduce(function(s,r){return s+r.valor;},0);
+  var totalGeral = roundMoney(totalComissao + totalReembolso);
+
+  // Gerar modal com resultado
+  var html = '<div style="max-width:700px">';
+
+  // Header
+  html += '<div style="background:var(--sf3);border-radius:8px;padding:14px;margin-bottom:14px;text-align:center">'
+    +'<div style="font-size:16px;font-weight:800;color:var(--tx)">RELAT\u00d3RIO REPASSE \u2014 '+escapeHtml(nome).toUpperCase()+'</div>'
+    +'<div style="font-size:12px;color:var(--mu)">'+mesLabel+'</div>'
+  +'</div>';
+
+  // Totais
+  html += '<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<div style="flex:1;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Comiss\u00e3o</div><div style="font-size:18px;font-weight:800;color:#4ade80">'+fV(totalComissao)+'</div></div>'
+    +'<div style="flex:1;padding:10px 12px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;text-align:center"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Reembolsos</div><div style="font-size:18px;font-weight:800;color:#f59e0b">'+fV(totalReembolso)+'</div></div>'
+    +'<div style="flex:1;padding:10px 12px;background:linear-gradient(135deg,var(--sf2),rgba(76,175,125,.1));border:1px solid rgba(76,175,125,.3);border-radius:8px;text-align:center"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu)">Total a pagar</div><div style="font-size:18px;font-weight:800;color:#4ade80">'+fV(totalGeral)+'</div></div>'
+  +'</div>';
+
+  // Tabela honorários
+  if(honorarios.length){
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px">Honor\u00e1rios com comiss\u00e3o</div>'
+      +'<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr style="background:var(--sf3)">'
+        +'<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--mu)">Cliente</th>'
+        +'<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--mu)">Data</th>'
+        +'<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--mu)">Descri\u00e7\u00e3o</th>'
+        +'<th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--mu)">Valor</th>'
+        +'<th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--mu)">%</th>'
+        +'<th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--mu)">Comiss\u00e3o</th>'
+      +'</tr></thead><tbody>';
+    honorarios.forEach(function(h){
+      html += '<tr style="border-bottom:1px solid var(--bd)">'
+        +'<td style="padding:5px 8px;font-size:11px">'+escapeHtml(h.cliente)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;color:var(--mu)">'+fDt(h.data)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px">'+escapeHtml(h.desc)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;text-align:right">'+fV(h.valor)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;text-align:right;color:var(--mu)">'+h.perc+'%</td>'
+        +'<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;color:#4ade80">'+fV(h.comissao)+'</td>'
+      +'</tr>';
+    });
+    html += '<tr style="background:var(--sf3)"><td colspan="5" style="padding:6px 8px;font-size:11px;font-weight:700">Total comiss\u00e3o</td><td style="padding:6px 8px;font-size:12px;font-weight:800;text-align:right;color:#4ade80">'+fV(totalComissao)+'</td></tr>';
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="font-size:11px;color:var(--mu);margin-bottom:14px">Nenhum honor\u00e1rio com comiss\u00e3o neste m\u00eas.</div>';
+  }
+
+  // Tabela reembolsos
+  if(reembolsos.length){
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:6px">Reembolsos</div>'
+      +'<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><thead><tr style="background:var(--sf3)">'
+        +'<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--mu)">Descri\u00e7\u00e3o</th>'
+        +'<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--mu)">Data</th>'
+        +'<th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--mu)">Valor</th>'
+      +'</tr></thead><tbody>';
+    reembolsos.forEach(function(r){
+      html += '<tr style="border-bottom:1px solid var(--bd)">'
+        +'<td style="padding:5px 8px;font-size:11px">'+escapeHtml(r.desc)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;color:var(--mu)">'+fDt(r.data)+'</td>'
+        +'<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;color:#f59e0b">'+fV(r.valor)+'</td>'
+      +'</tr>';
+    });
+    html += '<tr style="background:var(--sf3)"><td colspan="2" style="padding:6px 8px;font-size:11px;font-weight:700">Total reembolsos</td><td style="padding:6px 8px;font-size:12px;font-weight:800;text-align:right;color:#f59e0b">'+fV(totalReembolso)+'</td></tr>';
+    html += '</tbody></table>';
+  }
+
+  html += '</div>';
+
+  // Botões
+  abrirModal('\ud83d\udcca Relat\u00f3rio \u2014 '+escapeHtml(nome)+' \u2014 '+mesLabel, html, function(){
+    // Copiar para WhatsApp
+    var txt = '*RELAT\u00d3RIO REPASSE '+nome.toUpperCase()+' \u2014 '+mesLabel+'*\n\n';
+    if(honorarios.length){
+      txt += '*Honor\u00e1rios:*\n';
+      honorarios.forEach(function(h){ txt += '\u2022 '+h.cliente+' \u2014 '+escapeHtml(h.desc)+' \u2014 '+fV(h.valor)+' \u2192 '+h.perc+'% = '+fV(h.comissao)+'\n'; });
+      txt += '*Total comiss\u00e3o: '+fV(totalComissao)+'*\n\n';
+    }
+    if(reembolsos.length){
+      txt += '*Reembolsos:*\n';
+      reembolsos.forEach(function(r){ txt += '\u2022 '+escapeHtml(r.desc)+' \u2014 '+fV(r.valor)+'\n'; });
+      txt += '*Total reembolsos: '+fV(totalReembolso)+'*\n\n';
+    }
+    txt += '*TOTAL A PAGAR: '+fV(totalGeral)+'*\n\n_CO Advocacia_';
+    navigator.clipboard.writeText(txt).then(function(){ showToast('\u2713 Relat\u00f3rio copiado para WhatsApp!'); }).catch(function(){});
+  }, '\ud83d\udcf2 Copiar para WhatsApp');
+}
+
 var DATAJUD_URL = 'https://api-publica.datajud.cnj.jus.br';
 var DATAJUD_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==';
 
