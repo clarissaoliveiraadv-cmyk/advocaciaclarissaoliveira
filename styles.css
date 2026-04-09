@@ -48,7 +48,7 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;dis
 
 /* VIEWS */
 .view{display:none;}
-.view.on{display:flex;height:calc(100vh - 52px);}
+.view.on{display:flex;height:calc(100vh - 52px); margin-left:56px;}
 
 /* SIDEBAR */
 .sidebar{width:280px;min-width:280px;background:var(--sf);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;}
@@ -2619,7 +2619,9 @@ body.light .vk-lista-row:hover { background:#F5F6F8; }
   .hnav { gap:1px; }
   .hnav-btn { padding:4px 8px; font-size:9px; }
   .sidebar { display:none !important; }
+  #vsidebar-global { display:none !important; }
   .view { padding:8px !important; }
+  .view.on { margin-left:0 !important; }
   .modal { width:100vw; max-width:100vw; min-height:60vh; border-radius:12px 12px 0 0; padding:14px; }
   .ctc-sb-sub, .cnat, .fpasta, .comp-card-meta span { font-size:10px !important; }
   .dsh-grid2, .dsh-grid3 { grid-template-columns:1fr !important; }
