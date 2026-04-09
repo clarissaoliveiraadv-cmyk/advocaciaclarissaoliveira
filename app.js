@@ -10810,10 +10810,13 @@ function montarClientesAgrupados(){
     mapa[nome].processos.push(c);
   });
   CLIENTES_AGRUPADOS = Object.values(mapa).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
-  // Renumerar pastas em ordem alfabética sequencial (1, 2, 3...)
-  CLIENTES_AGRUPADOS.forEach(function(grp, idx){
-    var novaPasta = String(idx + 1);
-    grp.processos.forEach(function(c){ c.pasta = novaPasta; });
+  // Renumerar pastas — cada processo recebe número único sequencial
+  var pastaNum = 1;
+  CLIENTES_AGRUPADOS.forEach(function(grp){
+    grp.processos.forEach(function(c){
+      c.pasta = String(pastaNum);
+      pastaNum++;
+    });
   });
   _rebuildClientsIndex();
   invalidarCacheVfTodos();
