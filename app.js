@@ -11738,6 +11738,97 @@ try { _finAutoStatusVencidos(); } catch(e){}
   }
 })();
 
+// Lançamentos de Fevereiro 2026
+(function lancarFevereiro(){
+  var hoje = '2026-02-28';
+  var added = 0;
+
+  // Helper para não duplicar
+  function jaExiste(desc, data, valor){
+    return (localLanc||[]).some(function(l){
+      return l.desc===desc && l.data===data && Math.abs((l.valor||0)-valor)<0.02;
+    });
+  }
+
+  function addHon(cliente, desc, valor, perc, data, forma, parcNome, parcPerc){
+    if(jaExiste(desc, data, valor)) return;
+    var calc = _finCalcLanc({valor_integral:valor, valor_parcela:0, ressarcimento:0, percentual_honorarios:perc, parceiro_nome:parcNome||'', parceiro_percentual:parcPerc||0});
+    var cMatch = findClientByName(cliente);
+    localLanc.push({
+      id:genId(), tipo:'honorario', direcao:'receber',
+      id_processo: cMatch?cMatch.id:0, cliente:cliente,
+      desc:desc, valor_integral:valor, valor_parcela:0, valor:calc.base_calculo,
+      ressarcimento:0, percentual_honorarios:perc,
+      parceiro_nome:parcNome||'', parceiro_percentual:parcPerc||0,
+      data:data, forma:forma||'PIX', recebido:true,
+      status:'pago', pago:true, dt_baixa:data, obs:'Importado extrato fev/2026'
+    });
+    added++;
+  }
+
+  function addRepasse(cliente, desc, valor, data, forma){
+    if(jaExiste(desc, data, valor)) return;
+    var cMatch = findClientByName(cliente);
+    localLanc.push({
+      id:genId(), tipo:'repasse', direcao:'pagar',
+      id_processo: cMatch?cMatch.id:0, cliente:cliente,
+      desc:desc, valor:roundMoney(valor), data:data, venc:data,
+      status:'pago', pago:true, dt_baixa:data, recebido:true,
+      forma:forma||'PIX', _repasse_acordo:true,
+      obs:'Importado extrato fev/2026'
+    });
+    added++;
+  }
+
+  function addDespesa(desc, valor, data, cat, forma){
+    if(jaExiste(desc, data, valor)) return;
+    finLancs.push({
+      id:genId(), tipo:'pagar', desc:desc, valor:roundMoney(valor),
+      data:data, cat:cat||'Outros', forma:forma||'PIX',
+      status:'pago', pago:true, dt_baixa:data,
+      _desp_escritorio:true, obs:'Importado extrato fev/2026'
+    });
+    added++;
+  }
+
+  // ── RECEITAS (honorários) ──
+  addHon('MARY LUCIA DE OLIVEIRA', 'Consultoria', 400, 100, '2026-02-05', 'PIX', '', 0);
+  addHon('ADEGA 13 COMÉRCIO DE BEBIDAS LTDA', 'Consultoria Carnaval', 300, 100, '2026-02-06', 'PIX', '', 0);
+  addHon('CAMILA ESTANISLAU XAVIER', 'Honorários', 400, 100, '2026-02-09', 'PIX', '', 0);
+  addHon('MARY LUCIA DE OLIVEIRA', 'Consultoria', 400, 100, '2026-02-12', 'PIX', '', 0);
+  addHon('ADEGA 13 COMÉRCIO DE BEBIDAS LTDA', 'Consultoria Eduarda', 300, 100, '2026-02-20', 'PIX', '', 0);
+  addHon('LORRANY LEMOS DA SILVA', 'Consultoria', 150, 100, '2026-02-23', 'PIX', '', 0);
+  addHon('CLARISSA RATZINGER', 'Cálculos', 37, 100, '2026-02-13', 'PIX', '', 0);
+  // Victor Dias — 50% honorários (parceiro Alessandro)
+  addHon('VICTOR DIAS GOMES', 'Honorários', 4679.35, 50, '2026-02-25', 'PIX', 'Alessandro Dias', 50);
+
+  // ── REPASSES ──
+  addRepasse('ANA CAROLINA OLIVEIRA SANTOS', 'Repasse ao cliente — Alvará', 7318, '2026-02-03', 'TED');
+  addRepasse('EDNA DE FATIMA ALVES DOS REIS', 'Repasse ao cliente — Acordo', 20860, '2026-02-03', 'TED');
+  addRepasse('RENAN DA SILVA GOMES SOUZA', 'Repasse ao cliente', 1130, '2026-02-12', 'PIX');
+
+  // ── ESTORNO (Ana Carolina devolvida + reenvio) — lançar como movimentação neutra
+  // O estorno +7318 e o reenvio -7318 se anulam, não precisa lançar
+
+  // ── ENTRADA SEM HONORÁRIOS (Natali Cristina — 100% cliente) ──
+  addRepasse('NATALI CRISTINA DE FARIA', 'Recebimento em nome do cliente', 2761.36, '2026-02-12', 'TED');
+
+  // ── DESPESAS DO ESCRITÓRIO ──
+  addDespesa('Sistema escritório — Camila Shimomura', 500, '2026-02-06', 'Sistemas', 'PIX');
+  addDespesa('Fatura cartão Inter', 509, '2026-02-12', 'Outros', 'Débito');
+  addDespesa('Aluguel — AMO Imóveis', 972.98, '2026-02-18', 'Estrutura', 'Boleto');
+  addDespesa('IPTU — PM Belo Horizonte', 620.93, '2026-02-19', 'Impostos', 'Boleto');
+  addDespesa('Calculista — Vanessa Cecília (proc. Washington Diniz)', 320, '2026-02-23', 'Custas processuais', 'PIX');
+  addDespesa('Pro-labore — Clarissa de Oliveira', 5000, '2026-02-24', 'Pessoal', 'TED');
+
+  if(added > 0){
+    sbSet('co_localLanc', localLanc);
+    sbSet('co_fin', finLancs);
+    _finLocaisCache = {};
+  }
+  return added;
+})();
+
 function atualizarStats(){
   const hoje = HS;
   const semFim = new Date(HOJE); semFim.setDate(semFim.getDate()+7);
