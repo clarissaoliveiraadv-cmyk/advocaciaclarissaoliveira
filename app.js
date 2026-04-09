@@ -317,8 +317,16 @@ function sbAplicar(chave, valor, quem){
     case 'co_despfixas': if(typeof _despFixas!=='undefined') _despFixas=valor||[]; break;
     case 'co_coments': if(typeof comentarios!=='undefined') comentarios=valor||{}; break;
     case 'co_atend': if(typeof localAtend!=='undefined') localAtend=valor||[]; break;
-    case 'co_clientes': if(typeof CLIENTS!=='undefined'){ CLIENTS.length=0; (valor||[]).forEach(function(c){CLIENTS.push(c);}); _clientByIdCache={}; _clientByNameCache={}; if(typeof montarClientesAgrupados==='function') montarClientesAgrupados(); if(typeof doSearch==='function') doSearch(); } break;
-    case 'co_clientes_consulta': if(typeof CLIENTS!=='undefined'){ var procs=CLIENTS.filter(function(c){return c.tipo!=='consulta';}); CLIENTS.length=0; procs.forEach(function(c){CLIENTS.push(c);}); (valor||[]).forEach(function(c){CLIENTS.push(c);}); _clientByIdCache={}; _clientByNameCache={}; if(typeof montarClientesAgrupados==='function') montarClientesAgrupados(); } break;
+    case 'co_clientes':
+      if(typeof CLIENTS!=='undefined' && Array.isArray(valor)){
+        // Merge: manter items locais que não existem no remoto
+        var merged = _sbMergeArrays(CLIENTS, valor);
+        CLIENTS.length=0; merged.forEach(function(c){CLIENTS.push(c);});
+        _clientByIdCache={}; _clientByNameCache={};
+        if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
+        if(typeof doSearch==='function') doSearch();
+      } break;
+    case 'co_clientes_consulta': break; // ignorar — tudo está em co_clientes agora
     case 'co_audit': if(typeof _auditLog!=='undefined') _auditLog=valor||[]; break;
     case 'co_iniciais': if(typeof _iniciais!=='undefined') _iniciais=valor||[]; break;
   }
@@ -10621,10 +10629,8 @@ const MOV_INDEX={};
 
 // ── Salvar CLIENTS no Supabase ──
 function sbSalvarClientes(){
-  const processos  = CLIENTS.filter(c=>c.tipo!=='consulta'&&c.status_consulta!=='consulta');
-  const consultas  = CLIENTS.filter(c=>c.tipo==='consulta'||c.status_consulta==='consulta');
-  sbSet('co_clientes', processos);
-  if(consultas.length) sbSet('co_clientes_consulta', consultas);
+  // Salvar todos os CLIENTS numa única chave (sem separar consultas)
+  sbSet('co_clientes', CLIENTS);
 }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
