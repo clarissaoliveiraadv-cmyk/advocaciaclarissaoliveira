@@ -422,6 +422,7 @@ async function sbInit(){
     notes        = asObj(ls('co_notes',{}));
     localContatos= asArr(ls('co_ctc',[]));
     _iniciais    = asArr(ls('co_iniciais',[]));
+    _extratoRestaurar(); // restaurar conciliação bancária do mês atual
     // Re-renderizar tudo
     atualizarStats(); renderHomeAlerts(); renderFinDash();
     renderChecklist(); renderHomeWeek(); doSearch();
