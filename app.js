@@ -8744,9 +8744,9 @@ function gerarResumoWpp(){
     });
   }
 
-  // 2. TAREFAS — kanban para hoje + atrasadas pendentes
+  // 2. TAREFAS — kanban para hoje + atrasadas pendentes (excluir QUALQUER tarefa concluída)
   var tarefasHj=vkTasks.filter(function(t){
-    if(t.status==='done'||t.status==='concluido') return false;
+    if(isDone(t)) return false;
     if(t.prazo===hoje||t.paraHoje===hoje) return true;
     if(t.prazo&&t.prazo<hoje) return true;
     return false;
@@ -8804,14 +8804,21 @@ function gerarResumoWpp(){
   if(cobrar.length){txt+='📣 *Cobrar (vencem em 2 dias)*'+NL;cobrar.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
   if(!fatais.length&&!tarefasHj.length&&!compHj.length&&!recebHoje.length&&!pagHoje.length&&!cobrar.length){txt+='✅ _Nenhuma pendência para hoje._'+NL;}
   txt+=NL+'_CO Advocacia App_';
-  if(navigator&&navigator.clipboard){
-    navigator.clipboard.writeText(txt).then(function(){showToast('✓ Resumo copiado! Cole no WhatsApp.');}).catch(function(){mostrarTxtModal(txt);});
-  } else { mostrarTxtModal(txt); }
+  // Sempre mostrar modal para conferir antes de copiar
+  mostrarTxtModal(txt);
 }
 function mostrarTxtModal(txt){
-  abrirModal('Resumo do Dia',
+  window._wppTxtCache = txt;
+  abrirModal('📲 Resumo do Dia — confira antes de enviar',
     '<div style="background:var(--sf3);border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;color:var(--tx);max-height:300px;overflow-y:auto">'+txt.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>',
-    null,null);
+    function(){
+      navigator.clipboard.writeText(window._wppTxtCache).then(function(){
+        fecharModal(); showToast('✓ Resumo copiado! Cole no WhatsApp.');
+      }).catch(function(){
+        var ta=document.createElement('textarea');ta.value=window._wppTxtCache;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+        fecharModal(); showToast('✓ Resumo copiado!');
+      });
+    }, '📲 Copiar para WhatsApp');
 }
 
 // ── Iniciais pendentes no dashboard ──
