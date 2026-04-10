@@ -72,8 +72,21 @@ function lsSet(chave, valor){
   try {
     localStorage.setItem(_lsKey(chave), valor);
   } catch(e){
-    console.error('[Storage] Quota excedida:', chave);
+    console.error('[Storage] Quota excedida:', chave, '('+((valor||'').length/1024).toFixed(0)+'KB)');
+    // Tentar liberar espaço e retentar
     _sbCheckQuota();
+    try {
+      // Limpar dados com prefixo antigo que já foram migrados
+      for(var i=localStorage.length-1; i>=0; i--){
+        var k=localStorage.key(i);
+        if(k && k.indexOf('::')!==-1) localStorage.removeItem(k);
+      }
+      localStorage.setItem(_lsKey(chave), valor);
+    } catch(e2){
+      // Último recurso: avisar o usuário
+      if(typeof showToast==='function') showToast('⚠️ Armazenamento cheio! Alguns dados podem não salvar.');
+      console.error('[Storage] FALHA DEFINITIVA ao salvar:', chave);
+    }
   }
 }
 
@@ -142,16 +155,26 @@ function sbSetDebounced(chave, valor){
 
 function _sbCheckQuota(){
   try {
-    var total = 0, prefix = _sbUsuario+'::';
+    var total = 0;
+    var sizes = [];
     for(var i=0; i<localStorage.length; i++){
       var k = localStorage.key(i);
-      total += (localStorage.getItem(k)||'').length;
+      var sz = (localStorage.getItem(k)||'').length;
+      total += sz;
+      sizes.push({k:k, sz:sz});
     }
-    if(total > 4000000){
-      console.warn('[Storage] Uso alto: '+(total/1024/1024).toFixed(1)+'MB de ~5MB');
+    console.log('[Storage] Uso: '+(total/1024/1024).toFixed(2)+'MB de ~5MB');
+    if(total > 3500000){
+      console.warn('[Storage] Uso alto! Limpando dados desnecessários...');
+      // 1. Remover timestamps
       for(var j=localStorage.length-1; j>=0; j--){
         var key = localStorage.key(j);
         if(key && key.indexOf('_ts_')!==-1) localStorage.removeItem(key);
+      }
+      // 2. Remover dados com prefixo antigo (já migrados)
+      for(var m=localStorage.length-1; m>=0; m--){
+        var mk = localStorage.key(m);
+        if(mk && mk.indexOf('::')!==-1) localStorage.removeItem(mk);
       }
     }
   } catch(e){}
@@ -179,7 +202,14 @@ function _sbStatus(online){
 // ═══════════════════════════════════════════════════════
 
 async function sbSet(chave, valor){
-  lsSet(chave, JSON.stringify(valor));
+  var json = JSON.stringify(valor);
+  lsSet(chave, json);
+  // Verificar se realmente salvou (quota pode ter impedido)
+  var check = localStorage.getItem(chave);
+  if(!check || check.length < json.length * 0.9){
+    console.error('[sbSet] FALHA ao salvar', chave, '— localStorage não persistiu!');
+    if(typeof showToast==='function') showToast('⚠️ Erro ao salvar '+chave.replace('co_','')+'! Armazenamento cheio.');
+  }
   lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
   if(!_sbOnline) return;
@@ -7302,8 +7332,8 @@ function _finNovoHonorario(cid){
         desc:descP, valor_integral:vi, valor_parcela:vp, valor:calc.base_calculo,
         ressarcimento:ressParc, percentual_honorarios:perc,
         parceiro_nome:pnome, parceiro_percentual:pperc,
-        data:dtP, forma:forma, recebido:false,
-        status:'pendente', pago:false, dt_baixa:'', obs:obs,
+        data:dtP, forma:forma, recebido:recebido,
+        status:recebido?'pago':'pendente', pago:recebido, dt_baixa:recebido?dtP:'', obs:obs,
         _grupo: grupoId, _parcela:p+1, _total_parc:nparc
       });
     }
