@@ -142,9 +142,9 @@ function _sbMergeArrays(local, remote){
       map.set(k, item);
     } else {
       var r = map.get(k);
-      var localTs = item.dt_baixa||item.data||item.updated_at||'';
-      var remoteTs = r.dt_baixa||r.data||r.updated_at||'';
-      if(localTs > remoteTs) map.set(k, item);
+      var localTs = item._editado||item.updated_at||item.concluido_em||'';
+      var remoteTs = r._editado||r.updated_at||r.concluido_em||'';
+      if(localTs >= remoteTs) map.set(k, item); // local igual ou mais novo → preservar edição
     }
   });
   return Array.from(map.values());
@@ -2811,6 +2811,7 @@ function fmComplementarLanc(lid){
         _parceiro: temParc?pNome:'',
         _parceiro_perc: temParc?pPerc:0,
         _parceiro_val: pVal,
+        _editado: new Date().toISOString()
       });
       sbSet('co_localLanc', localLanc);
       marcarAlterado(); fecharModal(); vfRender();
@@ -4207,7 +4208,8 @@ function abrirFluxoRepasse(cid, lid){
     var i = localLanc.findIndex(function(l){return Number(l.id)===Number(lid);});
     if(i!==-1){
       localLanc[i] = Object.assign({},localLanc[i],{
-        pago:true, status:'pago', dt_baixa:dtRep, forma:forma, obs:obs
+        pago:true, status:'pago', dt_baixa:dtRep, forma:forma, obs:obs,
+        _editado: new Date().toISOString()
       });
     }
     sbSet('co_localLanc', localLanc);
@@ -4318,7 +4320,7 @@ function abrirFluxoAlvara(cid, lid){
       localLanc[i] = Object.assign({}, localLanc[i], {
         pago: true, status: 'pago', dt_baixa: dtRec,
         valor_real: valRec, valor_hon: hon, valor_rep: rep,
-        valor_desp: despVal
+        valor_desp: despVal, _editado: new Date().toISOString()
       });
     }
 
@@ -4627,7 +4629,7 @@ function finEstornarLocal(cid, lid){
   if(!confirm(aviso)) return;
   var i = localLanc.findIndex(function(x){return Number(x.id)===lidN;});
   if(i!==-1){
-    localLanc[i] = Object.assign({},localLanc[i],{pago:false,status:'pendente',dt_baixa:'',forma:'',valor_baixa:0});
+    localLanc[i] = Object.assign({},localLanc[i],{pago:false,status:'pendente',dt_baixa:'',forma:'',valor_baixa:0,_editado:new Date().toISOString()});
     sbSet('co_localLanc', localLanc);
     marcarAlterado();
     var el = document.getElementById('finunif-'+cid);
@@ -7231,10 +7233,12 @@ function _finToggleRecebido(cid, lid){
   var i = (localLanc||[]).findIndex(function(l){return String(l.id)===String(lid);});
   if(i===-1) return;
   var rec = !localLanc[i].recebido;
-  localLanc[i].recebido = rec;
-  localLanc[i].pago = rec;
-  localLanc[i].status = rec ? 'pago' : 'pendente';
-  localLanc[i].dt_baixa = rec ? (localLanc[i].data||new Date().toISOString().slice(0,10)) : '';
+  localLanc[i] = Object.assign({}, localLanc[i], {
+    recebido: rec, pago: rec,
+    status: rec ? 'pago' : 'pendente',
+    dt_baixa: rec ? (localLanc[i].data||new Date().toISOString().slice(0,10)) : '',
+    _editado: new Date().toISOString()
+  });
   sbSet('co_localLanc', localLanc);
   marcarAlterado();
   _finLocaisCache = {};
@@ -7285,21 +7289,17 @@ function _finEditarHonorario(cid, lid){
     if(!desc){ showToast('Informe a descri\u00e7\u00e3o'); return; }
     if(!vi && !vp){ showToast('Informe o valor'); return; }
     var calc = _finCalcLanc({valor_integral:vi,valor_parcela:vp,ressarcimento:ress,percentual_honorarios:perc,parceiro_nome:pnome,parceiro_percentual:pperc});
-    localLanc[i].desc = desc;
-    localLanc[i].valor_integral = vi;
-    localLanc[i].valor_parcela = vp;
-    localLanc[i].valor = calc.base_calculo;
-    localLanc[i].ressarcimento = ress;
-    localLanc[i].percentual_honorarios = perc;
-    localLanc[i].parceiro_nome = pnome;
-    localLanc[i].parceiro_percentual = pperc;
-    localLanc[i].data = data;
-    localLanc[i].forma = forma;
-    localLanc[i].recebido = recebido;
-    localLanc[i].pago = recebido;
-    localLanc[i].status = recebido ? 'pago' : 'pendente';
-    localLanc[i].dt_baixa = recebido ? data : '';
-    localLanc[i].obs = obs;
+    // Buscar índice atual pelo ID (array pode ter mudado por sync)
+    var idx = (localLanc||[]).findIndex(function(x){return String(x.id)===String(lid);});
+    if(idx===-1){ showToast('Lançamento não encontrado'); return; }
+    localLanc[idx] = Object.assign({}, localLanc[idx], {
+      desc:desc, valor_integral:vi, valor_parcela:vp, valor:calc.base_calculo,
+      ressarcimento:ress, percentual_honorarios:perc,
+      parceiro_nome:pnome, parceiro_percentual:pperc,
+      data:data, forma:forma, recebido:recebido, pago:recebido,
+      status: recebido?'pago':'pendente', dt_baixa: recebido?data:'', obs:obs,
+      _editado: new Date().toISOString()
+    });
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
     _finLocaisCache = {};
@@ -8210,9 +8210,11 @@ function finEditarLanc(cid, lid){
       _parceiro:  pNome,
       _parceiro_perc: pPerc,
       _parceiro_val:  pVal,
+      _editado: new Date().toISOString()
     });
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
+    _finLocaisCache = {};
     _reRenderFinPasta(cid);
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
     showToast('✓ Lançamento atualizado');
