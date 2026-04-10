@@ -2289,6 +2289,7 @@ function _vfRecebimentos(mesP){
       +'<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Honor. escrit.</th>'
       +'<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Valor cliente</th>'
       +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)">Forma</th>'
+      +'<th style="padding:8px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu)"></th>'
     +'</tr></thead><tbody>';
   d.recebimentos.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(r){
     totB+=r.valor_bruto; totH+=r.valor_honorarios; totC+=r.valor_cliente;
@@ -2306,6 +2307,9 @@ function _vfRecebimentos(mesP){
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#4ade80;text-align:right">'+fV(r.valor_honorarios)+'</td>'
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#fb923c;text-align:right">'+fV(r.valor_cliente)+'</td>'
       +'<td style="padding:7px 10px;font-size:11px;color:var(--mu)">'+escapeHtml(r.forma)+'</td>'
+      +'<td style="padding:4px 6px;text-align:center">'
+        +(lancId ? '<button onclick="vfExcluirRecebimento(\''+lancId+'\')" title="Excluir" style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">\u2715</button>' : '')
+      +'</td>'
     +'</tr>';
   });
   html += '<tr style="background:var(--sf3);font-weight:700">'
@@ -2313,7 +2317,7 @@ function _vfRecebimentos(mesP){
     +'<td style="padding:8px 10px;font-size:12px;color:var(--tx);text-align:right">'+fV(totB)+'</td>'
     +'<td style="padding:8px 10px;font-size:12px;color:#4ade80;text-align:right">'+fV(totH)+'</td>'
     +'<td style="padding:8px 10px;font-size:12px;color:#fb923c;text-align:right">'+fV(totC)+'</td>'
-    +'<td></td></tr>';
+    +'<td colspan="2"></td></tr>';
   html += '</tbody></table></div></div>';
   return html;
 }
@@ -2384,6 +2388,7 @@ function _vfRepassesGlobal(mesP){
       +'<div style="flex:1;font-size:12px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(l.cliente||'').replace(/'/g,"\\'")+'\')">'+escapeHtml(l.cliente||'\u2014')+'</div>'
       +'<div style="font-size:11px;color:var(--mu)">'+escapeHtml(l.forma||l.conta||'')+'</div>'
       +'<div style="font-size:13px;font-weight:700;color:#c9484a">'+fV(l.valor)+'</div>'
+      +'<button onclick="vfExcluirRecebimento(\''+l.id+'\')" title="Excluir" style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer;margin-left:6px">\u2715</button>'
     +'</div>';
   });
   return html+'</div>';
@@ -5266,6 +5271,22 @@ function vfDelGlobal(id){
   sbSet('co_fin', finLancs);
   marcarAlterado();
   vfRender();
+  showToast('Lançamento excluído');
+}
+
+function vfExcluirRecebimento(lid){
+  var rawId = String(lid);
+  var l = (localLanc||[]).find(function(x){ return String(x.id)===rawId; });
+  var desc = l ? (l.desc||'—') : '—';
+  var valor = l ? (l.valor||0) : 0;
+  if(!confirm('Excluir "'+desc+'" (R$ '+Math.abs(valor).toFixed(2)+')?\n\nEsta ação não pode ser desfeita.')) return;
+  _markDeleted(rawId);
+  localLanc = (localLanc||[]).filter(function(x){ return String(x.id)!==rawId; });
+  sbSet('co_localLanc', localLanc);
+  _finLocaisCache = {};
+  marcarAlterado();
+  if(l && l.id_processo) _reRenderFinPasta(l.id_processo);
+  vfRender(); renderFinDash();
   showToast('Lançamento excluído');
 }
 
