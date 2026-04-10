@@ -367,20 +367,6 @@ async function sbInit(){
     notes        = asObj(ls('co_notes',{}));
     localContatos= asArr(ls('co_ctc',[]));
     _iniciais    = asArr(ls('co_iniciais',[]));
-    // Migrar lançamentos do Projuris para localLanc
-    (function(){
-      var novos = [{"id": 1780000000001, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-03-02", "venc": "2026-03-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p45"}, {"id": 1780000000011, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 7/11 — honorários 30%", "valor": 300.0, "data": "2026-03-02", "venc": "2026-03-02", "pago": true, "status": "pago", "dt_baixa": "2026-03-05", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p46", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000012, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 7/11)", "valor": 700.0, "data": "2026-03-02", "venc": "2026-03-02", "pago": true, "status": "pago", "dt_baixa": "2026-03-05", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p46"}, {"id": 1780000000021, "id_processo": 62044220, "tipo": "honorario", "direcao": "receber", "desc": "2ª Fase - Consultoria", "valor": 350.0, "data": "2026-03-05", "venc": "2026-03-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "MARY LUCIA DE OLIVEIRA", "natureza": "honorario_escritorio", "_migrado_projuris": "p43"}, {"id": 1780000000031, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "5/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-03-05", "venc": "2026-03-05", "pago": true, "status": "pago", "dt_baixa": "2026-03-05", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p44", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000032, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 5/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-03-05", "venc": "2026-03-05", "pago": true, "status": "pago", "dt_baixa": "2026-03-05", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p44"}, {"id": 1780000000041, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 1/6", "valor": 253.0, "data": "2026-03-06", "venc": "2026-03-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p41"}, {"id": 1780000000061, "id_processo": 52276707, "tipo": "honorario", "direcao": "receber", "desc": "6/6 Parcela Acordo INTER — honorários 30%", "valor": 300.0, "data": "2026-03-09", "venc": "2026-03-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "AMANDA VITORIA PEREIRA DA SILVA", "natureza": "honorario_escritorio", "_migrado_projuris": "p39", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000062, "id_processo": 52276707, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — AMANDA VITORIA PEREIRA DA SILVA (70% de 6/6 Parcela Acordo INTER)", "valor": 700.0, "data": "2026-03-09", "venc": "2026-03-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "AMANDA VITORIA PEREIRA DA SILVA", "_repasse_acordo": true, "_migrado_projuris": "p39"}, {"id": 1780000000071, "id_processo": 62081782, "tipo": "honorario", "direcao": "receber", "desc": "Defesa - INSS - 2/4", "valor": 407.0, "data": "2026-03-09", "venc": "2026-03-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ROGERIO JOSE DE AMORIM", "natureza": "honorario_escritorio", "_migrado_projuris": "p40"}, {"id": 1780000000081, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-03-17", "venc": "2026-03-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p38"}, {"id": 1780000000091, "id_processo": 61899034, "tipo": "honorario", "direcao": "receber", "desc": "Consultoria Empresarial - Funcionária Eduarda", "valor": 600.0, "data": "2026-03-20", "venc": "2026-03-20", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ADEGA 13 COMÉRCIO DE BEBIDAS LTDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p37"}, {"id": 1780000000111, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-03-30", "venc": "2026-03-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p35"}, {"id": 1780000000121, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-04-02", "venc": "2026-04-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p33"}, {"id": 1780000000131, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 8/11 — honorários 30%", "valor": 300.0, "data": "2026-04-02", "venc": "2026-04-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p34", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000132, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 8/11)", "valor": 700.0, "data": "2026-04-02", "venc": "2026-04-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p34"}, {"id": 1780000000141, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "6/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-04-05", "venc": "2026-04-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p32", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000142, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 6/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-04-05", "venc": "2026-04-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p32"}, {"id": 1780000000151, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 2/6", "valor": 253.0, "data": "2026-04-06", "venc": "2026-04-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p31"}, {"id": 1780000000161, "id_processo": 52276707, "tipo": "honorario", "direcao": "receber", "desc": "5/6 Parcela Acordo INTER — honorários 30%", "valor": 300.0, "data": "2026-04-09", "venc": "2026-04-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "AMANDA VITORIA PEREIRA DA SILVA", "natureza": "honorario_escritorio", "_migrado_projuris": "p29", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000162, "id_processo": 52276707, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — AMANDA VITORIA PEREIRA DA SILVA (70% de 5/6 Parcela Acordo INTER)", "valor": 700.0, "data": "2026-04-09", "venc": "2026-04-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "AMANDA VITORIA PEREIRA DA SILVA", "_repasse_acordo": true, "_migrado_projuris": "p29"}, {"id": 1780000000171, "id_processo": 62081782, "tipo": "honorario", "direcao": "receber", "desc": "Defesa - INSS - 3/4", "valor": 407.0, "data": "2026-04-09", "venc": "2026-04-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ROGERIO JOSE DE AMORIM", "natureza": "honorario_escritorio", "_migrado_projuris": "p30"}, {"id": 1780000000181, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-04-17", "venc": "2026-04-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p28"}, {"id": 1780000000201, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-04-30", "venc": "2026-04-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p26"}, {"id": 1780000000211, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 9/11 — honorários 30%", "valor": 300.0, "data": "2026-05-01", "venc": "2026-05-01", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p25", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000212, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 9/11)", "valor": 700.0, "data": "2026-05-01", "venc": "2026-05-01", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p25"}, {"id": 1780000000221, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-05-02", "venc": "2026-05-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p24"}, {"id": 1780000000231, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "7/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-05-05", "venc": "2026-05-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p23", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000232, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 7/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-05-05", "venc": "2026-05-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p23"}, {"id": 1780000000241, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 3/6", "valor": 253.0, "data": "2026-05-06", "venc": "2026-05-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p22"}, {"id": 1780000000251, "id_processo": 62081782, "tipo": "honorario", "direcao": "receber", "desc": "Defesa - INSS - 4/4", "valor": 407.0, "data": "2026-05-09", "venc": "2026-05-09", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ROGERIO JOSE DE AMORIM", "natureza": "honorario_escritorio", "_migrado_projuris": "p21"}, {"id": 1780000000261, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-05-17", "venc": "2026-05-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p20"}, {"id": 1780000000281, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-05-30", "venc": "2026-05-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p18"}, {"id": 1780000000291, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-06-02", "venc": "2026-06-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p16"}, {"id": 1780000000301, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 10/11 — honorários 30%", "valor": 300.0, "data": "2026-06-02", "venc": "2026-06-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p17", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000302, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 10/11)", "valor": 700.0, "data": "2026-06-02", "venc": "2026-06-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p17"}, {"id": 1780000000311, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "8/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-06-05", "venc": "2026-06-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p15", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000312, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 8/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-06-05", "venc": "2026-06-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p15"}, {"id": 1780000000321, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 4/6", "valor": 253.0, "data": "2026-06-06", "venc": "2026-06-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p14"}, {"id": 1780000000331, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-06-17", "venc": "2026-06-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p13"}, {"id": 1780000000341, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-06-30", "venc": "2026-06-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p12"}, {"id": 1780000000351, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-07-02", "venc": "2026-07-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p10"}, {"id": 1780000000361, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 11/11 — honorários 30%", "valor": 300.0, "data": "2026-07-02", "venc": "2026-07-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p11", "_perc_hon": 30, "_vbruto": 1000.0}, {"id": 1780000000362, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 11/11)", "valor": 700.0, "data": "2026-07-02", "venc": "2026-07-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p11"}, {"id": 1780000000371, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "9/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-07-05", "venc": "2026-07-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p9", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000372, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 9/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-07-05", "venc": "2026-07-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p9"}, {"id": 1780000000381, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 5/6", "valor": 253.0, "data": "2026-07-06", "venc": "2026-07-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p8"}, {"id": 1780000000391, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-07-17", "venc": "2026-07-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p7"}, {"id": 1780000000401, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-07-30", "venc": "2026-07-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p47"}, {"id": 1780000000411, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-08-02", "venc": "2026-08-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p6"}, {"id": 1780000000421, "id_processo": 4181597, "tipo": "honorario", "direcao": "receber", "desc": "Parcela 12/12 — honorários 30%", "valor": 348.0, "data": "2026-08-03", "venc": "2026-08-03", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "natureza": "honorario_escritorio", "_migrado_projuris": "p5", "_perc_hon": 30, "_vbruto": 1160.0}, {"id": 1780000000422, "id_processo": 4181597, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — PALOMA ALVES DOS SANTOS (70% de Parcela 12/12)", "valor": 812.0, "data": "2026-08-03", "venc": "2026-08-03", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "PALOMA ALVES DOS SANTOS", "_repasse_acordo": true, "_migrado_projuris": "p5"}, {"id": 1780000000431, "id_processo": 58420195, "tipo": "honorario", "direcao": "receber", "desc": "10/10 Parcela - Acordo — honorários 30%", "valor": 2850.0, "data": "2026-08-05", "venc": "2026-08-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p4", "_perc_hon": 30, "_vbruto": 9500.0}, {"id": 1780000000432, "id_processo": 58420195, "tipo": "repasse", "direcao": "pagar", "desc": "Repasse — ELIEDSON FERREIRA DE ALMEIDA (70% de 10/10 Parcela - Acordo)", "valor": 6650.0, "data": "2026-08-05", "venc": "2026-08-05", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "ELIEDSON FERREIRA DE ALMEIDA", "_repasse_acordo": true, "_migrado_projuris": "p4"}, {"id": 1780000000441, "id_processo": 61138230, "tipo": "honorario", "direcao": "receber", "desc": "Requerimento PCD 6/6", "valor": 253.0, "data": "2026-08-06", "venc": "2026-08-06", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "LUCIMAR APARECIDA DE ASSIS", "natureza": "honorario_escritorio", "_migrado_projuris": "p3"}, {"id": 1780000000451, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-08-17", "venc": "2026-08-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p2"}, {"id": 1780000000461, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-08-30", "venc": "2026-08-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p48"}, {"id": 1780000000471, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-09-02", "venc": "2026-09-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p56"}, {"id": 1780000000481, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-09-17", "venc": "2026-09-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p1"}, {"id": 1780000000491, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-09-30", "venc": "2026-09-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p49"}, {"id": 1780000000501, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-10-02", "venc": "2026-10-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p57"}, {"id": 1780000000511, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-10-17", "venc": "2026-10-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p53"}, {"id": 1780000000521, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-10-30", "venc": "2026-10-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p50"}, {"id": 1780000000531, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-11-02", "venc": "2026-11-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p58"}, {"id": 1780000000541, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-11-17", "venc": "2026-11-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p54"}, {"id": 1780000000551, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-11-30", "venc": "2026-11-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p51"}, {"id": 1780000000561, "id_processo": 62197181, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção PCD", "valor": 97.0, "data": "2026-12-02", "venc": "2026-12-02", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "FATIMA FRANCISCA GUIRLANDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p59"}, {"id": 1780000000571, "id_processo": 56825228, "tipo": "honorario", "direcao": "receber", "desc": "Monitoramento processual", "valor": 99.9, "data": "2026-12-17", "venc": "2026-12-17", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "Shirley Alves Braga Santos", "natureza": "honorario_escritorio", "_migrado_projuris": "p55"}, {"id": 1780000000581, "id_processo": 49674121, "tipo": "honorario", "direcao": "receber", "desc": "Taxa de Manutenção Processual", "valor": 99.9, "data": "2026-12-30", "venc": "2026-12-30", "pago": false, "status": "pendente", "dt_baixa": "", "cliente": "CARLOS ALBERTO ALVES LACERDA", "natureza": "honorario_escritorio", "_migrado_projuris": "p52"}];
-      var existeIds = new Set((localLanc||[]).filter(function(l){return l._migrado_projuris;}).map(function(l){return l._migrado_projuris+'|'+l.tipo;}));
-      var added = 0;
-      novos.forEach(function(n){
-        var key = n._migrado_projuris+'|'+n.tipo;
-        if(!existeIds.has(key)){ localLanc.push(n); added++; }
-      });
-      if(added > 0){
-        lsSet('co_localLanc', JSON.stringify(localLanc));
-        sbSet('co_localLanc', localLanc);
-      }
-    })();
     // Re-renderizar tudo
     atualizarStats(); renderHomeAlerts(); renderFinDash();
     renderChecklist(); renderHomeWeek(); doSearch();
@@ -2039,7 +2025,7 @@ const CAT_DESPESA = {
   'FGTS':               { grupo:'Pessoal',      icone:'📋', recorrente:true  },
   // Serviços
   'Contador':           { grupo:'Serviços',     icone:'📊', recorrente:true  },
-  'Projuris / Sistemas':{ grupo:'Serviços',     icone:'💻', recorrente:true  },
+  'Sistemas':{ grupo:'Serviços',     icone:'💻', recorrente:true  },
   'Limpeza / Faxina':   { grupo:'Serviços',     icone:'🧹', recorrente:true  },
   'Manutenção':         { grupo:'Serviços',     icone:'🔧', recorrente:false },
   'Advocacia terceirizada':{ grupo:'Serviços',  icone:'⚖️', recorrente:false },
@@ -2094,33 +2080,16 @@ function goFin(){
   vfRender();
 }
 
-// Agregar TODOS os lançamentos: Projuris (FIN_XLSX) + localLanc + finLancs
+// Agregar TODOS os lançamentos: localLanc + finLancs
 // PERF: resultado cacheado — rebuilt só quando _vfTodosInvalido=true (marcarAlterado invalida)
 function vfTodos(){
   if(!_vfTodosInvalido && _vfTodosCache) return _vfTodosCache;
   const hoje = _HOJE_STR;
-  const pasta_map = {};
-  CLIENTS.forEach(c=>{ pasta_map[String(c.pasta)] = c.cliente; });
 
-  // 1. Projuris — status pode ter sido atualizado por vfBaixar (finLancs._projuris_id)
-  //    OU por baixa manual em localLanc (proj_ref)
-  const baixasProj = {};
-  // Checar finLancs (via vfBaixar)
-  (finLancs||[]).forEach(function(l){
-    if(l._projuris_id) baixasProj['p'+l._projuris_id] = l;
-  });
-  // Checar localLanc (via finBaixarLanc)
-  (localLanc||[]).forEach(function(l){
-    if(l.proj_ref) baixasProj[l.proj_ref] = l;
-  });
   // Permanently excluded clients (Amanda Fabiane - confirmed by user)
-  var EXCL_PASTAS = new Set(['970','1001']);
   var EXCL_PROC_IDS = new Set([59867077, 60369997]);
 
-  // FIN_XLSX desligado — migrado para localLanc
-  const proj = [];
-
-    // 2. localLanc (por processo) — exclude permanently deleted clients
+  // 1. localLanc (por processo)
   const local = (localLanc||[]).filter(function(l){
     return !EXCL_PROC_IDS.has(Number(l.id_processo||0));
   }).map(l=>({
@@ -2134,10 +2103,8 @@ function vfTodos(){
     forma: l.forma||'', obs: l.obs||''
   }));
 
-  // 3. finLancs (escritório global)
-  // EXCLUIR: registros "sombra" criados apenas para marcar baixa de Projuris ou extrato
+  // 2. finLancs (escritório global)
   const glob = (finLancs||[])
-    .filter(function(l){ return !l._projuris_id && !l.proj_ref && !l.origem_proj; })
     .map(l=>({
       id: 'g'+l.id, origem:'global',
       tipo: l.tipo||'receber',
@@ -2149,13 +2116,7 @@ function vfTodos(){
       forma: l.forma||'', obs: ''
     }));
 
-  // 4. localLanc — excluir registros sombra (proj_ref = baixa de Projuris)
-  const localFiltrado = local.filter(function(l){
-    const orig = (localLanc||[]).find(function(x){ return 'l'+x.id===l.id; });
-    return orig && !orig.proj_ref && !orig.origem_proj;
-  });
-
-  const result = [...proj,...localFiltrado,...glob].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+  const result = [...local,...glob].sort((a,b)=>(a.data||'').localeCompare(b.data||''));
   _vfTodosCache = result;
   _vfTodosInvalido = false;
   return result;
@@ -2441,7 +2402,7 @@ function _vfDespesasEscritorio(mesP){
     if(d.includes('SALARIO')||d.includes('KAREN')||d.includes('PRO LABORE')||d.includes('PROLABORE')) return 'Pessoal';
     if(d.includes('INTERNET')||d.includes('CLARO')||d.includes('TELEFONE')) return 'Telecom';
     if(d.includes('ENERGIA')||d.includes('LUZ')||d.includes('CEMIG')) return 'Energia';
-    if(d.includes('SISTEMA')||d.includes('SOFTWARE')||d.includes('PROJURIS')) return 'Sistemas';
+    if(d.includes('SISTEMA')||d.includes('SOFTWARE')) return 'Sistemas';
     if(d.includes('IMPOSTO')||d.includes('SIMPLES')||d.includes('DARF')) return 'Impostos';
     return 'Outros';
   };
@@ -2696,13 +2657,6 @@ function finIrParaLanc(lancId){
     var l = (localLanc||[]).find(function(x){ return String(x.id)===id.slice(1); });
     if(l && l.id_processo){ goView('vcl'); openC(l.id_processo); return; }
   }
-  if(id.startsWith('p')){
-    var pItem = (FIN_XLSX||[]).find(function(x){ return 'p'+x.id===id; });
-    if(pItem){
-      var c2=(CLIENTS||[]).find(function(x){return String(x.pasta)===String(pItem.pasta);});
-      if(c2){ goView('vcl'); openC(c2.id); return; }
-    }
-  }
   goView('vf'); _vfTab='mes'; vfRender();
   setTimeout(function(){ finScrollToLanc(id); }, 300);
 }
@@ -2857,15 +2811,13 @@ function _vfMesBloco(titulo, itens, cor, isRec, mesP2, hoje, fmtV){
     // Actions
     var acoes = '';
     if(isPago){
-      var estFn = l.origem==='projuris'?'vfEstornarProjuris(\''+l.id+'\')':l.origem==='global'?'vfEstornarGlobal(\''+l.id+'\')':'finEstornarLocal(0,\''+l.id.replace('l','')+'\')';
+      var estFn = l.origem==='global'?'vfEstornarGlobal(\''+l.id+'\')':'finEstornarLocal(0,\''+l.id.replace('l','')+'\')';
       acoes += '<button onclick="'+estFn+'" title="Estornar" style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">↩</button> ';
     } else {
       acoes += '<button onclick="vfBaixar(\''+l.id+'\')" style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;background:'+(isRec?'rgba(76,175,125,.1)':'rgba(248,118,118,.08)')+';border:1px solid '+(isRec?'rgba(76,175,125,.25)':'rgba(248,118,118,.25)')+';color:'+(isRec?'#4ade80':'#f87676')+';cursor:pointer">'+(isRec?'✓ Receber':'✓ Pagar')+'</button> ';
     }
-    if(l.origem!=='projuris'){
-      var delFn = l.origem==='global'?'finDelGlobal(\''+l.id.replace('g','')+'\')':'finDelLanc(0,\''+l.id.replace('l','')+'\')';
-      acoes += '<button onclick="'+delFn+'" title="Excluir" style="font-size:10px;padding:2px 5px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✕</button>';
-    }
+    var delFn = l.origem==='global'?'finDelGlobal(\''+l.id.replace('g','')+'\')':'finDelLanc(0,\''+l.id.replace('l','')+'\')';
+    acoes += '<button onclick="'+delFn+'" title="Excluir" style="font-size:10px;padding:2px 5px;border-radius:4px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">✕</button>';
 
     html += '<tr data-lanc-id="'+l.id+'" style="border-bottom:1px solid var(--bd)">'
       +'<td style="padding:7px 12px;font-size:11px;color:var(--mu);white-space:nowrap;min-width:90px">'+fDt(l.data||l.venc)+'</td>'
@@ -3155,7 +3107,6 @@ function vfLista(todos, tipo){
     const editFn='vfEditarLanc(\'' + l.id + '\')';
     const delFn='vfDelGlobal(\'' + l.id + '\')';
     const baixaBtn=canBaixa?('<button class="vf-ac-btn baixar" onclick="'+baixaFn+'" title="Dar baixa">'+(isRec?'✓ Receber':'✓ Pagar')+'</button>'):'';
-    // Edit/delete para global e local; retificação para projuris (baixas)
     const _lid = String(l.id).replace(/'/g,"");
     const editBtn = l.origem==='global'
       ? ('<button class="vf-ac-btn editar" onclick="'+editFn+'">✏</button>'
@@ -3163,11 +3114,7 @@ function vfLista(todos, tipo){
       : l.origem==='local'
         ? ('<button class="vf-ac-btn editar" onclick="vfEditarLocal(&quot;'+_lid+'&quot;)">✏</button>'
             +'<button class="vf-ac-btn excluir" onclick="vfDelLocal(&quot;'+_lid+'&quot;)">✕</button>')
-        : l.origem==='projuris' && isPago
-          ? ('<button class="vf-ac-btn excluir" onclick="vfEstornarProjuris(&quot;'+_lid+'&quot;)" title="Estornar baixa">↩</button>')
-          : l.origem==='projuris'
-            ? '<span class="vf-origem-tag" title="Lançamento do Projuris — não pode ser excluído aqui. Para ignorar, use Estornar após dar baixa.">Projuris</span>'
-            : '';
+        : '';
     return '<tr class="'+(isPago?'vf-row-pago':isVenc?'vf-row-venc':'')+'"'
       +' data-desc="'+((l.desc||'').toLowerCase().replace(/"/g,''))+'"'
       +' data-mes="'+((l.venc||l.data||'').slice(0,7))+'"'
@@ -3198,7 +3145,7 @@ function vfHonorarios(todos){
   const fmtDt = d => d?fDt(d):'—';
   const hons = todos.filter(l=>
     l.tipo==='receber' && (l.subtipo==='honorario'||l.subtipo==='honorario_fixo'||
-    l.subtipo==='honorario_perc'||l.subtipo==='sucumbencia'||l.origem==='projuris')
+    l.subtipo==='honorario_perc'||l.subtipo==='sucumbencia')
   );
   const recebidos = hons.filter(l=>l.status==='pago').reduce((s,l)=>s+l.valor,0);
   const aReceber  = hons.filter(l=>l.status!=='pago').reduce((s,l)=>s+l.valor,0);
@@ -3260,7 +3207,7 @@ function vfReembolsar(){
         <td style="padding:7px 6px;font-size:12px">${d.data||'—'}</td>
         <td style="padding:7px 6px;font-size:12px;max-width:220px">
           <div style="font-weight:500;color:var(--of)">${d.desc||'—'}</div>
-          <div style="font-size:10px;color:var(--mu)">${d.cat||''} · ${d.mov_projuris||''}</div>
+          <div style="font-size:10px;color:var(--mu)">${d.cat||''}</div>
           ${d.cliente_vinc?`<div style="font-size:10px;color:var(--ouro)">👤 ${d.cliente_vinc}</div>`:'<div style="font-size:10px;color:#f87676">⚠ Cliente não vinculado</div>'}
         </td>
         <td style="padding:7px 6px;font-size:12px;color:#fb923c;font-weight:600;white-space:nowrap">${fBRL(d.valor)}</td>
@@ -3455,15 +3402,6 @@ function vfBaixar(id){
     descLanc=ll.desc||ll.descricao||''; valorLanc=parseFloat(ll.valor)||0;
     clienteLanc=ll.cliente||''; tipoDir=ll.tipo||ll.direcao||'receber';
     processLanc = ll.id_processo ? (CLIENTS.find(c=>c.id===ll.id_processo)?.cliente||'') : '';
-  } else if(id.startsWith('p')){
-    const rawNum = id.slice(1);
-    const orig = (FIN_XLSX||[]).find(l=>String(l.id)===rawNum);
-    if(!orig){showToast('Projuris não encontrado');return;}
-    const pm={}; CLIENTS.forEach(c=>{pm[String(c.pasta)]=c.cliente;});
-    descLanc=orig.desc||orig.mov_projuris||orig.cat||'Honorário Projuris'; valorLanc=orig.val||0;
-    clienteLanc=pm[String(orig.pasta)]||orig.pasta||'';
-    tipoDir=orig.tipo==='receber'?'receber':'pagar';
-    processLanc=clienteLanc;
   }
 
   const _tiposReceber = new Set(['receber','acordo','honorario','honorario_direto','sucumbencia','alvara','reembolso','assessoria','consulta']);
@@ -3621,8 +3559,7 @@ function vfBaixar(id){
         origem: 'baixa_fin'
       });
       sbSet('co_localMov', localMov);
-      // Atualizar histórico Projuris na ficha do cliente
-      if(typeof renderFinXlsx==='function') renderFinXlsx(cli);
+      // Atualizar ficha do cliente
       if(typeof _reRenderFinPasta==='function') _reRenderFinPasta(cid);
     }
 
@@ -3647,31 +3584,6 @@ function vfBaixar(id){
       const _cidL = localLanc[(localLanc||[]).findIndex(l=>String(l.id)===id.slice(1))]?.id_processo;
       if(_cidL) _reRenderFinPasta(_cidL);
       else if(clienteLanc){ const _cL=findClientByName(clienteLanc); if(_cL) _reRenderFinPasta(_cL.id); }
-    } else if(id.startsWith('p')){
-      const rawNum = id.slice(1);
-      const pm={}; CLIENTS.forEach(c=>{pm[String(c.pasta)]=c.cliente;});
-      const orig = (FIN_XLSX||[]).find(l=>String(l.id)===rawNum);
-      if(!orig){showToast('Não encontrado');return;}
-      const ex = finLancs.find(l=>String(l._projuris_id)===rawNum);
-      if(ex){
-        const i = finLancs.indexOf(ex);
-        finLancs[i] = _atualizarLanc(finLancs[i]);
-        _inserirMonteMor(finLancs[i]);
-        _syncPasta();
-      } else {
-        const nl = _atualizarLanc({
-          id:Date.now(), _projuris_id:rawNum,
-          tipo:tipoDir, desc:descLanc,
-          cliente:clienteLanc, valor:valorLanc,
-          data:orig.dt_venc||orig.dt_comp||hoje,
-          cat:'Honorarios'
-        });
-        finLancs.push(nl);
-        _inserirMonteMor(nl);
-        _syncPasta();
-      }
-      sbSet('co_fin', finLancs);
-      if(clienteLanc){ const _cP=findClientByName(clienteLanc); if(_cP) _reRenderFinPasta(_cP.id); }
     }
 
     marcarAlterado();
@@ -4040,18 +3952,6 @@ function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
     const i=(localLanc||[]).findIndex(function(l){return String(l.id)===rawId;});
     if(i!==-1){ localLanc[i]=_atualizarObj(localLanc[i]); sbSet('co_localLanc',localLanc);
       const cid=localLanc[i].id_processo; if(cid) _reRenderFinPasta(cid); }
-  } else if(id.startsWith('p')){
-    const rawNum=id.slice(1);
-    const ex=(finLancs||[]).find(function(l){return String(l._projuris_id)===rawNum;});
-    const reg={id:genId(),_projuris_id:rawNum,tipo:'receber',
-      desc:lancRef?lancRef.desc:'',cliente:lancRef?lancRef.cliente:'',
-      valor:valorBaixa,data:dtBaixa,dt_baixa:dtBaixa,forma:forma,
-      status:'pago',pago:true,obs:obs||''};
-    if(!ex) finLancs.push(reg);
-    else { const fi=finLancs.indexOf(ex); finLancs[fi]={...finLancs[fi],...reg}; }
-    sbSet('co_fin',finLancs);
-    const c2=findClientByName(lancRef?lancRef.cliente:'');
-    if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:dtBaixa,movimentacao:'[Financeiro] '+fBRL(valorBaixa)+' via '+(forma||'—'),tipo_movimentacao:'Financeiro',origem:'baixa'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
   }
   marcarAlterado();
 }
@@ -4546,19 +4446,6 @@ function finDelGlobal(lid){
 }
 
 
-function finIgnorarProjuris(pid, cid){
-  abrirModal('Ignorar lançamento',
-    '<div style="font-size:13px;color:var(--tx);margin-bottom:10px">Este lançamento do Projuris será <strong>ocultado</strong> da pasta. Ele não é excluído — pode ser reativado depois.</div>'
-    +'<div style="font-size:12px;color:var(--mu)">Use esta opção para lançamentos incorretos, duplicados ou que não se aplicam a este processo.</div>',
-  function(){
-    _finIgnorados.add(pid);
-    try{ lsSet('co_fin_ignorados', JSON.stringify([..._finIgnorados])); }catch{}
-    fecharModal();
-    if(cid) _reRenderFinPasta(cid);
-    showToast('Lançamento ocultado. Para reativar, vá em Configurações.');
-  }, 'Ocultar lançamento');
-}
-
 function despFixaPagar(gid){
   const rawId = gid.replace('g','');
   const l = (finLancs||[]).find(function(x){ return String(x.id)===rawId; });
@@ -4629,40 +4516,6 @@ function finEstornarLocal(cid, lid){
 }
 
 
-function vfEstornarProjuris(lid){
-  // Estornar uma baixa de item Projuris
-  const rawNum = String(lid).startsWith('p') ? lid.slice(1) : lid;
-  const orig = (FIN_XLSX||[]).find(function(l){ return String(l.id)===rawNum; });
-  if(!orig){ showToast('Item Projuris não encontrado'); return; }
-  abrirModal('↩ Estornar Recebimento',
-    '<div style="padding:12px;background:var(--sf3);border-radius:8px;margin-bottom:10px">'
-      +'<div style="font-size:13px;font-weight:600;color:var(--tx)">'+escapeHtml(orig.desc||'—')+'</div>'
-      +'<div style="font-size:12px;color:var(--mu);margin-top:4px">Pasta '+orig.pasta+' · '+fBRL(orig.val||0)+'</div>'
-    +'</div>'
-    +'<div style="font-size:12px;color:#f59e0b">O lançamento voltará para status PENDENTE.</div>',
-  function(){
-    // Remover de finLancs
-    finLancs = (finLancs||[]).filter(function(l){ return String(l._projuris_id)!==rawNum; });
-    // Remover de localLanc
-    localLanc = (localLanc||[]).filter(function(l){ return l.proj_ref!==lid; });
-    // Restaurar status no FIN_XLSX in-memory
-    const xlxIdx = (FIN_XLSX||[]).findIndex(function(l){ return String(l.id)===rawNum; });
-    if(xlxIdx!==-1){ FIN_XLSX[xlxIdx].status='pendente'; FIN_XLSX[xlxIdx].dt_pago=''; }
-    sbSet('co_fin', finLancs);
-    sbSet('co_localLanc', localLanc);
-    marcarAlterado(); fecharModal();
-    if(document.getElementById('vf')?.classList.contains('on')) vfRender();
-    renderFinDash();
-    // Atualizar pasta do cliente
-    const pasta_map2={}; CLIENTS.forEach(function(c){pasta_map2[String(c.pasta)]=c;});
-    const cli2 = pasta_map2[String(orig.pasta)];
-    if(cli2){ _reRenderFinPasta(cli2.id); }
-    showToast('↩ Baixa estornada — item voltou para pendente');
-    audit('estorno','Baixa estornada: '+(orig.desc||'—'),'lancamento');
-  }, '↩ Confirmar estorno');
-}
-
-
 // ══════════════════════════════════════════════════════════════
 // ══ MÓDULO: EXTRATO BANCÁRIO — Conciliação automática ══
 // ══════════════════════════════════════════════════════════════
@@ -4693,7 +4546,7 @@ function abrirGuiaFinanceiro(){
     {
       ico:'📥', tab:'A Receber', cor:'#4ade80',
       titulo:'A Receber — honorários e parcelas pendentes',
-      uso:'Lista todos os valores que o escritório ainda vai receber — do Projuris e lançamentos manuais.',
+      uso:'Lista todos os valores que o escritório ainda vai receber.',
       como:[
         'Quando o cliente pagar: clique em <strong>✓ Receber</strong>',
         'Para <strong>honorários/consultoria</strong>: escolha "Recebimento simples" — 100% entra no caixa',
@@ -4995,16 +4848,7 @@ function extratoBaixarVinculo(i){
   const forma = l.historico&&l.historico.toLowerCase().includes('pix') ? 'PIX'
     : l.historico&&l.historico.toLowerCase().includes('ted') ? 'TED / Depósito'
     : 'PIX';
-  if(vid.startsWith('p')){
-    const rawNum=vid.slice(1);
-    const existInFin=(finLancs||[]).find(function(x){return String(x._projuris_id)===rawNum;});
-    const reg={id:Date.now()+i,_projuris_id:rawNum,tipo:'receber',desc:l._match_desc,cliente:l._match_cliente,valor:Math.abs(l.valor),data:l.data,dt_baixa:l.data,forma:forma,status:'pago',pago:true,obs:'Conciliado extrato Inter '+l.dataFmt};
-    if(!existInFin) finLancs.push(reg);
-    else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
-    sbSet('co_fin',finLancs);
-    const c2=findClientByName(l._match_cliente);
-    if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:l.data,movimentacao:'[Conciliação] Baixa confirmada via extrato: '+l._match_desc+' — '+fBRL(Math.abs(l.valor)),tipo_movimentacao:'Financeiro',origem:'conciliacao'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
-  } else if(vid.startsWith('l')){
+  if(vid.startsWith('l')){
     const rawId=vid.slice(1);
     const li=(localLanc||[]).findIndex(function(x){return String(x.id)===rawId;});
     if(li!==-1){localLanc[li]={...localLanc[li],status:'pago',pago:true,dt_baixa:l.data,forma:forma,obs:'Conciliado extrato Inter '+l.dataFmt};sbSet('co_localLanc',localLanc);const cid=localLanc[li].id_processo;if(cid)_reRenderFinPasta(cid);}
@@ -5211,19 +5055,7 @@ function extratoClassificar(i){
       const matchT = todos.find(function(t){ return t.id===vinculo; });
       if(!matchT){ showToast('Lançamento não encontrado'); return; }
 
-      if(vinculo.startsWith('p')){
-        const rawNum = vinculo.slice(1);
-        const existInFin = (finLancs||[]).find(function(x){ return String(x._projuris_id)===rawNum; });
-        const reg = { id:Date.now()+i, _projuris_id:rawNum, tipo:tipoDir,
-          desc:matchT.desc, cliente:matchT.cliente, valor:valorAbs,
-          data:l.data, dt_baixa:l.data, forma:forma, status:'pago', pago:true,
-          obs:'Extrato Inter '+l.dataFmt };
-        if(!existInFin) finLancs.push(reg);
-        else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
-        sbSet('co_fin', finLancs);
-        const c2=findClientByName(matchT.cliente);
-        if(c2){ if(!localMov[c2.id]) localMov[c2.id]=[]; localMov[c2.id].unshift({data:l.data,movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(c2.id); }
-      } else if(vinculo.startsWith('l')){
+      if(vinculo.startsWith('l')){
         const rawId=vinculo.slice(1);
         const li=(localLanc||[]).findIndex(function(x){return String(x.id)===rawId;});
         if(li!==-1){ localLanc[li]={...localLanc[li],status:'pago',pago:true,dt_baixa:l.data,forma:forma,obs:'Extrato Inter '+l.dataFmt}; sbSet('co_localLanc',localLanc); const cid=localLanc[li].id_processo; if(cid) _reRenderFinPasta(cid); }
@@ -5510,7 +5342,7 @@ body.light .ficha-tl-body .tl-data   { color:#6a5a50!important; }
   --bd:#333333; --vinho:#510f10; --ouro:#D4AF37;
 }
 
-/* ══ HEADER DA FICHA — novo design Projuris-inspired ══ */
+/* ══ HEADER DA FICHA ══ */
 .fhead-pro {
   padding: 14px 16px 0;
   background: var(--sf2);
@@ -5589,7 +5421,7 @@ body.light .ficha-tl-body .tl-data   { color:#6a5a50!important; }
 }
 .fhp-card-val.mono { font-family: 'DM Sans', monospace; font-size: 11px; color: var(--ouro); }
 
-/* Phase 2: bloco body.light "Off-white Projuris" removido — consolidado na linha ~9160 */
+/* Phase 2: bloco body.light consolidado */
 body.light .fhead-pro { background: #FFFFFF; border-bottom-color: #E0E0E0; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 body.light .fhp-nome  { color: #1A1A1A !important; font-weight: 800; }
 body.light .fhp-pasta-label { color: #7a1518 !important; }
@@ -5729,7 +5561,7 @@ body.light .fhp-card-val.mono { color: #7a1518 !important; }
 
 
 /* ═══════════════════════════════════════════════════
-   FP — FICHA PROCESSO — Layout Projuris-inspired
+   FP — FICHA PROCESSO
    ═══════════════════════════════════════════════════ */
 
 .fp-wrap {
@@ -7179,7 +7011,7 @@ var _finLocaisCacheVer = 0;
 function _finGetLocais(cid){
   var ver = (localLanc||[]).length;
   if(_finLocaisCache._cid===cid && _finLocaisCache._ver===ver) return _finLocaisCache._data;
-  var data = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid) && !l.proj_ref && !l.origem_proj;});
+  var data = (localLanc||[]).filter(function(l){return Number(l.id_processo)===Number(cid);});
   _finLocaisCache = {_cid:cid, _ver:ver, _data:data};
   return data;
 }
@@ -7216,10 +7048,11 @@ function _finTab(tab, cid, btn){
 
 // ── MOTOR DE CÁLCULO ──
 function _finCalcLanc(l){
-  var vi = parseFloat(l.valor_integral)||0;
+  var vi = parseFloat(l.valor_integral)||parseFloat(l.valor)||parseFloat(l._vbruto)||0;
   var vp = parseFloat(l.valor_parcela)||0;
   var base = vp > 0 ? vp : vi;
-  var perc = parseFloat(l.percentual_honorarios)||0;
+  var perc = parseFloat(l.percentual_honorarios)||parseFloat(l._perc_hon)||0;
+  if(!perc && base > 0) perc = 100; // fallback: se tem valor mas sem %, assume 100%
   var ress = parseFloat(l.ressarcimento)||0;
   var hon = roundMoney(base * perc / 100);
   var ppn = (l.parceiro_nome||'').trim();
@@ -8242,23 +8075,12 @@ function finBaixarLanc(cid, lid, direcao){
   const hoje = new Date().toISOString().slice(0,10);
   const label = direcao==='receber' ? 'Recebimento' : 'Pagamento';
 
-  // Resolver lançamento — pode ser Projuris (FIN_XLSX) ou local (localLanc/finLancs)
-  const isProjuris = String(lid).startsWith('p');
+  // Resolver lançamento — local (localLanc) ou global (finLancs)
   const isGlobal   = String(lid).startsWith('g');
   let lanc = null;
   let localIdx = -1;
 
-  if(isProjuris){
-    // id = 'p' + l.id original
-    const origId = String(lid).slice(1);
-    const xlxIdx = (FIN_XLSX||[]).findIndex(function(l){ return String(l.id)===origId; });
-    if(xlxIdx !== -1) lanc = {
-      id: lid, desc: FIN_XLSX[xlxIdx].desc||'—',
-      valor: FIN_XLSX[xlxIdx].val||0, forma: FIN_XLSX[xlxIdx].forma||'',
-      obs: FIN_XLSX[xlxIdx].obs||'', cliente: FIN_XLSX[xlxIdx].pasta||'',
-      _xlxIdx: xlxIdx, origem:'projuris'
-    };
-  } else if(isGlobal){
+  if(isGlobal){
     // id = 'g' + l.id original
     const origId = String(lid).slice(1);
     const fIdx = (finLancs||[]).findIndex(function(l){ return String(l.id)===origId; });
@@ -8277,7 +8099,7 @@ function finBaixarLanc(cid, lid, direcao){
 
   abrirModal('Dar Baixa — '+label,
     '<div style="margin-bottom:8px;padding:10px 12px;background:var(--sf3);border-radius:8px">'
-      +'<div style="font-size:11px;color:var(--mu);margin-bottom:4px">'+(isProjuris?'Projuris · Pasta '+lanc.cliente:lanc.cliente||'')+'</div>'
+      +'<div style="font-size:11px;color:var(--mu);margin-bottom:4px">'+(lanc.cliente||'')+'</div>'
       +'<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(lanc.desc||'Lançamento')+'</div>'
       +'<div style="font-size:24px;font-weight:800;color:'+(direcao==='receber'?'#4ade80':'#f87676')+';margin-top:4px">'
         +fBRL(lanc.valor||0)+'</div>'
@@ -8302,42 +8124,7 @@ function finBaixarLanc(cid, lid, direcao){
     const forma   = document.getElementById('fb-forma')?.value||'';
     const obs     = document.getElementById('fb-obs')?.value.trim()||'';
 
-    if(isProjuris){
-      // 1. Marcar no FIN_XLSX (in-memory — dados do arquivo)
-      const xlxIdx = lanc._xlxIdx;
-      FIN_XLSX[xlxIdx].status = 'pago';
-      FIN_XLSX[xlxIdx].dt_pago = dtBaixa;
-      FIN_XLSX[xlxIdx].forma = forma;
-      // 2. Criar registro em localLanc para persistir a baixa no Supabase
-      const existing = (localLanc||[]).findIndex(function(l){ return l.proj_ref===String(lid); });
-      const baixaReg = {
-        id: 'baixa_'+lid+'_'+Date.now(),
-        proj_ref: String(lid),
-        desc: lanc.desc, valor: lanc.valor,
-        tipo: direcao==='receber'?'honorario':'despesa',
-        direcao: direcao,
-        status: 'pago', pago: true,
-        data: dtBaixa, dt_baixa: dtBaixa,
-        forma: forma, obs: obs,
-        cliente: lanc.cliente, origem_proj: true
-      };
-      if(existing === -1) localLanc.push(baixaReg);
-      else localLanc[existing] = baixaReg;
-      sbSet('co_localLanc', localLanc);
-      // 3. Andamento na pasta do cliente
-      const c = CLIENTS.find(function(x){ return String(x.pasta)===String(lanc.cliente); });
-      const clienteId = c ? c.id : null;
-      if(clienteId){
-        if(!localMov[clienteId]) localMov[clienteId]=[];
-        localMov[clienteId].unshift({
-          data: dtBaixa,
-          movimentacao: '[Financeiro] '+label+' Projuris baixado: '+lanc.desc+' — '+fBRL(lanc.valor)+(forma?' via '+forma:''),
-          tipo_movimentacao:'Financeiro', origem:'baixa_projuris'
-        });
-        sbSet('co_localMov', localMov);
-        _reRenderFinPasta(clienteId);
-      }
-    } else if(isGlobal){
+    if(isGlobal){
       // Global (finLancs)
       const fIdx = lanc._fIdx;
       finLancs[fIdx] = { ...finLancs[fIdx], pago:true, status:'pago', dt_baixa:dtBaixa, forma:forma };
@@ -9147,17 +8934,9 @@ function renderFinDash(){
   const pasta_map = {};
   CLIENTS.forEach(c=>{ pasta_map[String(c.pasta)] = c.cliente; });
 
-  const lancsXlsx  = (FIN_XLSX||[]).filter(l=>l.dt_venc && l.dt_venc.startsWith(prefixo));
   const lancsLocal = (localLanc||[]).filter(l=>l.data && l.data.startsWith(prefixo) && l.tipo!=='pagar' && l.direcao!=='pagar');
 
   const todos = [
-    ...lancsXlsx.map(l=>({
-      id:'x'+l.id, data:l.dt_venc,
-      desc:l.desc,
-      cliente: pasta_map[String(l.pasta)] || l.pasta,
-      val:l.val, status:l.status,
-      vencido: l.status==='pendente' && l.dt_venc < new Date(HOJE).toISOString().slice(0,10)
-    })),
     ...lancsLocal.map(l=>({
       id:'l'+l.id, data:l.data||l.venc,
       desc:l.desc, cliente:l.cliente||'—',
@@ -10266,7 +10045,7 @@ function renderFinUnificado(cid){
     }
     if(!descLimpa) descLimpa = l.desc||'—';
 
-    // Projuris-style row: [data+badge | descrição | valor+status+menu]
+    // Row: [data+badge | descrição | valor+status+menu]
     return '<div class="fin-lanc-row" style="background:'+bgRow+'">'
       +'<div class="fin-lanc-col-date">'
         +'<div class="fin-lanc-date">'+fDt(l.data||l.venc)+'</div>'
@@ -10434,61 +10213,6 @@ function renderFinResumo(cid){
   });
 
   el.innerHTML = html;
-}
-
-
-function renderFinXlsx(c){
-  // Now renders into finxlsx2-cid (inside tp4) AND old finxlsx-cid
-  ['finxlsx-'+c.id, 'finxlsx2-'+c.id].forEach(function(eid){
-    const el = document.getElementById(eid);
-    if(!el) return;
-    const pasta = String(c.pasta||'');
-    const lancs = (FIN_XLSX||[]).filter(function(l){
-      return String(l.pasta)===pasta ||
-        (l.pasta||'').toLowerCase()===c.cliente.toLowerCase().substring(0,10);
-    });
-    if(!lancs.length){ el.innerHTML=''; return; }
-    const baixasMap = {};
-    (finLancs||[]).forEach(function(b){ if(b._projuris_id) baixasMap['p'+b._projuris_id]=b; });
-    (localLanc||[]).forEach(function(b){ if(b.proj_ref) baixasMap[b.proj_ref]=b; });
-    lancs.forEach(function(l){
-      const b=baixasMap['p'+l.id];
-      if(b&&(b.pago||b.status==='pago')) l.status='pago';
-    });
-    const hoje = new Date().toISOString().slice(0,10);
-    const sorted = lancs.slice().sort(function(a,b){return (b.dt_venc||'').localeCompare(a.dt_venc||'');});
-    const totalPend = sorted.filter(function(l){return l.status!=='pago';}).reduce(function(s,l){return s+l.val;},0);
-    const totalPago = sorted.filter(function(l){return l.status==='pago';}).reduce(function(s,l){return s+l.val;},0);
-    const fmtV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-
-    var rows = sorted.map(function(l){
-      const isPago = l.status==='pago';
-      const vencido = !isPago && l.dt_venc && l.dt_venc < hoje;
-      const statusCor = isPago?'#4ade80':vencido?'#c9484a':'#f59e0b';
-      const statusTxt = isPago?'PAGO':vencido?'VENCIDO':'PENDENTE';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:12px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(l.desc||l.mov_projuris||'Honorário')+'</div>'
-          +'<div style="font-size:10px;color:var(--mu);margin-top:1px">Venc: '+fDt(l.dt_venc)+'</div>'
-        +'</div>'
-        +'<div style="text-align:right;flex-shrink:0">'
-          +'<div style="font-size:13px;font-weight:700;color:'+statusCor+'">'+fmtV(l.val)+'</div>'
-          +'<div style="font-size:10px;color:'+statusCor+';font-weight:600">'+statusTxt+'</div>'
-        +'</div>'
-        +(isPago
-          ?'<span style="font-size:10px;color:#4ade80;min-width:70px;text-align:center">✓ Recebido</span>'
-          :'<button onclick="vfBaixar(\'p'+l.id+'\')" style="min-width:70px;font-size:11px;font-weight:600;padding:5px 10px;border-radius:5px;background:rgba(76,175,125,.12);border:1px solid rgba(76,175,125,.3);color:#4ade80;cursor:pointer">✓ Receber</button>'
-        )
-      +'</div>';
-    }).join('');
-
-    el.innerHTML = (totalPend>0||totalPago>0?
-      '<div style="display:flex;gap:8px;margin-bottom:10px">'
-        +(totalPend>0?'<div style="font-size:11px;color:#f59e0b"><span style="color:var(--mu)">A receber: </span><strong>'+fmtV(totalPend)+'</strong></div>':'')
-        +(totalPago>0?'<div style="font-size:11px;color:#4ade80"><span style="color:var(--mu)">Recebido: </span><strong>'+fmtV(totalPago)+'</strong></div>':'')
-      +'</div>':''
-    )+rows;
-  });
 }
 
 
@@ -10725,7 +10449,7 @@ function toggleTema(){
 
 
 // Dados carregados do servidor (dados.json)
-var CLIENTS=[], ALL_LANC=[], PEND=[], FIN_XLSX=[];
+var CLIENTS=[], ALL_LANC=[], PEND=[];
 const MOV_INDEX={};
 
 // ── Salvar CLIENTS no Supabase ──
@@ -10779,7 +10503,6 @@ function carregarDadosObj(d){
     CLIENTS = embutidos;
   }
   ALL_LANC  = d.all_lanc  || [];
-  FIN_XLSX  = d.financeiro_xlsx || [];
   PEND      = (d.agenda   || d.agenda_pendentes || []).map(p=>({...p,
     dt_raw: p.dt_raw||p.data||p.dt_inicio||'',
     inicio: p.inicio||(p.data?(p.data+' '+(p.hora||'08:00')+':00'):'')
@@ -10913,7 +10636,7 @@ function excluirProcesso(cid){
   abrirModal(`Excluir — ${c.cliente}`,
     `<div style="color:var(--mu);font-size:12px;line-height:1.8">
       <p>⚠ Tem certeza que deseja <strong style="color:#f87676">excluir permanentemente</strong> este processo do app?</p>
-      <p style="margin-top:8px;color:#f59e0b">Esta ação não pode ser desfeita. Os dados do Projuris não são afetados.</p>
+      <p style="margin-top:8px;color:#f59e0b">Esta ação não pode ser desfeita.</p>
       <p style="margin-top:8px">Processo: <strong style="color:var(--fg)">${c.cliente} — Pasta ${c.pasta}</strong></p>
     </div>`,
     ()=>{
@@ -10970,7 +10693,6 @@ function getDadosCompletos(){
     consultas_locais: CLIENTS.filter(c=>c.tipo==='consulta'||c.status_consulta==='consulta'),
     agenda: PEND,
     all_lanc: ALL_LANC,
-    financeiro_xlsx: FIN_XLSX,
     mutavel: getMutavel()
   };
 }
@@ -11638,195 +11360,8 @@ function _finAutoStatusVencidos(){
 // Executar auto-status ao carregar
 try { _finAutoStatusVencidos(); } catch(e){}
 
-// Corrigir dt_baixa de lançamentos recebidos que ficaram com data errada
-(function _corrigirDtBaixa(){
-  var corrigidos = 0;
-  (localLanc||[]).forEach(function(l){
-    if(!isRec(l)) return;
-    if(!l.data) return;
-    // Se dt_baixa é diferente da data do lançamento E é de abril 2026 (data do bug)
-    if(l.dt_baixa && l.dt_baixa !== l.data && l.dt_baixa.startsWith('2026-04')){
-      l.dt_baixa = l.data;
-      corrigidos++;
-    }
-    // Se não tem dt_baixa mas está recebido
-    if(!l.dt_baixa && isRec(l)){
-      l.dt_baixa = l.data;
-      corrigidos++;
-    }
-  });
-  if(corrigidos > 0) sbSet('co_localLanc', localLanc);
-})();
+// IIFEs de migração removidas (já executadas): _corrigirDtBaixa, _limparTestes, _limparClientesDuplicados
 
-// ── Limpeza: remover registros de teste de todos os módulos ──
-(function _limparTestes(){
-  var testRe = /\bteste?\b/i;
-  var changed = false;
-
-  // localLanc (honorários, despesas, repasses da pasta)
-  var llAntes = (localLanc||[]).length;
-  localLanc = (localLanc||[]).filter(function(l){ return !testRe.test(l.desc||''); });
-  if(localLanc.length < llAntes){ sbSet('co_localLanc', localLanc); changed=true; }
-
-  // finLancs (financeiro global)
-  var flAntes = (finLancs||[]).length;
-  finLancs = (finLancs||[]).filter(function(l){ return !testRe.test(l.desc||'') && !testRe.test(l.cliente||''); });
-  if(finLancs.length < flAntes){ sbSet('co_fin', finLancs); changed=true; }
-
-  // localAg (compromissos/prazos)
-  var agAntes = (localAg||[]).length;
-  localAg = (localAg||[]).filter(function(l){ return !testRe.test(l.titulo||'') && !testRe.test(l.descricao||''); });
-  if(localAg.length < agAntes){ sbSet('co_ag', localAg); invalidarAllPend(); changed=true; }
-
-  // vkTasks (tarefas)
-  var tkAntes = (vkTasks||[]).length;
-  vkTasks = (vkTasks||[]).filter(function(t){ return !testRe.test(t.titulo||''); });
-  if(vkTasks.length < tkAntes){ vkSalvar(); changed=true; }
-
-  // localMov (andamentos) — por cid
-  if(localMov && typeof localMov==='object'){
-    Object.keys(localMov).forEach(function(cid){
-      var antes = (localMov[cid]||[]).length;
-      localMov[cid] = (localMov[cid]||[]).filter(function(m){ return !testRe.test(m.movimentacao||''); });
-      if(localMov[cid].length < antes) changed=true;
-    });
-    if(changed) sbSet('co_localMov', localMov);
-  }
-
-  // vkTasks — remover tarefas sem título (undefined)
-  var tkAntes2 = (vkTasks||[]).length;
-  vkTasks = (vkTasks||[]).filter(function(t){ return t.titulo && t.titulo!=='undefined'; });
-  if(vkTasks.length < tkAntes2){ vkSalvar(); changed=true; }
-
-  if(changed) _finLocaisCache={};
-})();
-
-// ── Limpeza: remover clientes duplicados criados por salvarAtendimento ──
-(function _limparClientesDuplicados(){
-  if(!CLIENTS||!CLIENTS.length) return;
-  // Clientes com tipo='consulta' criados automaticamente que duplicam processos existentes
-  var processosIds = new Set();
-  var nomesProcesso = {};
-  // Primeiro: mapear nomes que já têm processo real (não consulta)
-  CLIENTS.forEach(function(c){
-    if(c.tipo!=='consulta' && c.status_consulta!=='consulta'){
-      processosIds.add(c.id);
-      var nome = (c.cliente||'').toLowerCase().trim();
-      if(!nomesProcesso[nome]) nomesProcesso[nome]=[];
-      nomesProcesso[nome].push(c.id);
-    }
-  });
-  // Remover consultas duplicadas (mesmo nome de um processo real)
-  var antes = CLIENTS.length;
-  var idsRemover = new Set();
-  CLIENTS.forEach(function(c){
-    if(c.tipo!=='consulta' && c.status_consulta!=='consulta') return;
-    var nome = (c.cliente||'').toLowerCase().trim();
-    if(nomesProcesso[nome] && nomesProcesso[nome].length > 0){
-      idsRemover.add(c.id); // consulta duplicada de processo existente
-    }
-  });
-  if(idsRemover.size > 0){
-    var novos = CLIENTS.filter(function(c){ return !idsRemover.has(c.id); });
-    CLIENTS.length = 0;
-    novos.forEach(function(c){ CLIENTS.push(c); });
-    _clientByIdCache = {};
-    _clientByNameCache = {};
-    sbSet('co_clientes', CLIENTS);
-    if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
-  }
-})();
-
-// Lançamentos de Fevereiro 2026
-(function lancarFevereiro(){
-  var hoje = '2026-02-28';
-  var added = 0;
-
-  // Helper para não duplicar
-  function jaExiste(desc, data, valor){
-    return (localLanc||[]).some(function(l){
-      return l.desc===desc && l.data===data && Math.abs((l.valor||0)-valor)<0.02;
-    });
-  }
-
-  function addHon(cliente, desc, valor, perc, data, forma, parcNome, parcPerc){
-    if(jaExiste(desc, data, valor)) return;
-    var calc = _finCalcLanc({valor_integral:valor, valor_parcela:0, ressarcimento:0, percentual_honorarios:perc, parceiro_nome:parcNome||'', parceiro_percentual:parcPerc||0});
-    var cMatch = findClientByName(cliente);
-    localLanc.push({
-      id:genId(), tipo:'honorario', direcao:'receber',
-      id_processo: cMatch?cMatch.id:0, cliente:cliente,
-      desc:desc, valor_integral:valor, valor_parcela:0, valor:calc.base_calculo,
-      ressarcimento:0, percentual_honorarios:perc,
-      parceiro_nome:parcNome||'', parceiro_percentual:parcPerc||0,
-      data:data, forma:forma||'PIX', recebido:true,
-      status:'pago', pago:true, dt_baixa:data, obs:'Importado extrato fev/2026'
-    });
-    added++;
-  }
-
-  function addRepasse(cliente, desc, valor, data, forma){
-    if(jaExiste(desc, data, valor)) return;
-    var cMatch = findClientByName(cliente);
-    localLanc.push({
-      id:genId(), tipo:'repasse', direcao:'pagar',
-      id_processo: cMatch?cMatch.id:0, cliente:cliente,
-      desc:desc, valor:roundMoney(valor), data:data, venc:data,
-      status:'pago', pago:true, dt_baixa:data, recebido:true,
-      forma:forma||'PIX', _repasse_acordo:true,
-      obs:'Importado extrato fev/2026'
-    });
-    added++;
-  }
-
-  function addDespesa(desc, valor, data, cat, forma){
-    if(jaExiste(desc, data, valor)) return;
-    finLancs.push({
-      id:genId(), tipo:'pagar', desc:desc, valor:roundMoney(valor),
-      data:data, cat:cat||'Outros', forma:forma||'PIX',
-      status:'pago', pago:true, dt_baixa:data,
-      _desp_escritorio:true, obs:'Importado extrato fev/2026'
-    });
-    added++;
-  }
-
-  // ── RECEITAS (honorários) ──
-  addHon('MARY LUCIA DE OLIVEIRA', 'Consultoria', 400, 100, '2026-02-05', 'PIX', '', 0);
-  addHon('ADEGA 13 COMÉRCIO DE BEBIDAS LTDA', 'Consultoria Carnaval', 300, 100, '2026-02-06', 'PIX', '', 0);
-  addHon('CAMILA ESTANISLAU XAVIER', 'Honorários', 400, 100, '2026-02-09', 'PIX', '', 0);
-  addHon('MARY LUCIA DE OLIVEIRA', 'Consultoria', 400, 100, '2026-02-12', 'PIX', '', 0);
-  addHon('ADEGA 13 COMÉRCIO DE BEBIDAS LTDA', 'Consultoria Eduarda', 300, 100, '2026-02-20', 'PIX', '', 0);
-  addHon('LORRANY LEMOS DA SILVA', 'Consultoria', 150, 100, '2026-02-23', 'PIX', '', 0);
-  addHon('CLARISSA RATZINGER', 'Cálculos', 37, 100, '2026-02-13', 'PIX', '', 0);
-  // Victor Dias — 50% honorários (parceiro Alessandro)
-  addHon('VICTOR DIAS GOMES', 'Honorários', 4679.35, 50, '2026-02-25', 'PIX', 'Alessandro Dias', 50);
-
-  // ── REPASSES ──
-  addRepasse('ANA CAROLINA OLIVEIRA SANTOS', 'Repasse ao cliente — Alvará', 7318, '2026-02-03', 'TED');
-  addRepasse('EDNA DE FATIMA ALVES DOS REIS', 'Repasse ao cliente — Acordo', 20860, '2026-02-03', 'TED');
-  addRepasse('RENAN DA SILVA GOMES SOUZA', 'Repasse ao cliente', 1130, '2026-02-12', 'PIX');
-
-  // ── ESTORNO (Ana Carolina devolvida + reenvio) — lançar como movimentação neutra
-  // O estorno +7318 e o reenvio -7318 se anulam, não precisa lançar
-
-  // ── ENTRADA SEM HONORÁRIOS (Natali Cristina — 100% cliente) ──
-  addRepasse('NATALI CRISTINA DE FARIA', 'Recebimento em nome do cliente', 2761.36, '2026-02-12', 'TED');
-
-  // ── DESPESAS DO ESCRITÓRIO ──
-  addDespesa('Sistema escritório — Camila Shimomura', 500, '2026-02-06', 'Sistemas', 'PIX');
-  addDespesa('Fatura cartão Inter', 509, '2026-02-12', 'Outros', 'Débito');
-  addDespesa('Aluguel — AMO Imóveis', 972.98, '2026-02-18', 'Estrutura', 'Boleto');
-  addDespesa('IPTU — PM Belo Horizonte', 620.93, '2026-02-19', 'Impostos', 'Boleto');
-  addDespesa('Calculista — Vanessa Cecília (proc. Washington Diniz)', 320, '2026-02-23', 'Custas processuais', 'PIX');
-  addDespesa('Pro-labore — Clarissa de Oliveira', 5000, '2026-02-24', 'Pessoal', 'TED');
-
-  if(added > 0){
-    sbSet('co_localLanc', localLanc);
-    sbSet('co_fin', finLancs);
-    _finLocaisCache = {};
-  }
-  return added;
-})();
 
 function atualizarStats(){
   const hoje = HS;
@@ -12159,33 +11694,6 @@ function _cpCalcReverso(){
     +'</div>':'')
   +'</div>';
 }
-
-// ── Migrar prazos legados (prazos[cid]) para localAg ──
-function _migrarPrazosParaAg(){
-  if(!prazos||typeof prazos!=='object') return;
-  var migrados = 0;
-  var existentes = new Set((localAg||[]).map(function(p){ return String(p._prazo_legado_id||''); }));
-  Object.keys(prazos).forEach(function(cid){
-    var lista = prazos[cid]||[];
-    var c = findClientById(Number(cid))||findClientById(cid);
-    lista.forEach(function(p){
-      if(existentes.has(String(p.id))) return; // já migrado
-      localAg.push({
-        id: 'mig_'+p.id, titulo: p.titulo||'Prazo', tipo_compromisso: p.tipo||'Outro',
-        cliente: c?c.cliente:'', id_processo: Number(cid)||cid,
-        dt_raw: p.data, dt_fim: p.data, inicio: p.data,
-        obs: p.obs||'', realizado: !!p.cumprido, cumprido: p.cumprido?'Sim':'',
-        dt_conclusao: p.cumprido_em||'',
-        _prazo: true, _prazo_legado_id: p.id, origem: 'prazo_migrado'
-      });
-      migrados++;
-    });
-  });
-  if(migrados>0){
-    sbSet('co_ag', localAg); invalidarAllPend();
-  }
-}
-try { _migrarPrazosParaAg(); } catch(e){}
 
 function renderPrazos(cid){
   const lista=prazos[cid]||[], hoje=getTodayKey();
@@ -14326,7 +13834,7 @@ async function init(){
 }
 
 
-// Combina compromissos do Projuris + locais
+// Combina compromissos embutidos + locais
 // ── Cache de allPendCached() — invalidado por mudanças em PEND/localAg ──
 var _allPendCache = null;
 var _allPendVer = 0;
@@ -15706,8 +15214,8 @@ function renderFicha(c, grp=null){
   const agFut=allPendCached().filter(p=>p.id_processo===c.id&&(p.dt_raw>=HS||(p.dt_fim&&p.dt_fim>=HS))).sort((a,b)=>a.dt_raw.localeCompare(b.dt_raw));
   const cTasks=tasks[c.id]||[];
   const note=notes[c.id]||'';
-  const movProjuris=[...(c.movimentacoes||[]),...(MOV_INDEX[String(c.id)]||[])];
-  const cMov=(localMov[c.id]||[]).concat(movProjuris);
+  const movEmbutidas=[...(c.movimentacoes||[]),...(MOV_INDEX[String(c.id)]||[])];
+  const cMov=(localMov[c.id]||[]).concat(movEmbutidas);
   const agBadge=agFut.length?`<span class="tc gold">${agFut.length}fut</span>`:`<span class="tc">${(c.agenda||[]).length}</span>`;
 
   const encInfo=(encerrados[c.id]||encerrados[String(c.id)]);
@@ -15743,7 +15251,7 @@ function renderFicha(c, grp=null){
     title="Editar contato">✏</button>`;
 
   f.innerHTML=`
-    <!-- HEADER ESTILO PROJURIS -->
+    <!-- HEADER FICHA -->
     <div class="pj-header">
       <div class="pj-header-top">
         <div class="pj-header-left">
@@ -16956,7 +16464,7 @@ function _reRenderFinPasta(cid){
   const c = findClientById(cid);
   // 1. resumo de cards
   renderFinResumo(cid);
-  // 2. lista unificada (projuris + local sem sombras)
+  // 2. lista unificada de lançamentos
   const finEl = document.getElementById('finunif-'+cid);
   if(finEl) finEl.innerHTML = renderFinUnificado(cid);
   // 4. honorários
