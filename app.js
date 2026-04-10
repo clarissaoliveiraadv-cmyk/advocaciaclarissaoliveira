@@ -4916,7 +4916,7 @@ function vfExtrato(){
         +'📂 Novo arquivo<input type="file" accept=".csv,.txt" style="display:none" onchange="extratoCarregarCSV(this)">'
       +'</label>'
       +(vincPend>0 ? '<button onclick="extratoBaixarTodosPendentes()" style="padding:6px 14px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">⚡ Confirmar todas as baixas pendentes ('+vincPend+')</button>' : '')
-      +'<button onclick="_extratoLinhas=[];_extratoRevisar={};_extratoSalvar();vfRender();" style="padding:6px 14px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--mu);font-size:11px;cursor:pointer">Limpar</button>'
+      +'<button onclick="_extratoLinhas=[];_extratoRevisar={};lsSet(_extratoChave(),String());vfRender();" style="padding:6px 14px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--mu);font-size:11px;cursor:pointer">Limpar</button>'
       +'<span style="font-size:10px;color:var(--mu);margin-left:4px">Período: '+(_extratoLinhas.length?_extratoLinhas[_extratoLinhas.length-1].dataFmt+' a '+_extratoLinhas[0].dataFmt:'')+'</span>'
     +'</div>';
 
@@ -5293,8 +5293,9 @@ function extratoEstornar(i){
   }
   _extratoLinhas[i]._status = null;
   _extratoLinhas[i]._lanc_id = null;
-  _extratoSalvar(); vfRender();
+  vfRender();
   renderFinDash();
+  _extratoSalvar();
   showToast('↩ Importação estornada');
 }
 function extratoConfirmarTodos(){
