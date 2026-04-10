@@ -2955,8 +2955,12 @@ function cadVincular(cliNomeEnc, lancId){
   var idx2 = sel ? parseInt(sel.value) : NaN;
   if(isNaN(idx2)||!CLIENTS[idx2]){ showToast('Selecione um cliente'); return; }
   var c = CLIENTS[idx2];
-  _cadUpdateLanc(lancId, {cliente: c.cliente, _sem_cadastro: false});
-  fecharModal(); vfRender();
+  if(lancId){
+    _cadUpdateLanc(lancId, {cliente: c.cliente, id_processo: c.id, _sem_cadastro: false});
+  }
+  fecharModal();
+  // Abrir pasta do cliente vinculado
+  goView('vcl'); openC(c.id);
   showToast('✓ Vinculado a '+c.cliente);
 }
 
@@ -2966,13 +2970,16 @@ function cadParteContraria(cliNomeEnc, lancId){
   var idx2 = sel ? parseInt(sel.value) : NaN;
   if(isNaN(idx2)||!CLIENTS[idx2]){ showToast('Selecione o processo'); return; }
   var c = CLIENTS[idx2];
-  _cadUpdateLanc(lancId, {
-    cliente: c.cliente,
-    _parte_contraria: cliNome,
-    _parte_contraria_flag: true,
-    _sem_cadastro: false,
-  });
-  fecharModal(); vfRender();
+  if(lancId){
+    _cadUpdateLanc(lancId, {
+      cliente: c.cliente, id_processo: c.id,
+      _parte_contraria: cliNome,
+      _parte_contraria_flag: true,
+      _sem_cadastro: false,
+    });
+  }
+  fecharModal();
+  goView('vcl'); openC(c.id);
   showToast('✓ Marcado como parte contrária — vinculado a '+c.cliente);
 }
 
@@ -3004,18 +3011,24 @@ function cadAvulso(cliNomeEnc, lancId){
 }
 
 function _cadUpdateLanc(lancId, fields){
+  if(!lancId) return;
   var lid = String(lancId);
+  var rawId = lid.replace(/^[gl]/,'');
+  var updated = false;
   finLancs = (finLancs||[]).map(function(l){
-    if('g'+l.id===lid||String(l.id)===lid.replace('g','')) return Object.assign({},l,fields);
+    if(String(l.id)===rawId||'g'+l.id===lid){ updated=true; return Object.assign({},l,fields); }
     return l;
   });
   localLanc = (localLanc||[]).map(function(l){
-    if('l'+l.id===lid||String(l.id)===lid.replace('l','')) return Object.assign({},l,fields);
+    if(String(l.id)===rawId||'l'+l.id===lid){ updated=true; return Object.assign({},l,fields); }
     return l;
   });
-  sbSet('co_fin', finLancs);
-  sbSet('co_localLanc', localLanc);
-  marcarAlterado();
+  if(updated){
+    sbSet('co_fin', finLancs);
+    sbSet('co_localLanc', localLanc);
+    marcarAlterado();
+    _finLocaisCache = {};
+  }
 }
 
 // ── A Receber (todos os meses, lista de honorários pendentes) ──
