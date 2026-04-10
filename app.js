@@ -2694,6 +2694,18 @@ function finIrParaLanc(lancId){
   if(id.startsWith('l')){
     var l = (localLanc||[]).find(function(x){ return String(x.id)===id.slice(1); });
     if(l && l.id_processo){ goView('vcl'); openC(l.id_processo); return; }
+    // Fallback: buscar por nome do cliente
+    if(l && l.cliente){
+      var c = findClientByName(l.cliente);
+      if(c){ goView('vcl'); openC(c.id); return; }
+    }
+  }
+  if(id.startsWith('g')){
+    var gl = (finLancs||[]).find(function(x){ return String(x.id)===id.slice(1); });
+    if(gl && gl.cliente){
+      var c2 = findClientByName(gl.cliente);
+      if(c2){ goView('vcl'); openC(c2.id); return; }
+    }
   }
   goView('vf'); _vfTab='mes'; vfRender();
   setTimeout(function(){ finScrollToLanc(id); }, 300);
@@ -14599,12 +14611,23 @@ function openProc(cid){
 }
 
 function openC(id, procId=null){
-  var grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===id;});});
-  if(!grp) return;
+  var sid = String(id);
+  var grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return String(p.id)===sid;});});
+  if(!grp){
+    // Fallback: buscar direto em CLIENTS
+    var cDirect = findClientById(id);
+    if(cDirect){
+      // Reconstruir agrupados e tentar de novo
+      montarClientesAgrupados();
+      grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return String(p.id)===sid;});});
+    }
+    if(!grp){ showToast('Cliente não encontrado (id: '+sid+')'); return; }
+  }
 
   // Se foi chamado com procId, abrir processo direto
   if(procId){
-    var procAlvo = grp.processos.find(function(p){return p.id===procId;});
+    var spid = String(procId);
+    var procAlvo = grp.processos.find(function(p){return String(p.id)===spid;});
     if(procAlvo){ AC=procAlvo; AC_PROC=grp; }
   } else {
     AC_PROC=grp;
