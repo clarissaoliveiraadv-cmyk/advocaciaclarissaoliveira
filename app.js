@@ -7448,7 +7448,7 @@ function _finNovoHonorario(cid){
     var recebido = document.getElementById('fh-recebido')?.checked||false;
     var obs = (document.getElementById('fh-obs')?.value||'').trim();
     if(!desc){ showToast('Informe a descri\u00e7\u00e3o'); return; }
-    if(!vi){ showToast('Informe o valor integral'); return; }
+    if(!vi || vi <= 0){ showToast('Informe o valor integral'); return; }
     if(perc <= 0){ showToast('Informe o % de honor\u00e1rios'); return; }
     if(pnome && pperc <= 0){ showToast('Informe o % do parceiro'); return; }
     var grupoId = nparc > 1 ? genId() : null;
