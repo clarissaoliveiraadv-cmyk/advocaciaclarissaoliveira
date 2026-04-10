@@ -5052,6 +5052,7 @@ function extratoBaixarTodosPendentes(){
     _extratoLinhas.forEach(function(l, i){
       if(l._status==='pendente_vinculo') extratoBaixarVinculo(i);
     });
+    _extratoSalvar();
     fecharModal();
     showToast('✅ '+pendentes.length+' baixas confirmadas');
   }, '✅ Confirmar tudo');
