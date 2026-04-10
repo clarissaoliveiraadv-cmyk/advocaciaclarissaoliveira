@@ -4917,7 +4917,7 @@ function vfExtrato(){
       +'</label>'
       +(vincPend>0 ? '<button onclick="extratoBaixarTodosPendentes()" style="padding:6px 14px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">⚡ Confirmar todas as baixas pendentes ('+vincPend+')</button>' : '')
       +'<button onclick="_extratoLinhas=[];_extratoRevisar={};lsSet(_extratoChave(),String());vfRender();" style="padding:6px 14px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--mu);font-size:11px;cursor:pointer">Limpar</button>'
-      +'<span style="font-size:10px;color:var(--mu);margin-left:4px">Período: '+(_extratoLinhas.length?_extratoLinhas[_extratoLinhas.length-1].dataFmt+' a '+_extratoLinhas[0].dataFmt:'')+'</span>'
+      +'<span style="font-size:10px;color:var(--mu);margin-left:4px">Período: '+(function(){if(!_extratoLinhas.length)return'';var datas=_extratoLinhas.map(function(l){return l.data;}).sort();var fmt=function(iso){var p=iso.split('-');return p[2]+'/'+p[1]+'/'+p[0];};return fmt(datas[0])+' a '+fmt(datas[datas.length-1]);}())+'</span>'
     +'</div>';
 
     // Tabela
@@ -5298,17 +5298,6 @@ function extratoEstornar(i){
   renderFinDash();
   _extratoSalvar();
   showToast('↩ Importação estornada');
-}
-function extratoConfirmarTodos(){
-  // Importar todos que têm _status='conciliado' mas ainda não marcados
-  // (conciliados são apenas cruzamentos — não duplicam)
-  const pendentes = _extratoLinhas.filter(function(l){ return !l._status; });
-  if(pendentes.length > 0){
-    showToast('Ainda há '+pendentes.length+' transações pendentes de classificação');
-    return;
-  }
-  vfRender();
-  showToast('✅ Todos os lançamentos foram processados');
 }
 
 
