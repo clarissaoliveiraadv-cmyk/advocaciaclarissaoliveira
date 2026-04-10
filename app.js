@@ -102,13 +102,25 @@ function lsRemove(chave){
 var _deletedIds = new Set();
 try{ var _di=JSON.parse(lsGet('co_deleted_ids')||'[]'); _deletedIds=new Set(_di); }catch{}
 function _markDeleted(id){
-  _deletedIds.add(String(id));
-  // Manter só últimos 500 para não crescer infinito
+  var sid = String(id);
+  _deletedIds.add(sid);
+  // Manter só últimos 500
   if(_deletedIds.size > 500){
     var arr = Array.from(_deletedIds);
     _deletedIds = new Set(arr.slice(arr.length-500));
   }
-  lsSet('co_deleted_ids', JSON.stringify(Array.from(_deletedIds)));
+  // Salvar de múltiplas formas para garantir persistência
+  var json = JSON.stringify(Array.from(_deletedIds));
+  lsSet('co_deleted_ids', json);
+  // Backup direto no localStorage (bypass lsSet em caso de quota)
+  try{ localStorage.setItem('co_deleted_ids', json); }catch(e){}
+}
+function _filterDeleted(arr){
+  if(!Array.isArray(arr) || !_deletedIds.size) return arr;
+  return arr.filter(function(item){
+    var id = String(item.id||item.id_agenda||item._id||'');
+    return !_deletedIds.has(id);
+  });
 }
 
 function _sbMergeArrays(local, remote){
@@ -343,12 +355,12 @@ function sbRealtime(){
 function sbAplicar(chave, valor, quem){
   var n = {clarissa:'Clarissa',assistente:'Assistente',financeiro:'Financeiro'}[quem]||quem;
   switch(chave){
-    case 'co_vktasks': vkTasks=valor||[]; if(document.getElementById('vkt')?.classList.contains('on')) vkRender(); break;
-    case 'co_fin': finLancs=valor||[]; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
-    case 'co_localLanc': localLanc=valor||[]; _finLocaisCache={}; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_vktasks': vkTasks=_filterDeleted(valor||[]); if(document.getElementById('vkt')?.classList.contains('on')) vkRender(); break;
+    case 'co_fin': finLancs=_filterDeleted(valor||[]); if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_localLanc': localLanc=_filterDeleted(valor||[]); _finLocaisCache={}; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
     case 'co_localMov': localMov=valor||{}; break;
-    case 'co_localAg': localAg=valor||[]; invalidarAllPend(); break;
-    case 'co_ag': localAg=valor||[]; invalidarAllPend(); break;
+    case 'co_localAg': localAg=_filterDeleted(valor||[]); invalidarAllPend(); break;
+    case 'co_ag': localAg=_filterDeleted(valor||[]); invalidarAllPend(); break;
     case 'co_encerrados': encerrados=valor||{}; _encIdsCache=null; break;
     case 'co_notes': notes=valor||{}; break;
     case 'co_ctc': localContatos=valor||[]; invalidarCtcCache(); break;
@@ -397,11 +409,11 @@ async function sbInit(){
     const asObj = v => (v&&typeof v==='object'&&!Array.isArray(v)) ? v : {};
     tarefasDia   = asObj(ls('co_td',{}));
     tasks        = asObj(ls('co_tasks',{}));
-    vkTasks      = asArr(ls('co_vktasks',[]));
+    vkTasks      = _filterDeleted(asArr(ls('co_vktasks',[])));
     localAtend   = asArr(ls('co_atend',[]));
-    finLancs     = asArr(ls('co_fin',[]));
-    localLanc    = asArr(ls('co_localLanc',[]));
-    localAg      = asArr(ls('co_ag',[]));
+    finLancs     = _filterDeleted(asArr(ls('co_fin',[])));
+    localLanc    = _filterDeleted(asArr(ls('co_localLanc',[])));
+    localAg      = _filterDeleted(asArr(ls('co_ag',[])));
     localMov     = asObj(ls('co_localMov',{}));
     encerrados   = asObj(ls('co_encerrados',{}));
     // co_clientes recarregado via sbCarregarClientes() no init()
@@ -10633,13 +10645,13 @@ function carregarDadosObj(d){
   tasks         = loadKey('co_tasks',        m.tasks,         {});
   encerrados    = loadKey('co_encerrados',    m.encerrados,    {});
   notes         = loadKey('co_notes',         m.notes,         {});
-  localAg       = loadKey('co_localAg',       m.localAg,       []);
+  localAg       = _filterDeleted(loadKey('co_localAg',       m.localAg,       []));
   localMov      = loadKey('co_localMov',      m.localMov,      {});
-  localLanc     = loadKey('co_localLanc',     m.localLanc,     []);
+  localLanc     = _filterDeleted(loadKey('co_localLanc',     m.localLanc,     []));
   localContatos = loadKey('co_ctc', m.localContatos, []);
   tarefasDia    = loadKey('co_tarefasDia',    m.tarefasDia,    {});
   // Carregar dados financeiros globais do localStorage (persistidos via sbSet)
-  try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin; }catch{}
+  try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_filterDeleted(_fin); }catch{}
   try{ const _clb=JSON.parse(lsGet('co_colab')||'null'); if(Array.isArray(_clb)) _colaboradores=_clb; }catch{}
   try{ const _dpf=JSON.parse(lsGet('co_despfixas')||'null'); if(Array.isArray(_dpf)) _despFixas=_dpf; }catch{}
   // Adicionar consultas locais aos clientes
