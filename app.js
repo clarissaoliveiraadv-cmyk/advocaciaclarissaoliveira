@@ -4837,7 +4837,7 @@ function vfExtrato(){
   const totalLinhas = _extratoLinhas.length;
   const conciliados = _extratoLinhas.filter(function(l){ return l._status==='conciliado'; }).length;
   const vincPend    = _extratoLinhas.filter(function(l){ return l._status==='pendente_vinculo'; }).length;
-  const naoEncontr  = _extratoLinhas.filter(function(l){ return !l._status && l._status!=='ignorado'; }).length;
+  const naoEncontr  = _extratoLinhas.filter(function(l){ return l._status === null || l._status === undefined; }).length;
   const ignorados   = _extratoLinhas.filter(function(l){ return l._status==='ignorado'; }).length;
   const importados  = _extratoLinhas.filter(function(l){ return l._status==='importado'; }).length;
 
