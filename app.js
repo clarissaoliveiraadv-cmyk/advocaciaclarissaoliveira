@@ -2682,7 +2682,7 @@ function finIrParaPasta(clienteNome){
   var c = (CLIENTS||[]).find(function(x){ return (x.cliente||'').toLowerCase().trim()===nome; });
   if(!c) c = (CLIENTS||[]).find(function(x){ var cn=(x.cliente||'').toLowerCase(); return cn.includes(nome)||nome.includes(cn); });
   if(c){ goView('vcl'); openC(c.id); }
-  else { showToast('Pasta nao encontrada: '+clienteNome); }
+  else { abrirCadastrarCliente(clienteNome, ''); }
 }
 
 function finIrParaLanc(lancId){
@@ -2894,9 +2894,15 @@ function abrirCadastrarCliente(cliNome, lancId){
       +'</select>'
       +'<button onclick="cadParteContraria(\''+encodeURIComponent(cliNome)+'\',\''+lancId+'\')" style="width:100%;margin-top:8px;font-size:11px;font-weight:700;padding:7px;border-radius:6px;background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.3);color:#D4AF37;cursor:pointer">Marcar como parte contrária</button>'
     +'</div>'
-    // Option 3: avulso
+    // Option 3: cadastrar novo
+    +'<div style="border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:8px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:4px">3. Cadastrar como novo cliente/processo</div>'
+      +'<div style="font-size:10px;color:var(--mu);margin-bottom:8px">Criar pasta nova para este nome e vincular o lançamento.</div>'
+      +'<button onclick="cadNovoCliente(\''+encodeURIComponent(cliNome)+'\',\''+lancId+'\')" style="width:100%;font-size:11px;font-weight:700;padding:7px;border-radius:6px;background:rgba(76,175,125,.08);border:1px solid rgba(76,175,125,.25);color:#4ade80;cursor:pointer">+ Cadastrar novo</button>'
+    +'</div>'
+    // Option 4: avulso
     +'<div style="border:1px solid var(--bd);border-radius:8px;padding:12px">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:4px">3. Lançamento avulso (sem processo)</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--tx);margin-bottom:4px">4. Lançamento avulso (sem processo)</div>'
       +'<div style="font-size:10px;color:var(--mu);margin-bottom:8px">Já identificado, não precisa de pasta. O lançamento fica como "Avulso" e não gera alerta.</div>'
       +'<button onclick="cadAvulso(\''+encodeURIComponent(cliNome)+'\',\''+lancId+'\')" style="width:100%;font-size:11px;font-weight:700;padding:7px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--mu);cursor:pointer">Confirmar como avulso</button>'
     +'</div>',
@@ -2928,6 +2934,26 @@ function cadParteContraria(cliNomeEnc, lancId){
   });
   fecharModal(); vfRender();
   showToast('✓ Marcado como parte contrária — vinculado a '+c.cliente);
+}
+
+function cadNovoCliente(cliNomeEnc, lancId){
+  var cliNome = decodeURIComponent(cliNomeEnc);
+  fecharModal();
+  var novoId = genId();
+  var novaPasta = String(Math.max.apply(null, CLIENTS.map(function(c){return parseInt(c.pasta)||0;}))+1);
+  CLIENTS.push({
+    id: novoId, pasta: novaPasta, cliente: cliNome,
+    natureza: '', tipo: 'Processo Judicial',
+    data_inicio: new Date().toISOString().slice(0,10),
+    advogado: 'Clarissa de Oliveira', condicao: 'Autor'
+  });
+  _clientByIdCache = {}; _clientByNameCache = {};
+  sbSet('co_clientes', CLIENTS);
+  montarClientesAgrupados();
+  // Vincular lançamento se houver
+  if(lancId) _cadUpdateLanc(lancId, {cliente: cliNome, id_processo: novoId});
+  goView('vcl'); openC(novoId);
+  showToast('✓ Cliente '+cliNome+' cadastrado — pasta '+novaPasta);
 }
 
 function cadAvulso(cliNomeEnc, lancId){
@@ -4557,15 +4583,22 @@ function finEstornarLocal(cid, lid){
 // ══════════════════════════════════════════════════════════════
 
 let _extratoLinhas = [];
+try{ _extratoLinhas = JSON.parse(lsGet('co_extrato')||'[]')||[]; }catch{ _extratoLinhas=[]; }
 let _finIgnorados = new Set();
 let _vfMes = ''; // initialized in sbInit after HOJE is ready
 var _navHistory = []; // navigation history stack
 var _navCurrent = null;
-try{ var _ig=JSON.parse(lsGet('co_fin_ignorados')||'[]'); _finIgnorados=new Set(_ig); }catch{} // linhas parseadas do CSV
+try{ var _ig=JSON.parse(lsGet('co_fin_ignorados')||'[]'); _finIgnorados=new Set(_ig); }catch{}
 let _saldoInicial = 0;
 let _saldoInicialData = '';
 try{ var _si=JSON.parse(lsGet('co_caixa_saldo')||'null'); if(_si){_saldoInicial=_si.valor||0;_saldoInicialData=_si.data||'';}}catch{}
-let _extratoRevisar = {}; // classificação manual por índice
+let _extratoRevisar = {};
+try{ _extratoRevisar = JSON.parse(lsGet('co_extrato_rev')||'{}')||{}; }catch{ _extratoRevisar={}; }
+
+function _extratoSalvar(){
+  lsSet('co_extrato', JSON.stringify(_extratoLinhas));
+  lsSet('co_extrato_rev', JSON.stringify(_extratoRevisar));
+}
 
 function abrirGuiaFinanceiro(){
   const guia = [
@@ -4776,7 +4809,7 @@ function vfExtrato(){
         +'📂 Novo arquivo<input type="file" accept=".csv,.txt" style="display:none" onchange="extratoCarregarCSV(this)">'
       +'</label>'
       +(vincPend>0 ? '<button onclick="extratoBaixarTodosPendentes()" style="padding:6px 14px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">⚡ Confirmar todas as baixas pendentes ('+vincPend+')</button>' : '')
-      +'<button onclick="_extratoLinhas=[];_extratoRevisar={};vfRender();" style="padding:6px 14px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--mu);font-size:11px;cursor:pointer">Limpar</button>'
+      +'<button onclick="_extratoLinhas=[];_extratoRevisar={};_extratoSalvar();vfRender();" style="padding:6px 14px;background:transparent;border:1px solid var(--bd);border-radius:6px;color:var(--mu);font-size:11px;cursor:pointer">Limpar</button>'
       +'<span style="font-size:10px;color:var(--mu);margin-left:4px">Período: '+(_extratoLinhas.length?_extratoLinhas[_extratoLinhas.length-1].dataFmt+' a '+_extratoLinhas[0].dataFmt:'')+'</span>'
     +'</div>';
 
@@ -4895,6 +4928,7 @@ function extratoBaixarVinculo(i){
   }
   _extratoLinhas[i]._status='conciliado';
   _extratoLinhas[i]._match_tipo='confirmado';
+  _extratoSalvar();
   marcarAlterado(); vfRender(); renderFinDash();
   showToast('✅ Baixa confirmada: '+l._match_desc);
 }
@@ -4950,6 +4984,7 @@ function extratoCarregarCSV(input){
     });
     // Auto-conciliar: cruzar com lançamentos existentes
     extratoConciliarAutomatico();
+    _extratoSalvar();
     vfSetTab('extrato', document.querySelector('.vf-tab:last-child'));
     vfRender();
     showToast('Extrato carregado: '+_extratoLinhas.length+' transações · '+_extratoLinhas.filter(function(l){return l._status==='conciliado';}).length+' conciliadas automaticamente');
@@ -5103,6 +5138,7 @@ function extratoClassificar(i){
       _extratoLinhas[i]._status='conciliado';
       _extratoLinhas[i]._match_id=vinculo;
       _extratoLinhas[i]._match_desc=matchT.desc;
+      _extratoSalvar();
       marcarAlterado(); fecharModal(); vfRender(); renderFinDash();
       showToast('✓ Vinculado: '+matchT.desc);
 
@@ -5122,6 +5158,7 @@ function extratoClassificar(i){
       if(cliP){ if(!localMov[cliP.id]) localMov[cliP.id]=[]; localMov[cliP.id].unshift({data:l.data,movimentacao:'[Financeiro] Extrato: '+desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(cliP.id); }
       _extratoLinhas[i]._status='importado';
       _extratoLinhas[i]._lanc_id=novoLanc.id;
+      _extratoSalvar();
       marcarAlterado(); fecharModal(); vfRender(); renderFinDash();
       showToast('✓ Lançamento criado: '+cliTxt);
     }
@@ -5135,11 +5172,11 @@ function extratoAtualizarVinculo(val){
 
 function extratoIgnorar(i){
   _extratoLinhas[i]._status = 'ignorado';
-  vfRender();
+  _extratoSalvar(); vfRender();
 }
 function extratoReativar(i){
   _extratoLinhas[i]._status = null;
-  vfRender();
+  _extratoSalvar(); vfRender();
 }
 function extratoEstornar(i){
   const l = _extratoLinhas[i];
@@ -5149,7 +5186,7 @@ function extratoEstornar(i){
   }
   _extratoLinhas[i]._status = null;
   _extratoLinhas[i]._lanc_id = null;
-  vfRender();
+  _extratoSalvar(); vfRender();
   renderFinDash();
   showToast('↩ Importação estornada');
 }
