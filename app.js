@@ -2652,6 +2652,7 @@ function vfNavMes(delta){
   if(m > 11){ m = 0; y++; }
   if(m < 0){ m = 11; y--; }
   _vfMes = y + '-' + String(m+1).padStart(2,'0');
+  _extratoRestaurar(); // carregar extrato do mês selecionado
   _vfTab = _vfTab || 'mes';
   vfRender();
 }
@@ -4665,12 +4666,45 @@ let _saldoInicial = 0;
 let _saldoInicialData = '';
 try{ var _si=JSON.parse(lsGet('co_caixa_saldo')||'null'); if(_si){_saldoInicial=_si.valor||0;_saldoInicialData=_si.data||'';}}catch{}
 let _extratoRevisar = {};
-try{ _extratoRevisar = JSON.parse(lsGet('co_extrato_rev')||'{}')||{}; }catch{ _extratoRevisar={}; }
 
-function _extratoSalvar(){
-  lsSet('co_extrato', JSON.stringify(_extratoLinhas));
-  lsSet('co_extrato_rev', JSON.stringify(_extratoRevisar));
+// ── Persistência da conciliação por mês ──
+function _extratoChave(){
+  var m = _vfMes || (HOJE ? HOJE.slice(0,7) : new Date().toISOString().slice(0,7));
+  return 'co_extrato_' + m;
 }
+function _extratoSalvar(){
+  try {
+    lsSet(_extratoChave(), JSON.stringify({
+      linhas: _extratoLinhas,
+      revisar: _extratoRevisar
+    }));
+  } catch(e) {}
+}
+function _extratoRestaurar(){
+  try {
+    var raw = lsGet(_extratoChave());
+    if(!raw) return;
+    var obj = JSON.parse(raw);
+    if(Array.isArray(obj.linhas) && obj.linhas.length > 0){
+      _extratoLinhas = obj.linhas;
+      _extratoRevisar = obj.revisar || {};
+    }
+  } catch(e) {}
+}
+// Restaurar ao carregar (tentativa com chave fixa legada também)
+try {
+  var _legado = lsGet('co_extrato');
+  if(_legado){
+    _extratoLinhas = JSON.parse(_legado)||[];
+    lsRemove('co_extrato');
+  }
+  var _legadoR = lsGet('co_extrato_rev');
+  if(_legadoR){
+    _extratoRevisar = JSON.parse(_legadoR)||{};
+    lsRemove('co_extrato_rev');
+  }
+} catch(e){}
+if(!_extratoLinhas.length) _extratoRestaurar();
 
 function abrirGuiaFinanceiro(){
   const guia = [
