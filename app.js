@@ -122,6 +122,8 @@ function _filterDeleted(arr){
     return !_deletedIds.has(id);
   });
 }
+// Timestamp de edição — garante que merge preserva a versão mais recente
+function _stamp(){ return new Date().toISOString(); }
 
 function _sbMergeArrays(local, remote){
   if(!Array.isArray(local) || !Array.isArray(remote)) return remote;
@@ -830,7 +832,8 @@ function ctcEditar(id){
         rua:v.rua, num:v.num, comp:v.comp, bairro:v.bairro, cep:v.cep,
         cidade:v.cidade, uf:v.uf, prof:v.prof, nit:v.nit, ctps:v.ctps,
         banco:v.banco, tconta:v.tconta, ag:v.ag, conta:v.conta, pix:v.pix, inss:v.inss
-      }
+      },
+      _editado: _stamp()
     };
     sbSet('co_ctc', localContatos);
     marcarAlterado();
@@ -1291,6 +1294,7 @@ function hcToggle(id, origem, tdIdx, hoje){
       t.status = wasDone ? 'todo' : 'done';
       if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
       else delete t.concluido_em;
+      t._editado = _stamp();
       vkSalvar();
     }
   } else {
@@ -1676,6 +1680,7 @@ function vkTogglePasta(id, cid){
   t.status = wasDone ? 'todo' : 'done';
   if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
   else delete t.concluido_em;
+  t._editado = _stamp();
   vkSalvar(); marcarAlterado();
   var el = document.getElementById('tp7-list-'+cid);
   if(el) el.innerHTML = _renderTarefasPasta(cid);
@@ -1719,6 +1724,7 @@ function vkToggleLista(id){
   t.status = wasDone ? 'todo' : 'done';
   if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
   else delete t.concluido_em;
+  t._editado = _stamp();
   vkSalvar(); vkRender(); marcarAlterado();
 }
 
@@ -1823,6 +1829,7 @@ function vkDrop(colId, el){
     t.status = colId;
     if(colId==='done'){ t.concluido_em = new Date(HOJE).toISOString().slice(0,10); }
     else { delete t.concluido_em; }
+    t._editado = _stamp();
   }
   vkSalvar();
   vkRender();
@@ -2013,6 +2020,7 @@ function vkEditar(id){
     t.prioridade  = document.getElementById('vked-prior')?.value;
     t.status      = document.getElementById('vked-status')?.value;
     t.obs         = document.getElementById('vked-obs')?.value.trim();
+    t._editado    = _stamp();
     vkSalvar();
     fecharModal();
     vkRender();
@@ -2033,6 +2041,7 @@ function vkMarcarHoje(id){
     t.paraHoje=hoje;
     showToast('Adicionado ao checklist de hoje ✓');
   }
+  t._editado=_stamp();
   vkSalvar();
   renderChecklist();
   vkRender();
@@ -2846,13 +2855,13 @@ function finEstornarItem(lid, origem){
   if(origem==='global'){
     var id = String(lid).replace('g','');
     finLancs = (finLancs||[]).map(function(l){
-      if(String(l.id)===id) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
+      if(String(l.id)===id) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:'',_editado:_stamp()});
       return l;
     });
     sbSet('co_fin', finLancs);
   } else {
     localLanc = (localLanc||[]).map(function(l){
-      if('l'+l.id===lid||String(l.id)===lid) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
+      if('l'+l.id===lid||String(l.id)===lid) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:'',_editado:_stamp()});
       return l;
     });
     sbSet('co_localLanc', localLanc);
@@ -3625,7 +3634,8 @@ function vfBaixar(id){
         conta_destino: conta,
         forma: forma||obj.forma||'',
         obs: obs ? ((obj.obs?obj.obs+' | ':'')+obs) : (obj.obs||''),
-        parcial: valorBaixa < (parseFloat(obj.valor)||0)
+        parcial: valorBaixa < (parseFloat(obj.valor)||0),
+        _editado: _stamp()
       };
     }
 
@@ -4062,7 +4072,7 @@ function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
     return {...obj, status:'pago', pago:true, dt_baixa:dtBaixa,
       valor_baixa:valorBaixa, forma:forma||obj.forma||'',
       obs:obs?((obj.obs?obj.obs+' | ':'')+obs):(obj.obs||''),
-      parcial: valorBaixa < valOrig};
+      parcial: valorBaixa < valOrig, _editado: _stamp()};
   }
   if(id.startsWith('g')){
     const rawId=parseInt(id.slice(1));
@@ -4589,7 +4599,7 @@ function despFixaPagar(gid){
     var forma = document.getElementById('dpg-forma')?.value||'';
     var i = finLancs.findIndex(function(x){ return String(x.id)===rawId; });
     if(i!==-1){
-      finLancs[i] = Object.assign({}, finLancs[i], {pago:true,status:'pago',dt_baixa:dt,forma:forma,valor_baixa:l.valor});
+      finLancs[i] = Object.assign({}, finLancs[i], {pago:true,status:'pago',dt_baixa:dt,forma:forma,valor_baixa:l.valor,_editado:_stamp()});
       sbSet('co_fin', finLancs);
       marcarAlterado(); fecharModal(); vfRender(); renderFinDash();
       showToast('✓ '+escapeHtml(l.desc||'')+'  marcada como paga');
@@ -4607,7 +4617,7 @@ function vfEstornarGlobal(gid){
   function(){
     var i = finLancs.findIndex(function(x){ return String(x.id)===rawId; });
     if(i!==-1){
-      finLancs[i] = Object.assign({}, finLancs[i], {pago:false,status:'pendente',dt_baixa:'',valor_baixa:0});
+      finLancs[i] = Object.assign({}, finLancs[i], {pago:false,status:'pendente',dt_baixa:'',valor_baixa:0,_editado:_stamp()});
       sbSet('co_fin', finLancs);
       marcarAlterado(); fecharModal(); vfRender(); renderFinDash();
       showToast('↩ Estorno registrado');
@@ -4986,7 +4996,7 @@ function extratoBaixarVinculo(i){
   } else if(vid.startsWith('g')){
     const rawId=parseInt(vid.slice(1));
     const gi=finLancs.findIndex(function(x){return x.id===rawId;});
-    if(gi!==-1){finLancs[gi]={...finLancs[gi],status:'pago',pago:true,dt_baixa:l.data,forma:forma};sbSet('co_fin',finLancs);}
+    if(gi!==-1){finLancs[gi]={...finLancs[gi],status:'pago',pago:true,dt_baixa:l.data,forma:forma,_editado:_stamp()};sbSet('co_fin',finLancs);}
   }
   _extratoLinhas[i]._status='conciliado';
   _extratoLinhas[i]._match_tipo='confirmado';
@@ -6395,7 +6405,7 @@ function _renderModalLanc(dados){
     };
     if(isEdit){
       const idx = finLancs.findIndex(l=>l.id===dados.id);
-      if(idx>=0) finLancs[idx]={...finLancs[idx],...base};
+      if(idx>=0) finLancs[idx]={...finLancs[idx],...base,_editado:_stamp()};
     } else if(recorr){
       // Gerar parcelas mensais
       const ate = base.ate||'2026-12';
@@ -7955,6 +7965,7 @@ function _finSalvarBanco(cid){
   c.extra.pix = document.getElementById('rb-pix-'+cid)?.value||'';
   c.extra.cpfbenef = document.getElementById('rb-cpf-'+cid)?.value||'';
   c.extra.obs_banco = document.getElementById('rb-obs-'+cid)?.value||'';
+  c._editado = _stamp();
   sbSet('co_clientes', CLIENTS);
   marcarAlterado();
   showToast('Dados banc\u00e1rios salvos \u2713');
@@ -8280,7 +8291,7 @@ function finBaixarLanc(cid, lid, direcao){
     if(isGlobal){
       // Global (finLancs)
       const fIdx = lanc._fIdx;
-      finLancs[fIdx] = { ...finLancs[fIdx], pago:true, status:'pago', dt_baixa:dtBaixa, forma:forma };
+      finLancs[fIdx] = { ...finLancs[fIdx], pago:true, status:'pago', dt_baixa:dtBaixa, forma:forma, _editado:_stamp() };
       sbSet('co_fin', finLancs);
     } else {
       // Local (localLanc)
@@ -12067,7 +12078,7 @@ function editarAgCliente(agId,cid){
     const tipo=document.getElementById('eag-tipo')?.value||'';
     const obs=document.getElementById('eag-obs')?.value.trim()||'';
     const dt=hora?data+'T'+hora:data;
-    const updated={...item,titulo,descricao:titulo,tipo_compromisso:tipo,inicio:dt,dt_raw:dt,obs};
+    const updated={...item,titulo,descricao:titulo,tipo_compromisso:tipo,inicio:dt,dt_raw:dt,obs,_editado:_stamp()};
     const idxL=(localAg||[]).findIndex(a=>String(a.id)===raw||String(a.id_agenda)===raw);
     if(idxL>=0) localAg[idxL]=updated;
     else{if(!localAg)localAg=[];localAg.push({...updated,id:raw,id_agenda:raw});}
@@ -15073,6 +15084,7 @@ function editarDadosProcesso(cid){
       c.tipo_acao    = document.getElementById('edp-tipo')?.value.trim();
       c.valor_causa  = document.getElementById('edp-valor')?.value.trim();
       c.condicao     = document.getElementById('edp-cond')?.value.trim();
+      c._editado     = _stamp();
       sbSalvarClientes();
       marcarAlterado();
       montarClientesAgrupados();
@@ -15140,6 +15152,7 @@ function fichaEditarContato(cid){
     c.cidade = g('cidade');
     c.uf     = g('uf');
     c.cep    = g('cep');
+    c._editado = _stamp();
     // Salvar em tasks para persistir
     const key = String(c.id);
     if(!tasks[key]) tasks[key]={};
@@ -16442,7 +16455,7 @@ function vkConcluirComDesfecho(id){
     if(idx2>=0){
       vkTasks[idx2] = {...vkTasks[idx2], status:'done',
         concluido_em: new Date().toISOString().slice(0,10),
-        desfecho: obs, proximo_ato: prox };
+        desfecho: obs, proximo_ato: prox, _editado: _stamp() };
       // Se tem proximo ato, criar nova tarefa na coluna 'todo'
       if(prox){
         vkTasks.push({
@@ -16569,7 +16582,7 @@ function agendaConcluirComDesfecho(agId, cid){
     const obs = document.getElementById('agcd-obs')?.value.trim()||'';
     localAg[idx] = {
       ...localAg[idx],
-      realizado: true,
+      realizado: true, _editado: _stamp(),
       cumprido: 'Sim',
       dt_conclusao: new Date().toISOString().slice(0,10),
       obs_conclusao: obs
