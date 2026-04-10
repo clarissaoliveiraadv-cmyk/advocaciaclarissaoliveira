@@ -2270,10 +2270,12 @@ function _vfRecebimentos(mesP){
       ? ''
       : '<span style="font-size:8px;font-weight:700;background:rgba(245,158,11,.15);color:#f59e0b;padding:1px 5px;border-radius:3px;margin-left:4px">PENDENTE</span>';
     var rowOp = r.pago ? '' : 'opacity:.7;';
+    var lancId = r._raw ? String(r._raw.id) : '';
+    var lancOnclick = lancId ? 'finIrParaLanc(\'l'+lancId+'\')' : 'finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')';
     html += '<tr style="border-bottom:1px solid var(--bd);'+rowOp+'">'
       +'<td style="padding:7px 10px;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(r.data)+stBadge+'</td>'
       +'<td style="padding:7px 10px;font-size:11px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')">'+escapeHtml(r.cliente)+'</td>'
-      +'<td style="padding:7px 10px;font-size:11px;color:var(--tx)">'+escapeHtml(r.descricao)+'</td>'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--ac);cursor:pointer" onclick="'+lancOnclick+'" title="Abrir lançamento na pasta">'+escapeHtml(r.descricao)+'</td>'
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:var(--tx);text-align:right">'+fV(r.valor_bruto)+'</td>'
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#4ade80;text-align:right">'+fV(r.valor_honorarios)+'</td>'
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:#fb923c;text-align:right">'+fV(r.valor_cliente)+'</td>'
