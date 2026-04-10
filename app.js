@@ -98,30 +98,41 @@ function lsRemove(chave){
 // ══ RESOLUÇÃO DE CONFLITO — merge por array ══════════
 // ═══════════════════════════════════════════════════════
 //
-// Estratégia: para arrays (co_fin, co_localLanc, etc),
-// merge por ID — mantém items de ambos, remoto + local.
-// Para objetos simples: last-write-wins com versão.
-//
+// Registro de IDs excluídos — impede que o merge traga de volta
+var _deletedIds = new Set();
+try{ var _di=JSON.parse(lsGet('co_deleted_ids')||'[]'); _deletedIds=new Set(_di); }catch{}
+function _markDeleted(id){
+  _deletedIds.add(String(id));
+  // Manter só últimos 500 para não crescer infinito
+  if(_deletedIds.size > 500){
+    var arr = Array.from(_deletedIds);
+    _deletedIds = new Set(arr.slice(arr.length-500));
+  }
+  lsSet('co_deleted_ids', JSON.stringify(Array.from(_deletedIds)));
+}
+
 function _sbMergeArrays(local, remote){
   if(!Array.isArray(local) || !Array.isArray(remote)) return remote;
-  // Criar Map do remoto por ID
+  // Criar Map do remoto por ID — excluir itens deletados localmente
   var map = new Map();
   remote.forEach(function(item){
     var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
-    map.set(String(id), item);
+    var k = String(id);
+    if(_deletedIds.has(k)) return; // excluído localmente — não restaurar
+    map.set(k, item);
   });
   // Adicionar itens locais que não existem no remoto
   local.forEach(function(item){
     var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
     var k = String(id);
+    if(_deletedIds.has(k)) return; // excluído localmente
     if(!map.has(k)){
-      map.set(k, item); // item local não existe no remoto → preservar
+      map.set(k, item);
     } else {
-      // Ambos têm — usar o mais recente por dt_baixa/data/updated_at
       var r = map.get(k);
       var localTs = item.dt_baixa||item.data||item.updated_at||'';
       var remoteTs = r.dt_baixa||r.data||r.updated_at||'';
-      if(localTs > remoteTs) map.set(k, item); // local mais novo
+      if(localTs > remoteTs) map.set(k, item);
     }
   });
   return Array.from(map.values());
@@ -1283,6 +1294,7 @@ function hcToggle(id, origem, tdIdx, hoje){
 function hcRemover(id, origem, tdIdx, hoje){
   if(!confirm('Excluir esta tarefa?')) return;
   if(origem==='kanban'){
+    _markDeleted(String(id));
     vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
     vkSalvar();
   } else {
@@ -1637,6 +1649,7 @@ function _criarTarefaDeAndamento(cid, idx){
 
 function vkDeletarPasta(id, cid){
   if(!confirm('Excluir esta tarefa?')) return;
+  _markDeleted(String(id));
   vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
   vkSalvar(); marcarAlterado();
   var el = document.getElementById('tp7-list-'+cid);
@@ -2014,6 +2027,7 @@ function vkMarcarHoje(id){
 }
 function vkDeletar(id){
   if(!confirm('Excluir esta tarefa?')) return;
+  _markDeleted(String(id));
   vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
   vkSalvar(); marcarAlterado();
   vkRender();
@@ -4095,6 +4109,7 @@ function vfDelLocal(lid){
     +'<div style="font-size:12px;color:var(--mu)">Esta ação não pode ser desfeita.</div>',
   function(){
     const cid_del = l.id_processo;
+    _markDeleted(rawId);
     localLanc = (localLanc||[]).filter(function(x){ return String(x.id)!==rawId; });
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
@@ -4512,6 +4527,7 @@ function gerarReciboHonorarios(cid, d){
 function finDelGlobal(lid){
   if(!confirm('Excluir este lançamento permanentemente?')) return;
   var lidN = Number(lid)||lid;
+  _markDeleted(String(lidN));
   finLancs = (finLancs||[]).filter(function(l){
     return String(l.id) !== String(lidN);
   });
@@ -5220,6 +5236,7 @@ function extratoConfirmarTodos(){
 function vfDelGlobal(id){
   if(!confirm('Excluir este lançamento?')) return;
   const rawId = id.startsWith('g') ? parseInt(id.slice(1)) : id;
+  _markDeleted(String(rawId));
   finLancs = finLancs.filter(l=>l.id!==rawId);
   sbSet('co_fin', finLancs);
   marcarAlterado();
@@ -8032,6 +8049,7 @@ function finDelLanc(cid, lid){
   var antes = localLanc.length;
   localLanc = localLanc.filter(function(l){ return String(l.id)!==lidS; });
   if(localLanc.length===antes){ showToast('N\u00e3o encontrado (ID: '+lidS+')'); return; }
+  _markDeleted(lidS);
   sbSet('co_localLanc', localLanc);
   _finLocaisCache = {};
   marcarAlterado();
@@ -11953,6 +11971,7 @@ function excluirAgCliente(agId, cid){
       <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
     </div>`,
     ()=>{
+      _markDeleted(raw);
       localAg = (localAg||[]).filter(function(a){return String(a.id)!==raw&&String(a.id_agenda)!==raw;});
       sbSet('co_ag', localAg); invalidarAllPend();
       marcarAlterado();
