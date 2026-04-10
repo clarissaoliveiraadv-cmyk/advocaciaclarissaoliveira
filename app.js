@@ -10788,13 +10788,12 @@ function carregarDadosObj(d){
   const m = d.mutavel || {};
   function loadKey(lsKey, fileVal, def){
     try{
-      const ls = localStorage.getItem(lsKey);
+      var ls = lsGet(lsKey);
       if(ls){
-        const parsed = JSON.parse(ls);
-        // Usar localStorage se tiver dados, senão usar arquivo
+        var parsed = JSON.parse(ls);
         if(Array.isArray(parsed)?parsed.length>0:Object.keys(parsed).length>0) return parsed;
       }
-    }catch{}
+    }catch(e){}
     return fileVal && (Array.isArray(fileVal)?fileVal.length>0:Object.keys(fileVal).length>0) ? fileVal : def;
   }
   tasks         = loadKey('co_tasks',        m.tasks,         {});
