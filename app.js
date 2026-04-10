@@ -2164,12 +2164,12 @@ function _vfConsolidar(mesP){
   (localLanc||[]).forEach(function(l){
     var isRep = l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara;
     var isDesp = l.tipo==='despesa'||l.tipo==='despint';
-    var rec = isRec(l);
-    if(isRep && rec){
+    var pago = isRec(l);
+    if(isRep){
       repasses.push(l);
     } else if(isDesp){
       despesas.push(l);
-    } else if(!isRep && !isDesp && rec){
+    } else if(!isRep && !isDesp){
       var calc = _finCalcLanc(l);
       recebimentos.push({
         data: l.data||l.dt_baixa||'',
@@ -2180,6 +2180,8 @@ function _vfConsolidar(mesP){
         valor_honorarios: calc.honorarios_liquidos_escritorio,
         valor_cliente: calc.valor_cliente,
         forma: l.forma||'',
+        pago: pago,
+        status: pago ? 'pago' : 'pendente',
         _raw: l
       });
     }
@@ -2264,8 +2266,12 @@ function _vfRecebimentos(mesP){
     +'</tr></thead><tbody>';
   d.recebimentos.sort(function(a,b){return (b.data||'').localeCompare(a.data||'');}).forEach(function(r){
     totB+=r.valor_bruto; totH+=r.valor_honorarios; totC+=r.valor_cliente;
-    html += '<tr style="border-bottom:1px solid var(--bd)">'
-      +'<td style="padding:7px 10px;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(r.data)+'</td>'
+    var stBadge = r.pago
+      ? ''
+      : '<span style="font-size:8px;font-weight:700;background:rgba(245,158,11,.15);color:#f59e0b;padding:1px 5px;border-radius:3px;margin-left:4px">PENDENTE</span>';
+    var rowOp = r.pago ? '' : 'opacity:.7;';
+    html += '<tr style="border-bottom:1px solid var(--bd);'+rowOp+'">'
+      +'<td style="padding:7px 10px;font-size:11px;color:var(--mu);white-space:nowrap">'+fDt(r.data)+stBadge+'</td>'
       +'<td style="padding:7px 10px;font-size:11px;color:var(--ac);cursor:pointer" onclick="finIrParaPasta(\''+escapeHtml(r.cliente).replace(/'/g,"\\'")+'\')">'+escapeHtml(r.cliente)+'</td>'
       +'<td style="padding:7px 10px;font-size:11px;color:var(--tx)">'+escapeHtml(r.descricao)+'</td>'
       +'<td style="padding:7px 10px;font-size:12px;font-weight:700;color:var(--tx);text-align:right">'+fV(r.valor_bruto)+'</td>'
