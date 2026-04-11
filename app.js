@@ -760,7 +760,7 @@ function ctcVincularTarefa(ctcId, ctcNome){
 
 function ctcVincularProcesso(ctcId, ctcNome){
   // Selecionar qual processo e qual papel do contato
-  const opts = CLIENTS.filter(c=>!encerrados[c.id]&&!encerrados[String(c.id)])
+  const opts = CLIENTS.filter(c=>!isEncerrado(c.id))
     .map(c=>`<option value="${c.id}">Pasta ${c.pasta} · ${c.cliente}</option>`).join('');
 
   abrirModal('⚖️ Vincular ao Processo — '+ctcNome,`
@@ -1916,7 +1916,7 @@ function vkNovaTask(tipoDefault='tarefa'){
   // Deduplicar clientes por nome (evita repetições)
   var seen = {};
   var procOpts = CLIENTS.filter(function(c){
-    if(encerrados[c.id]||encerrados[String(c.id)]) return false;
+    if(isEncerrado(c.id)) return false;
     var nome = (c.cliente||'').toLowerCase().trim();
     if(seen[nome]) return false;
     seen[nome] = true;
@@ -11047,12 +11047,12 @@ function limparPastasVazias(){
 
 function renumerarPastas(){
   var ativos = CLIENTS.filter(function(c){
-    return !(encerrados[c.id] || encerrados[String(c.id)]);
+    return !isEncerrado(c.id);
   }).sort(function(a,b){
     return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
   });
   var encerr = CLIENTS.filter(function(c){
-    return encerrados[c.id] || encerrados[String(c.id)];
+    return isEncerrado(c.id);
   }).sort(function(a,b){
     return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
   });
@@ -14194,6 +14194,7 @@ function getEncIds(){
   _encIdsVer = ver;
   return _encIdsCache;
 }
+function isEncerrado(id){ return encerrados[id]||encerrados[String(id)]||false; }
 
 // ── Painel resumo na área vazia de clientes ──
 function renderVclEmpty(){
@@ -14503,7 +14504,7 @@ var _rlData=[], _rlEnc=false, _rlItemH=68, _rlBuffer=5;
 function _rlBuildItem(grp, cf, isEncView){
     const procs=grp.processos||[grp];
     const isAtivo=AC&&procs.some(p=>p.id===AC.id);
-    const encProcs=procs.filter(p=>(encerrados[p.id]||encerrados[String(p.id)]));
+    const encProcs=procs.filter(p=>isEncerrado(p.id));
     const allEnc=encProcs.length===procs.length;
     const someEnc=encProcs.length>0;
     if(isEncView&&!someEnc) return '';
@@ -14513,10 +14514,10 @@ function _rlBuildItem(grp, cf, isEncView){
     const totalFut=procs.reduce((s,p)=>(s+(cf[p.id]||0)),0);
     const hasTel=procs.some(p=>p.tel);
     const maxDorm=procs.reduce((m,p)=>Math.max(m,p.ultima_mov_dias||0),0);
-    const nProcs=procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).length;
-    const nats=[...new Set(procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).map(p=>p.natureza))];
+    const nProcs=procs.filter(p=>!isEncerrado(p.id)).length;
+    const nats=[...new Set(procs.filter(p=>!isEncerrado(p.id)).map(p=>p.natureza))];
     const dataLabel=allEnc?('Encerrado '+encProcs[encProcs.length-1].data):
-      (procs.find(p=>!(encerrados[p.id]||encerrados[String(p.id)]))?.data_inicio||'').slice(0,7);
+      (procs.find(p=>!isEncerrado(p.id))?.data_inicio||'').slice(0,7);
     return`<div class="ci ${isAtivo?'on':''} ${allEnc?'enc-item':''}" onclick="openC(${grp.id})">
       <div class="cn">${grp.nome||'(sem nome)'}</div>
       <div class="cmeta">
@@ -15408,6 +15409,93 @@ function atConverterProcesso(cid){
   );
 }
 
+function _renderFichaContato(c){
+  var contato='';
+  if(c.tel){
+    var tc=c.tel.replace(/\D/g,'');
+    contato+='<a class="cbtn ctel" href="tel:'+c.tel+'" title="Ligar">📞 '+c.tel+'</a>';
+    if(tc.length>=10){
+      contato+='<a class="cbtn cwa" href="https://wa.me/55'+tc+'" target="_blank" title="Abrir WhatsApp"><svg width="14" height="14" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.557 4.122 1.529 5.858L0 24l6.335-1.505A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.007-1.373l-.36-.213-3.757.893.954-3.658-.233-.375A9.818 9.818 0 012.182 12C2.182 6.58 6.58 2.182 12 2.182c5.42 0 9.818 4.398 9.818 9.818 0 5.42-4.398 9.818-9.818 9.818z"/></svg> WhatsApp</a>';
+      contato+='<button class="cbtn" onclick="wppMsgRapida(\''+c.id+'\',\''+tc+'\')" style="background:#0a2010;border:1px solid #1a4a2e;color:#4ade80;font-size:10px" title="Enviar mensagem rápida">✍ Msg</button>';
+    }
+  }
+  if(c.tel2){
+    var tc2=c.tel2.replace(/\D/g,'');
+    contato+='<a class="cbtn ctel" href="tel:'+c.tel2+'" style="opacity:.85" title="Ligar para '+c.tel2+'">📞 '+c.tel2+'</a>';
+    if(tc2.length>=10) contato+='<a class="cbtn cwa" href="https://wa.me/55'+tc2+'" target="_blank" style="opacity:.85" title="WhatsApp '+c.tel2+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.557 4.122 1.529 5.858L0 24l6.335-1.505A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.007-1.373l-.36-.213-3.757.893.954-3.658-.233-.375A9.818 9.818 0 012.182 12C2.182 6.58 6.58 2.182 12 2.182c5.42 0 9.818 4.398 9.818 9.818 0 5.42-4.398 9.818-9.818 9.818z"/></svg></a>';
+  }
+  if(c.email) contato+='<a class="cbtn cml" href="mailto:'+c.email+'">✉️ '+c.email+'</a>';
+  if(!c.tel&&!c.email) contato='<div class="noc" style="display:flex;align-items:center;gap:8px"><span>Sem contato cadastrado</span></div>';
+  contato+='<button class="cbtn" onclick="fichaEditarContato(\''+c.id+'\')" style="background:none;border:1px dashed var(--bd);color:var(--mu);font-size:11px" title="Editar contato">✏</button>';
+  return contato;
+}
+
+function _renderFichaHeader(c, grp, encInfo, contato){
+  var cid = c.id;
+  return '<div class="pj-header"><div class="pj-header-top"><div class="pj-header-left">'
+    +'<button class="pj-back" onclick="_finVoltarClientes()" title="Voltar">←</button>'
+    +'<div class="pj-header-id"><span class="pj-pasta">⚖ '+(c.pasta||c.id)+'</span>'
+    +'<span class="pj-nat-badge '+nc(c.natureza)+'">'+(c.natureza||'—')+'</span>'
+    +(encInfo?'<span class="pj-enc-badge">Encerrado</span>':'')
+    +'</div></div><div class="pj-header-right"><div class="pj-opcoes-wrap">'
+    +'<button class="pj-opcoes-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'block\'?\'none\':\'block\'">Opções ▾</button>'
+    +'<div class="pj-opcoes-menu" style="display:none" onclick="this.style.display=\'none\'">'
+    +'<div class="pj-opcoes-group">Processo</div>'
+    +(!encInfo
+      ?'<div class="pj-opcoes-item" onclick="editarDadosProcesso('+cid+')">✏ Alterar Processo</div>'
+       +'<div class="pj-opcoes-item" onclick="encerrarProcesso('+cid+')">🗂 Encerrar Processo</div>'
+      :'<div class="pj-opcoes-item" onclick="reativarProcesso('+cid+')">↩ Reativar Processo</div>')
+    +(c.numero?'<div class="pj-opcoes-item" onclick="djSincronizar('+cid+')">🔄 Verificar Tribunal</div>':'')
+    +'<div class="pj-opcoes-sep"></div><div class="pj-opcoes-group">Novo Processo</div>'
+    +'<div class="pj-opcoes-item" onclick="_novoProcessoDoCliente('+cid+',\'Autor\')">⚖ Novo processo como Autor</div>'
+    +'<div class="pj-opcoes-item" onclick="_novoProcessoDoCliente('+cid+',\'Réu\')">⚖ Novo processo como Réu</div>'
+    +'<div class="pj-opcoes-sep"></div><div class="pj-opcoes-group">Adicionar</div>'
+    +'<div class="pj-opcoes-item" onclick="abrirModalMov('+cid+')">📋 Adicionar Movimentação</div>'
+    +'<div class="pj-opcoes-item" onclick="abrirModalPrazo('+cid+')">📅 Adicionar Prazo / Compromisso</div>'
+    +'<div class="pj-opcoes-item" onclick="abrirModalFin('+cid+',\'receber\')">💰 Adicionar Recebimento</div>'
+    +'<div class="pj-opcoes-item" onclick="abrirModalFin('+cid+',\'pagar\')">💸 Adicionar Pagamento</div>'
+    +'<div class="pj-opcoes-sep"></div>'
+    +'<div class="pj-opcoes-item" onclick="toggleDpPopover('+cid+')">👁 Dados Sensíveis</div>'
+    +'<div class="pj-opcoes-item" style="color:#c9484a" onclick="excluirProcesso('+cid+')">🗑 Excluir Processo</div>'
+    +'</div></div></div></div>'
+    +'<div class="pj-header-body"><div class="pj-header-info">'
+    +(c.numero?'<span class="pj-numero">'+c.numero+'</span>':'<span class="pj-numero pj-numero-nd">não distribuído</span>')
+    +(c.data_inicio?' <span class="pj-data-dist">Em '+fmtDataBR(c.data_inicio)+'</span>':'')
+    +'<div class="pj-nome">'+(escapeHtml(c.cliente)||'(sem nome)')+'</div>'
+    +(!encInfo&&c.ultima_mov_dias>=30?'<div class="pj-alerta-dorm">⚠ Este processo está sem movimentação há '+(c.ultima_mov_dias===9999?'tempo indeterminado':c.ultima_mov_dias+' dias')+'</div>':'')
+    +((c.tipo==='consulta'||c.status_consulta==='consulta')&&!encInfo?'<div class="atend-banner" id="atend-banner-'+c.id+'">'+renderAtendBanner(c)+'</div>':'')
+    +(grp&&grp.processos&&grp.processos.length>1
+      ?'<div class="proc-selector" style="margin-top:10px">'+grp.processos.map(function(p){
+        return '<button class="proc-btn '+(p.id===c.id?'on':'')+'" onclick="openC('+grp.id+','+p.id+')">'
+          +'<span class="proc-btn-pasta">Pasta '+p.pasta+'</span>'
+          +'<span class="proc-btn-nat '+nc(p.natureza)+'">'+p.natureza+'</span>'
+          +(isEncerrado(p.id)?'<span class="proc-btn-enc">encerrado</span>':'')
+          +'</button>';
+      }).join('')+'</div>':'')
+    +'</div><div class="pj-header-contato">'+contato+'</div></div>';
+}
+
+function _renderFichaPartes(c){
+  return '<div class="pj-partes"><span class="pj-partes-lbl">Partes</span>'
+    +'<span class="pj-parte-badge pj-parte-cli">Cliente</span>'
+    +'<span class="pj-parte-badge pj-parte-autor">'+(c.condicao||'Autor')+'</span>'
+    +'<span class="pj-parte-nome">'+(escapeHtml(c.cliente)||'—')+'</span>'
+    +(c.tel?'<span class="pj-wpp-ico" onclick="window.open(\'https://wa.me/55'+c.tel.replace(/\D/g,'')+'\',\'_blank\')" title="WhatsApp">💬</span>':'')
+    +(c.adverso?'<div style="margin-top:6px"><span class="pj-parte-badge" style="background:rgba(201,72,74,.12);color:#c9484a">Réu</span><span class="pj-parte-nome">'+escapeHtml(c.adverso)+'</span></div>':'')
+    +'</div>';
+}
+
+function _renderFichaJudicial(c){
+  return '<div class="pj-judicial"><span class="pj-judicial-lbl">Judicial</span><div class="pj-judicial-grid">'
+    +(c.numero?'<div><span class="pj-jud-k">Número</span><span class="pj-jud-v mono">'+c.numero+'</span></div>':'')
+    +(c._vara_datajud||c.comarca?'<div><span class="pj-jud-k">Tribunal / Vara</span><span class="pj-jud-v">'+(c._vara_datajud||c.comarca)+'</span></div>':'')
+    +(c.instancia?'<div><span class="pj-jud-k">Instância</span><span class="pj-jud-v">'+c.instancia+'</span></div>':'')
+    +(c.polo?'<div><span class="pj-jud-k">Polo</span><span class="pj-jud-v">'+c.polo+'</span></div>':'')
+    +(c.valor_causa?'<div><span class="pj-jud-k">Valor da Causa</span><span class="pj-jud-v">'+c.valor_causa+'</span></div>':'')
+    +(c._assuntos_datajud?'<div><span class="pj-jud-k">Assuntos</span><span class="pj-jud-v">'+c._assuntos_datajud.join(', ')+'</span></div>':'')
+    +'</div></div>';
+}
+
 function renderFicha(c, grp=null){
   // Restaurar dados de contato editados localmente
   const _ctcSaved = tasks[String(c.id)]?.contato;
@@ -15427,135 +15515,16 @@ function renderFicha(c, grp=null){
   const cMov=(localMov[c.id]||[]).concat(movEmbutidas);
   const agBadge=agFut.length?`<span class="tc gold">${agFut.length}fut</span>`:`<span class="tc">${(c.agenda||[]).length}</span>`;
 
-  const encInfo=(encerrados[c.id]||encerrados[String(c.id)]);
+  const encInfo=isEncerrado(c.id);
 
-  let contato='';
-  if(c.tel){
-    const tc=c.tel.replace(/\D/g,'');
-    const tcFull = tc.length===11?tc:tc.length===10?tc:'55'+tc;
-    contato+=`<a class="cbtn ctel" href="tel:${c.tel}" title="Ligar">📞 ${c.tel}</a>`;
-    if(tc.length>=10){
-      contato+=`<a class="cbtn cwa" href="https://wa.me/55${tc}" target="_blank" title="Abrir WhatsApp">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.557 4.122 1.529 5.858L0 24l6.335-1.505A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.007-1.373l-.36-.213-3.757.893.954-3.658-.233-.375A9.818 9.818 0 012.182 12C2.182 6.58 6.58 2.182 12 2.182c5.42 0 9.818 4.398 9.818 9.818 0 5.42-4.398 9.818-9.818 9.818z"/></svg>
-        WhatsApp</a>`;
-      contato+=`<button class="cbtn" onclick="wppMsgRapida('${c.id}','${tc}')" 
-        style="background:#0a2010;border:1px solid #1a4a2e;color:#4ade80;font-size:10px" 
-        title="Enviar mensagem rápida">✍ Msg</button>`;
-    }
-  }
-  if(c.tel2){
-    const tc2=c.tel2.replace(/\D/g,'');
-    contato+=`<a class="cbtn ctel" href="tel:${c.tel2}" style="opacity:.85" title="Ligar para ${c.tel2}">📞 ${c.tel2}</a>`;
-    if(tc2.length>=10)
-      contato+=`<a class="cbtn cwa" href="https://wa.me/55${tc2}" target="_blank" style="opacity:.85" title="WhatsApp ${c.tel2}">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.557 4.122 1.529 5.858L0 24l6.335-1.505A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.007-1.373l-.36-.213-3.757.893.954-3.658-.233-.375A9.818 9.818 0 012.182 12C2.182 6.58 6.58 2.182 12 2.182c5.42 0 9.818 4.398 9.818 9.818 0 5.42-4.398 9.818-9.818 9.818z"/></svg>
-      </a>`;
-  }
-  if(c.email)contato+=`<a class="cbtn cml" href="mailto:${c.email}">✉️ ${c.email}</a>`;
-  if(!c.tel&&!c.email)contato=`<div class="noc" style="display:flex;align-items:center;gap:8px">
-    <span>Sem contato cadastrado</span>
-  </div>`;
-  contato+=`<button class="cbtn" onclick="fichaEditarContato('${c.id}')" 
-    style="background:none;border:1px dashed var(--bd);color:var(--mu);font-size:11px" 
-    title="Editar contato">✏</button>`;
+  var contato = _renderFichaContato(c);
 
-  f.innerHTML=`
-    <!-- HEADER FICHA -->
-    <div class="pj-header">
-      <div class="pj-header-top">
-        <div class="pj-header-left">
-          <button class="pj-back" onclick="_finVoltarClientes()" title="Voltar">←</button>
-          <div class="pj-header-id">
-            <span class="pj-pasta">⚖ ${c.pasta||c.id}</span>
-            <span class="pj-nat-badge ${nc(c.natureza)}">${c.natureza||'—'}</span>
-            ${encInfo?'<span class="pj-enc-badge">Encerrado</span>':''}
-          </div>
-        </div>
-        <div class="pj-header-right">
-          <div class="pj-opcoes-wrap">
-            <button class="pj-opcoes-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">Opções ▾</button>
-            <div class="pj-opcoes-menu" style="display:none" onclick="this.style.display='none'">
-              <div class="pj-opcoes-group">Processo</div>
-              ${!encInfo?`
-              <div class="pj-opcoes-item" onclick="editarDadosProcesso(${c.id})">✏ Alterar Processo</div>
-              <div class="pj-opcoes-item" onclick="encerrarProcesso(${c.id})">🗂 Encerrar Processo</div>
-              `:`
-              <div class="pj-opcoes-item" onclick="reativarProcesso(${c.id})">↩ Reativar Processo</div>
-              `}
-              ${c.numero?`<div class="pj-opcoes-item" onclick="djSincronizar(${c.id})">🔄 Verificar Tribunal</div>`:''}
-              <div class="pj-opcoes-sep"></div>
-              <div class="pj-opcoes-group">Novo Processo</div>
-              <div class="pj-opcoes-item" onclick="_novoProcessoDoCliente(${c.id},'Autor')">\u2696 Novo processo como Autor</div>
-              <div class="pj-opcoes-item" onclick="_novoProcessoDoCliente(${c.id},'R\u00e9u')">\u2696 Novo processo como R\u00e9u</div>
-              <div class="pj-opcoes-sep"></div>
-              <div class="pj-opcoes-group">Adicionar</div>
-              <div class="pj-opcoes-item" onclick="abrirModalMov(${c.id})">📋 Adicionar Movimentação</div>
-              <div class="pj-opcoes-item" onclick="abrirModalPrazo(${c.id})">\ud83d\udcc5 Adicionar Prazo / Compromisso</div>
-              <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'receber')">💰 Adicionar Recebimento</div>
-              <div class="pj-opcoes-item" onclick="abrirModalFin(${c.id},'pagar')">💸 Adicionar Pagamento</div>
-              <div class="pj-opcoes-sep"></div>
-              <div class="pj-opcoes-item" onclick="toggleDpPopover(${c.id})">👁 Dados Sensíveis</div>
-              <div class="pj-opcoes-item" style="color:#c9484a" onclick="excluirProcesso(${c.id})">🗑 Excluir Processo</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="pj-header-body">
-        <div class="pj-header-info">
-          ${c.numero?`<span class="pj-numero">${c.numero}</span>`:'<span class="pj-numero pj-numero-nd">não distribuído</span>'}
-          ${c.data_inicio?` <span class="pj-data-dist">Em ${fmtDataBR(c.data_inicio)}</span>`:''}
-          <div class="pj-nome">${escapeHtml(c.cliente)||'(sem nome)'}</div>
-
-          ${!encInfo&&c.ultima_mov_dias>=30?`
-          <div class="pj-alerta-dorm">
-            ⚠ Este processo está sem movimentação há ${c.ultima_mov_dias===9999?'tempo indeterminado':c.ultima_mov_dias+' dias'}
-          </div>`:''}
-
-          ${(c.tipo==='consulta'||c.status_consulta==='consulta')&&!encInfo?`
-          <div class="atend-banner" id="atend-banner-${c.id}">${renderAtendBanner(c)}</div>`:''}
-
-          ${grp&&grp.processos&&grp.processos.length>1?`
-          <div class="proc-selector" style="margin-top:10px">
-            ${grp.processos.map(p=>`
-              <button class="proc-btn ${p.id===c.id?'on':''}" onclick="openC(${grp.id},${p.id})">
-                <span class="proc-btn-pasta">Pasta ${p.pasta}</span>
-                <span class="proc-btn-nat ${nc(p.natureza)}">${p.natureza}</span>
-                ${(encerrados[p.id]||encerrados[String(p.id)])?'<span class="proc-btn-enc">encerrado</span>':''}
-              </button>`).join('')}
-          </div>`:''}
-        </div>
-        <div class="pj-header-contato">${contato}</div>
-      </div>
-
-      <!-- Partes -->
-      <div class="pj-partes">
-        <span class="pj-partes-lbl">Partes</span>
-        <span class="pj-parte-badge pj-parte-cli">Cliente</span>
-        <span class="pj-parte-badge pj-parte-autor">${c.condicao||'Autor'}</span>
-        <span class="pj-parte-nome">${escapeHtml(c.cliente)||'—'}</span>
-        ${c.tel?`<span class="pj-wpp-ico" onclick="window.open('https://wa.me/55${c.tel.replace(/\\D/g,'')}','_blank')" title="WhatsApp">💬</span>`:''}
-        ${c.adverso?`
-        <div style="margin-top:6px">
-          <span class="pj-parte-badge" style="background:rgba(201,72,74,.12);color:#c9484a">Réu</span>
-          <span class="pj-parte-nome">${escapeHtml(c.adverso)}</span>
-        </div>`:''}
-      </div>
-
-      <!-- Judicial -->
-      <div class="pj-judicial">
-        <span class="pj-judicial-lbl">Judicial</span>
-        <div class="pj-judicial-grid">
-          ${c.numero?`<div><span class="pj-jud-k">Número</span><span class="pj-jud-v mono">${c.numero}</span></div>`:''}
-          ${c._vara_datajud||c.comarca?`<div><span class="pj-jud-k">Tribunal / Vara</span><span class="pj-jud-v">${c._vara_datajud||c.comarca}</span></div>`:''}
-          ${c.instancia?`<div><span class="pj-jud-k">Instância</span><span class="pj-jud-v">${c.instancia}</span></div>`:''}
-          ${c.polo?`<div><span class="pj-jud-k">Polo</span><span class="pj-jud-v">${c.polo}</span></div>`:''}
-          ${c.valor_causa?`<div><span class="pj-jud-k">Valor da Causa</span><span class="pj-jud-v">${c.valor_causa}</span></div>`:''}
-          ${c._assuntos_datajud?`<div><span class="pj-jud-k">Assuntos</span><span class="pj-jud-v">${c._assuntos_datajud.join(', ')}</span></div>`:''}
-        </div>
-      </div>
-    </div>
-
+  f.innerHTML=
+    _renderFichaHeader(c, grp, encInfo, contato)
+    + _renderFichaPartes(c)
+    + _renderFichaJudicial(c)
+    + '</div>'  // fecha .pj-header
+    + `
     <!-- POPOVER DADOS SENSÍVEIS (mantido) -->
     <button class="dp-popover-btn" onclick="toggleDpPopover(${c.id})" title="Dados bancários e acessos sensíveis" id="dp-btn-${c.id}" style="display:none">👁</button>
     <!-- POPOVER DADOS SENSÍVEIS -->
@@ -17818,7 +17787,7 @@ function djSincronizar(cid){
 // Sincronizar TODOS os processos ativos com número
 function djSincronizarTodos(){
   var ativos = (CLIENTS||[]).filter(function(c){
-    return c.numero && !(encerrados[c.id] || encerrados[String(c.id)]);
+    return c.numero && !isEncerrado(c.id);
   });
   if(!ativos.length){ showToast('Nenhum processo com número cadastrado'); return; }
 
