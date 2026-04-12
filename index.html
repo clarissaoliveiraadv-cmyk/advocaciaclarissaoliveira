@@ -12,13 +12,134 @@
 <meta name="description" content="Sistema de gestão para escritório de advocacia">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23510f10' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' fill='%23D4AF37' text-anchor='middle' font-family='serif'>CO</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=59">
+<link rel="stylesheet" href="styles.css?v=56">
+<style>
+/* ── KPI Row B — cards com borda lateral ── */
+.dsh-kpi-b-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 0;
+  margin: 0 16px 12px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  overflow: hidden;
+}
+body.light .dsh-kpi-b-row { border-color: #DDE1E7; }
+
+.dsh-kpi-b-card {
+  padding: 14px 16px;
+  border-right: 1px solid #2a2a2a;
+  border-left: 3px solid transparent;
+  background: #1a1818;
+  transition: background .15s;
+}
+body.light .dsh-kpi-b-card { background: #fff; border-right-color: #DDE1E7; }
+.dsh-kpi-b-card:last-child { border-right: none; }
+.dsh-kpi-b-card[style*="cursor:pointer"]:hover { background: #222020; }
+body.light .dsh-kpi-b-card[style*="cursor:pointer"]:hover { background: #F5F6F8; }
+
+.dsh-kpi-b-neutral  { border-left-color: #3a3a3a; }
+.dsh-kpi-b-danger   { border-left-color: #A32D2D; }
+.dsh-kpi-b-warn     { border-left-color: #854F0B; }
+.dsh-kpi-b-ok       { border-left-color: #3B6D11; }
+body.light .dsh-kpi-b-neutral { border-left-color: #c0c0c0; }
+body.light .dsh-kpi-b-danger  { border-left-color: #E24B4A; }
+body.light .dsh-kpi-b-warn    { border-left-color: #BA7517; }
+body.light .dsh-kpi-b-ok      { border-left-color: #639922; }
+
+.dsh-kpi-b-val {
+  font-size: 22px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  color: #E0E0E0;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+body.light .dsh-kpi-b-val { color: #1C1C1E; }
+
+.dsh-kpi-b-danger-txt { color: #f09595 !important; }
+.dsh-kpi-b-warn-txt   { color: #EF9F27 !important; }
+.dsh-kpi-b-ok-txt     { color: #97C459 !important; }
+body.light .dsh-kpi-b-danger-txt { color: #A32D2D !important; }
+body.light .dsh-kpi-b-warn-txt   { color: #854F0B !important; }
+body.light .dsh-kpi-b-ok-txt     { color: #3B6D11 !important; }
+
+.dsh-kpi-b-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #6b6b6b;
+}
+body.light .dsh-kpi-b-lbl { color: #8A8FA3; }
+
+.dsh-kpi-b-row2 {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.dsh-kpi-b-sep {
+  width: 1px;
+  height: 22px;
+  background: #2a2a2a;
+  flex-shrink: 0;
+}
+body.light .dsh-kpi-b-sep { background: #DDE1E7; }
+.dsh-kpi-b-sublbl {
+  font-size: 9px;
+  color: #6b6b6b;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+body.light .dsh-kpi-b-sublbl { color: #8A8FA3; }
+
+.dsh-kpi-b-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dsh-kpi-b-meta-inner { flex: 1; display: flex; align-items: center; }
+.dsh-kpi-b-meta-txt {
+  font-size: 11px;
+  color: #6b6b6b;
+  line-height: 1.4;
+}
+body.light .dsh-kpi-b-meta-txt { color: #8A8FA3; }
+.dsh-kpi-b-meta-txt:hover { color: #D4AF37 !important; }
+
+.dsh-kpi-b-novo-btn {
+  background: #6b1416;
+  border: none;
+  border-radius: 6px;
+  color: #f4f4f6;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.dsh-kpi-b-novo-btn:hover { background: #851a1c; }
+body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
+
+@media(max-width:768px){
+  .dsh-kpi-b-row {
+    grid-template-columns: 1fr 1fr;
+    margin: 0 10px 10px;
+  }
+  .dsh-kpi-b-card:nth-child(2n) { border-right: none; }
+  .dsh-kpi-b-card { border-bottom: 1px solid #2a2a2a; }
+  body.light .dsh-kpi-b-card { border-bottom-color: #DDE1E7; }
+}
+</style>
 </head>
 <body>
 
 <header style="background:#181818;border-bottom:1px solid #2a2a2a;padding:0 16px;display:flex;align-items:center;gap:10px;height:52px;position:sticky;top:0;z-index:300">
   <div class="monogram" onclick="goView('vc',document.getElementById('nav-home'))" style="cursor:pointer;width:34px;height:34px;border-radius:50%;border:1.5px solid #D4AF37;display:grid;place-items:center;flex-shrink:0"><span style="font-size:10px;font-weight:700;color:#D4AF37">CO</span></div>
-  <button id="global-back-btn" onclick="globalNavBack()" title="Voltar" style="display:none;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.08);color:#D4AF37;flex-shrink:0;line-height:1">‹</button>
+  <button id="global-back-btn" onclick="globalNavBack()" title="Voltar" style="display:none;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.08);color:#D4AF37;flex-shrink:0;line-height:1">&#8249;</button>
   <div style="display:none"><div class="logo-div"></div></div>
   <div style="line-height:1.2">
     <div style="font-size:11px;font-weight:700;color:#E0E0E0;letter-spacing:.06em;text-transform:uppercase">Clarissa Oliveira</div>
@@ -75,26 +196,57 @@
 <div class="view on" id="vc" style="flex-direction:column">
   <div class="dsh-scroll">
 
-    <!-- KPIs circulares -->
-    <div class="dsh-kpi-row">
-      <div class="dsh-orb dsh-orb-muted" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-ativos">—</div><div class="dsh-orb-lbl">Clientes</div></div>
-      <div class="dsh-orb dsh-orb-red" onclick="goView('va',document.getElementById('nav-agenda'))"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-vencidos">—</div><div class="dsh-orb-lbl">Vencidos</div></div>
-      <div class="dsh-orb dsh-orb-amber"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-prazos7">—</div><div class="dsh-orb-lbl">Prazos 7d</div></div>
-      <div class="dsh-orb dsh-orb-rose"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-aud7">—</div><div class="dsh-orb-lbl">Audiências</div></div>
-      <div class="dsh-orb dsh-orb-green" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-saldo">—</div><div class="dsh-orb-lbl">Saldo</div></div>
-      <div class="dsh-orb dsh-orb-muted" onclick="_dshRefresh()" title="Atualizar"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" id="dsc-lastupd" style="font-size:13px">—</div><div class="dsh-orb-lbl">Atualizado</div></div>
-      <div style="position:relative">
-        <div class="dsh-orb dsh-orb-vinho" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'"><div class="dsh-orb-glow"></div><div class="dsh-orb-val" style="font-size:22px">+</div><div class="dsh-orb-lbl">Novo</div></div>
-        <div id="dsh-novo-dd" style="display:none;position:absolute;left:50%;transform:translateX(-50%);top:82px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:100;min-width:200px;overflow:hidden">
-          <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
-          <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
-          <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
-          <div class="dsh-dd-item" onclick="novoAtendimento();document.getElementById('dsh-novo-dd').style.display='none'">💬 Atendimento</div>
-          <div class="dsh-dd-item" onclick="novoContato();document.getElementById('dsh-novo-dd').style.display='none'">👤 Contato</div>
-          <div class="dsh-dd-item" onclick="abrirColarPublicacao();document.getElementById('dsh-novo-dd').style.display='none'">📰 Publicação</div>
-          <div class="dsh-dd-item" onclick="goView('vini');iniRender();document.getElementById('dsh-novo-dd').style.display='none'">📝 Inicial</div>
+<!-- KPIs — Opção B: cards com borda lateral colorida -->
+    <div class="dsh-kpi-b-row">
+
+      <div class="dsh-kpi-b-card dsh-kpi-b-neutral" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()" style="cursor:pointer">
+        <div class="dsh-kpi-b-val" id="dsc-ativos">—</div>
+        <div class="dsh-kpi-b-lbl">Clientes ativos</div>
+      </div>
+
+      <div class="dsh-kpi-b-card dsh-kpi-b-danger" onclick="goView('va',document.getElementById('nav-agenda'))" style="cursor:pointer">
+        <div class="dsh-kpi-b-val dsh-kpi-b-danger-txt" id="dsc-vencidos">—</div>
+        <div class="dsh-kpi-b-lbl">Prazos vencidos</div>
+      </div>
+
+      <div class="dsh-kpi-b-card dsh-kpi-b-warn">
+        <div class="dsh-kpi-b-row2">
+          <div>
+            <div class="dsh-kpi-b-val dsh-kpi-b-warn-txt" id="dsc-prazos7">—</div>
+            <div class="dsh-kpi-b-sublbl">prazos</div>
+          </div>
+          <div class="dsh-kpi-b-sep"></div>
+          <div>
+            <div class="dsh-kpi-b-val dsh-kpi-b-warn-txt" id="dsc-aud7">—</div>
+            <div class="dsh-kpi-b-sublbl">audiências</div>
+          </div>
+        </div>
+        <div class="dsh-kpi-b-lbl">Próximos 7 dias</div>
+      </div>
+
+      <div class="dsh-kpi-b-card dsh-kpi-b-ok" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" style="cursor:pointer">
+        <div class="dsh-kpi-b-val dsh-kpi-b-ok-txt" id="dsc-saldo">—</div>
+        <div class="dsh-kpi-b-lbl">Saldo escritório</div>
+      </div>
+
+      <div class="dsh-kpi-b-card dsh-kpi-b-neutral dsh-kpi-b-meta">
+        <div class="dsh-kpi-b-meta-inner">
+          <span class="dsh-kpi-b-meta-txt" id="dsc-lastupd" onclick="_dshRefresh()" style="cursor:pointer" title="Atualizar">— · Atualizar</span>
+        </div>
+        <div style="position:relative">
+          <button class="dsh-kpi-b-novo-btn" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'">+ Novo</button>
+          <div id="dsh-novo-dd" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--sf);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:100;min-width:200px;overflow:hidden">
+            <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
+            <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
+            <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
+            <div class="dsh-dd-item" onclick="novoAtendimento();document.getElementById('dsh-novo-dd').style.display='none'">💬 Atendimento</div>
+            <div class="dsh-dd-item" onclick="novoContato();document.getElementById('dsh-novo-dd').style.display='none'">👤 Contato</div>
+            <div class="dsh-dd-item" onclick="abrirColarPublicacao();document.getElementById('dsh-novo-dd').style.display='none'">📰 Publicação</div>
+            <div class="dsh-dd-item" onclick="goView('vini');iniRender();document.getElementById('dsh-novo-dd').style.display='none'">📝 Inicial</div>
+          </div>
         </div>
       </div>
+
     </div>
 
     <!-- ALERTAS -->
@@ -198,8 +350,6 @@
 
 <!-- VIEW AGENDA -->
 <div class="view" id="va" style="flex-direction:column;overflow:hidden;">
-
-  <!-- HEADER — igual ao Financeiro -->
   <div class="fin-header" style="gap:12px;flex-wrap:wrap;">
     <div style="display:flex;flex-direction:column;gap:4px;">
       <span style="font-family:'Libre Baskerville',serif;font-size:20px;font-weight:700;color:var(--of)">Agenda</span>
@@ -223,94 +373,45 @@
       <button class="btn-bordo btn-bordo-sm" onclick="abrirModalAg()">＋ Novo</button>
     </div>
   </div>
-
-  <!-- CORPO -->
   <div style="flex:1;overflow-y:auto;padding:16px 20px;">
-
-    <!-- CARDS DE RESUMO — igual ao Financeiro -->
     <div class="fin-dash-cards" id="ag-resumo-cards">
-      <div class="fin-card">
-        <div class="fin-card-l">Próximos 7 dias</div>
-        <div class="fin-card-v" id="as1" style="color:var(--red)">—</div>
-      </div>
-      <div class="fin-card">
-        <div class="fin-card-l">Este mês</div>
-        <div class="fin-card-v" id="as2" style="color:var(--ouro)">—</div>
-      </div>
-      <div class="fin-card">
-        <div class="fin-card-l">Total futuros</div>
-        <div class="fin-card-v" id="as3">—</div>
-      </div>
-      <div class="fin-card">
-        <div class="fin-card-l">Pendentes/Passados</div>
-        <div class="fin-card-v" id="as4" style="color:var(--mu)">—</div>
-      </div>
+      <div class="fin-card"><div class="fin-card-l">Próximos 7 dias</div><div class="fin-card-v" id="as1" style="color:var(--red)">—</div></div>
+      <div class="fin-card"><div class="fin-card-l">Este mês</div><div class="fin-card-v" id="as2" style="color:var(--ouro)">—</div></div>
+      <div class="fin-card"><div class="fin-card-l">Total futuros</div><div class="fin-card-v" id="as3">—</div></div>
+      <div class="fin-card"><div class="fin-card-l">Pendentes/Passados</div><div class="fin-card-v" id="as4" style="color:var(--mu)">—</div></div>
     </div>
-
-    <!-- CALENDÁRIO MENSAL dentro de card -->
     <div id="ag-cal-wrap" class="fin-card" style="padding:0;overflow:hidden;">
-      <div class="ag2-weekdays">
-        <div>Dom</div><div>Seg</div><div>Ter</div>
-        <div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
-      </div>
+      <div class="ag2-weekdays"><div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div></div>
       <div class="ag2-grid" id="ag-cal-grid"></div>
     </div>
-
-    <!-- VISUALIZAÇÃO SEMANAL dentro de card -->
     <div id="ag-sem-wrap" style="display:none;" class="fin-card" style="padding:0;overflow:hidden;">
       <div class="ag2-sem-grid" id="ag-sem-grid"></div>
     </div>
-
-    <!-- DIA -->
     <div id="ag-dia-wrap" style="display:none;padding:12px 16px;"></div>
-
-    <!-- LISTA -->
     <div id="agbody" style="display:none;"></div>
-
   </div>
 </div>
 
-
 <!-- VIEW FINANCEIRO -->
 <div class="view" id="vf" style="flex-direction:column;overflow-y:auto;padding:0">
-
-  <!-- ── NAVEGAÇÃO MENSAL ── -->
   <div id="vf-nav" style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--bd);background:var(--sf);flex-shrink:0">
-    <!-- Seletor de mês -->
     <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-right:1px solid var(--bd)">
       <button onclick="vfNavMes(-1)" style="background:none;border:none;color:var(--mu);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">‹</button>
       <div id="vf-mes-lbl" style="font-size:13px;font-weight:700;color:var(--tx);min-width:90px;text-align:center">—</div>
       <button onclick="vfNavMes(+1)" style="background:none;border:none;color:var(--mu);font-size:18px;cursor:pointer;padding:0 4px;line-height:1">›</button>
     </div>
-    <!-- KPIs do mês selecionado -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);flex:1">
-      <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Total que entrou</div>
-        <div id="vfkpi-entrou" style="font-size:16px;font-weight:800;color:var(--tx)">—</div>
-      </div>
-      <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Receita escritório</div>
-        <div id="vfkpi-receita" style="font-size:16px;font-weight:800;color:#4ade80">—</div>
-      </div>
-      <div style="padding:8px 14px;border-right:1px solid var(--bd)">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Valores de clientes</div>
-        <div id="vfkpi-clientes" style="font-size:16px;font-weight:800;color:#fb923c">—</div>
-      </div>
-      <div style="padding:8px 14px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Saldo escritório</div>
-        <div id="vfkpi-saldo" style="font-size:16px;font-weight:800;color:#4ade80">—</div>
-      </div>
+      <div style="padding:8px 14px;border-right:1px solid var(--bd)"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Total que entrou</div><div id="vfkpi-entrou" style="font-size:16px;font-weight:800;color:var(--tx)">—</div></div>
+      <div style="padding:8px 14px;border-right:1px solid var(--bd)"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Receita escritório</div><div id="vfkpi-receita" style="font-size:16px;font-weight:800;color:#4ade80">—</div></div>
+      <div style="padding:8px 14px;border-right:1px solid var(--bd)"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Valores de clientes</div><div id="vfkpi-clientes" style="font-size:16px;font-weight:800;color:#fb923c">—</div></div>
+      <div style="padding:8px 14px"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mu)">Saldo escritório</div><div id="vfkpi-saldo" style="font-size:16px;font-weight:800;color:#4ade80">—</div></div>
     </div>
-    <!-- Ações -->
     <div style="display:flex;gap:6px;padding:8px 14px;border-left:1px solid var(--bd);flex-shrink:0">
       <button class="tp-btn" onclick="abrirRelatorioParceiro()" style="white-space:nowrap">📊 Parceiro</button>
       <button class="tp-btn" onclick="vfExportarPDF()" style="white-space:nowrap">⬇ PDF</button>
     </div>
   </div>
-
-  <!-- ── ABAS ── -->
   <div style="display:flex;align-items:center;gap:4px;padding:8px 16px;border-bottom:1px solid var(--bd);background:var(--sf2);flex-shrink:0;flex-wrap:wrap" id="vf-tabs">
-    
     <button class="vf-tab on" onclick="vfSetTab('resumo',this)">Resumo</button>
     <button class="vf-tab" onclick="vfSetTab('recebimentos',this)">Recebimentos</button>
     <button class="vf-tab" onclick="vfSetTab('receita',this)">Receita Escritório</button>
@@ -319,15 +420,11 @@
     <button class="vf-tab" onclick="vfSetTab('despesas',this)">Despesas Escritório</button>
     <button class="vf-tab" onclick="vfSetTab('extrato',this)">Extrato</button>
   </div>
-
-  <!-- ── CONTEÚDO ── -->
   <div id="vf-content" style="padding:16px;flex:1;overflow-y:auto"></div>
 </div>
 
-
 <div class="view" id="vk">
   <div class="vk-wrap">
-    <!-- Header -->
     <div class="vk-header">
       <div class="vk-tabs" id="vk-tabs">
         <button class="vk-tab" onclick="vkSetTab('lista',this)">☰ Lista</button>
@@ -335,12 +432,8 @@
         <button class="vk-tab" onclick="vkSetTab('urgentes',this)">⚠️ Urgentes</button>
         <button class="vk-tab" onclick="vkSetTab('responsavel',this)">👤 Por Responsável</button>
       </div>
-      <div class="vk-actions">
-        <button class="vk-btn" onclick="vkNovaTask()">＋ Nova Tarefa</button>
-        
-      </div>
+      <div class="vk-actions"><button class="vk-btn" onclick="vkNovaTask()">＋ Nova Tarefa</button></div>
     </div>
-    <!-- Filtros -->
     <div class="vk-filtros">
       <input class="vk-finp" id="vk-busca" placeholder="🔍 buscar tarefa ou cliente..." oninput="_db(function(){vkRender()},220,'vkbusca')" style="flex:1;min-width:150px">
       <select class="vk-finp" id="vk-ftipo" onchange="vkRender()">
@@ -367,11 +460,9 @@
         <option value="baixa">🟢 Baixa</option>
       </select>
     </div>
-    <!-- Conteúdo -->
     <div id="vk-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
   </div>
 </div>
-
 
 <!-- VIEW INICIAIS -->
 <div class="view" id="vini" style="flex-direction:column;overflow:hidden">
@@ -427,7 +518,7 @@
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="app.js?v=59"></script>
+<script src="app.js?v=56"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
@@ -441,84 +532,19 @@
     </div>
     <button class="btn-bordo btn-bordo-sm" onclick="calcLimpar()">🔄 Limpar</button>
   </div>
-
   <div style="padding:16px;max-width:900px;margin:0 auto;width:100%;box-sizing:border-box">
-
-    <!-- FORMULÁRIO -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px" id="calc-form-grid">
-      <div>
-        <label class="fm-lbl">Tribunal / Rito</label>
-        <select class="fm-inp" id="calc-tribunal" onchange="calcAtualizarTipos()">
-          <optgroup label="Trabalhista">
-            <option value="clt">CLT — Rito Ordinário (TRT)</option>
-            <option value="clt_sum">CLT — Rito Sumaríssimo (TRT)</option>
-            <option value="tst">TST / AIRR / RR</option>
-          </optgroup>
-          <optgroup label="Cível / Estadual">
-            <option value="cpc">CPC — Rito Comum (TJ)</option>
-            <option value="cpc_sum">CPC — Juizados Especiais (JEC)</option>
-            <option value="stj">STJ / Recurso Especial</option>
-          </optgroup>
-          <optgroup label="Livre">
-            <option value="livre">Prazo personalizado</option>
-          </optgroup>
-        </select>
-      </div>
-      <div>
-        <label class="fm-lbl">Tipo de Prazo</label>
-        <select class="fm-inp" id="calc-tipo-prazo" onchange="calcAtualizar()">
-          <option value="">— selecionar —</option>
-        </select>
-      </div>
-      <div>
-        <label class="fm-lbl">Data da publicação / intimação</label>
-        <input class="fm-inp" type="date" id="calc-data-pub" oninput="_db(function(){calcAtualizar()},150,'calcpub')">
-      </div>
-      <div>
-        <label class="fm-lbl">Estado (feriados estaduais)</label>
-        <select class="fm-inp" id="calc-estado" onchange="calcAtualizar()">
-          <option value="MG">Minas Gerais</option>
-          <option value="SP">São Paulo</option>
-          <option value="RJ">Rio de Janeiro</option>
-          <option value="RS">Rio Grande do Sul</option>
-          <option value="PR">Paraná</option>
-          <option value="SC">Santa Catarina</option>
-          <option value="BA">Bahia</option>
-          <option value="ES">Espírito Santo</option>
-          <option value="GO">Goiás</option>
-          <option value="DF">Distrito Federal</option>
-          <option value="MT">Mato Grosso</option>
-          <option value="MS">Mato Grosso do Sul</option>
-          <option value="PA">Pará</option>
-          <option value="CE">Ceará</option>
-          <option value="PE">Pernambuco</option>
-          <option value="outro">Outro (só nacionais)</option>
-        </select>
-      </div>
-      <div id="calc-livre-wrap" style="display:none">
-        <label class="fm-lbl">Nº de dias úteis</label>
-        <input class="fm-inp" type="number" id="calc-dias-livres" min="1" max="365" value="15" oninput="_db(function(){calcAtualizar()},200,'calcdias')">
-      </div>
-      <div>
-        <label class="fm-lbl">Vincular à pasta (opcional)</label>
-        <input class="fm-inp" id="calc-pasta-busca" placeholder="Nome do cliente..." list="calc-pasta-list" oninput="_db(function(){calcAtualizar()},200,'calcpasta')">
-        <datalist id="calc-pasta-list"></datalist>
-      </div>
+      <div><label class="fm-lbl">Tribunal / Rito</label><select class="fm-inp" id="calc-tribunal" onchange="calcAtualizarTipos()"><optgroup label="Trabalhista"><option value="clt">CLT — Rito Ordinário (TRT)</option><option value="clt_sum">CLT — Rito Sumaríssimo (TRT)</option><option value="tst">TST / AIRR / RR</option></optgroup><optgroup label="Cível / Estadual"><option value="cpc">CPC — Rito Comum (TJ)</option><option value="cpc_sum">CPC — Juizados Especiais (JEC)</option><option value="stj">STJ / Recurso Especial</option></optgroup><optgroup label="Livre"><option value="livre">Prazo personalizado</option></optgroup></select></div>
+      <div><label class="fm-lbl">Tipo de Prazo</label><select class="fm-inp" id="calc-tipo-prazo" onchange="calcAtualizar()"><option value="">— selecionar —</option></select></div>
+      <div><label class="fm-lbl">Data da publicação / intimação</label><input class="fm-inp" type="date" id="calc-data-pub" oninput="_db(function(){calcAtualizar()},150,'calcpub')"></div>
+      <div><label class="fm-lbl">Estado (feriados estaduais)</label><select class="fm-inp" id="calc-estado" onchange="calcAtualizar()"><option value="MG">Minas Gerais</option><option value="SP">São Paulo</option><option value="RJ">Rio de Janeiro</option><option value="RS">Rio Grande do Sul</option><option value="PR">Paraná</option><option value="SC">Santa Catarina</option><option value="BA">Bahia</option><option value="ES">Espírito Santo</option><option value="GO">Goiás</option><option value="DF">Distrito Federal</option><option value="MT">Mato Grosso</option><option value="MS">Mato Grosso do Sul</option><option value="PA">Pará</option><option value="CE">Ceará</option><option value="PE">Pernambuco</option><option value="outro">Outro (só nacionais)</option></select></div>
+      <div id="calc-livre-wrap" style="display:none"><label class="fm-lbl">Nº de dias úteis</label><input class="fm-inp" type="number" id="calc-dias-livres" min="1" max="365" value="15" oninput="_db(function(){calcAtualizar()},200,'calcdias')"></div>
+      <div><label class="fm-lbl">Vincular à pasta (opcional)</label><input class="fm-inp" id="calc-pasta-busca" placeholder="Nome do cliente..." list="calc-pasta-list" oninput="_db(function(){calcAtualizar()},200,'calcpasta')"><datalist id="calc-pasta-list"></datalist></div>
     </div>
-
-    <!-- RESULTADO -->
     <div id="calc-resultado" style="display:none;background:var(--sf2);border:2px solid var(--ouro);border-radius:12px;padding:18px 20px;margin-bottom:20px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px" id="calc-res-label">Prazo</div>
-          <div style="font-size:32px;font-weight:800;font-family:'Libre Baskerville',serif;color:var(--ouro)" id="calc-res-data">—</div>
-          <div style="font-size:12px;color:var(--mu);margin-top:4px" id="calc-res-sub">—</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:11px;color:var(--mu);margin-bottom:4px">Dias úteis contados</div>
-          <div style="font-size:24px;font-weight:700;color:var(--tx)" id="calc-res-dias">—</div>
-          <div style="font-size:10px;color:var(--mu);margin-top:2px" id="calc-res-feriados">—</div>
-        </div>
+        <div><div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px" id="calc-res-label">Prazo</div><div style="font-size:32px;font-weight:800;font-family:'Libre Baskerville',serif;color:var(--ouro)" id="calc-res-data">—</div><div style="font-size:12px;color:var(--mu);margin-top:4px" id="calc-res-sub">—</div></div>
+        <div style="text-align:right"><div style="font-size:11px;color:var(--mu);margin-bottom:4px">Dias úteis contados</div><div style="font-size:24px;font-weight:700;color:var(--tx)" id="calc-res-dias">—</div><div style="font-size:10px;color:var(--mu);margin-top:2px" id="calc-res-feriados">—</div></div>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-bordo btn-bordo-sm" onclick="calcSalvarPrazo()" id="calc-btn-salvar" style="display:none">📌 Salvar na pasta</button>
@@ -526,25 +552,9 @@
         <button class="btn-bordo btn-bordo-sm" onclick="calcCopiar()">📋 Copiar data</button>
       </div>
     </div>
-
-    <!-- LINHA DO TEMPO -->
-    <div id="calc-timeline" style="display:none;margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Linha do Tempo</div>
-      <div id="calc-timeline-content"></div>
-    </div>
-
-    <!-- FERIADOS ENCONTRADOS -->
-    <div id="calc-feriados-wrap" style="display:none;margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Feriados no período</div>
-      <div id="calc-feriados-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-    </div>
-
-    <!-- HISTÓRICO DE CÁLCULOS -->
-    <div id="calc-historico-wrap">
-      <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Cálculos recentes</div>
-      <div id="calc-historico"></div>
-    </div>
-
+    <div id="calc-timeline" style="display:none;margin-bottom:20px"><div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Linha do Tempo</div><div id="calc-timeline-content"></div></div>
+    <div id="calc-feriados-wrap" style="display:none;margin-bottom:20px"><div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Feriados no período</div><div id="calc-feriados-list" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+    <div id="calc-historico-wrap"><div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Cálculos recentes</div><div id="calc-historico"></div></div>
   </div>
 </div>
 
