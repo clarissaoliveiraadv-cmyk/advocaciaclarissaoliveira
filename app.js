@@ -718,7 +718,7 @@ function ctcVincularTarefa(ctcId, ctcNome){
 
 function ctcVincularProcesso(ctcId, ctcNome){
   // Selecionar qual processo e qual papel do contato
-  const opts = CLIENTS.filter(c=>!encerrados[c.id]&&!encerrados[String(c.id)])
+  const opts = CLIENTS.filter(c=>!isEncerrado(c.id))
     .map(c=>`<option value="${c.id}">Pasta ${c.pasta} · ${c.cliente}</option>`).join('');
 
   abrirModal('⚖️ Vincular ao Processo — '+ctcNome,`
@@ -1867,7 +1867,7 @@ function vkNovaTask(tipoDefault='tarefa'){
   // Deduplicar clientes por nome (evita repetições)
   var seen = {};
   var procOpts = CLIENTS.filter(function(c){
-    if(encerrados[c.id]||encerrados[String(c.id)]) return false;
+    if(isEncerrado(c.id)) return false;
     var nome = (c.cliente||'').toLowerCase().trim();
     if(seen[nome]) return false;
     seen[nome] = true;
@@ -10730,8 +10730,8 @@ const MOV_INDEX={};
 
 // ── Salvar CLIENTS no Supabase ──
 function sbSalvarClientes(){
-  // Salvar todos os CLIENTS numa única chave (sem separar consultas)
-  sbSet('co_clientes', CLIENTS);
+  // Usar debounce para evitar múltiplos POSTs em cascata (ex: novoProcesso chama sbSet + montarClientes + doSearch)
+  sbSetDebounced('co_clientes', CLIENTS);
 }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
@@ -10939,7 +10939,7 @@ function excluirProcesso(cid){
     marcarAlterado();
       // Atualizar UI
       fecharModal();
-      AC=null; AC_PROC=null;
+      AC=null; AC_PROC=null; _grupoAtual=null;
       const _fOld=document.getElementById('ficha'); if(_fOld) _fOld.classList.remove('on');
       const _fvcl=document.getElementById('ficha-vcl'); if(_fvcl){_fvcl.classList.remove('on');_fvcl.innerHTML='';}
       const _e2b=document.getElementById('emp2'); if(_e2b) _e2b.style.display='flex';
@@ -11130,12 +11130,12 @@ function limparPastasVazias(){
 
 function renumerarPastas(){
   var ativos = CLIENTS.filter(function(c){
-    return !(encerrados[c.id] || encerrados[String(c.id)]);
+    return !isEncerrado(c.id);
   }).sort(function(a,b){
     return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
   });
   var encerr = CLIENTS.filter(function(c){
-    return encerrados[c.id] || encerrados[String(c.id)];
+    return isEncerrado(c.id);
   }).sort(function(a,b){
     return (a.cliente||'').localeCompare(b.cliente||'', 'pt-BR');
   });
@@ -14490,6 +14490,7 @@ function getEncIds(){
   _encIdsVer = ver;
   return _encIdsCache;
 }
+function isEncerrado(id){ return getEncIds().has(id); }
 
 // ── Painel resumo na área vazia de clientes ──
 function renderVclEmpty(){
@@ -14589,6 +14590,9 @@ function renderVclEmpty(){
 
   el.innerHTML = html;
 }
+
+// Versão com debounce para oninput do campo de busca (evita _vfConsolidar a cada tecla)
+function doSearchDebounced(){ _debounce('doSearch', doSearch, 200); }
 
 function doSearch(){
   renderVclEmpty(); // Preencher painel vazio com resumo
@@ -14799,7 +14803,7 @@ var _rlData=[], _rlEnc=false, _rlItemH=68, _rlBuffer=5;
 function _rlBuildItem(grp, cf, isEncView){
     const procs=grp.processos||[grp];
     const isAtivo=AC&&procs.some(p=>p.id===AC.id);
-    const encProcs=procs.filter(p=>(encerrados[p.id]||encerrados[String(p.id)]));
+    const encProcs=procs.filter(p=>isEncerrado(p.id));
     const allEnc=encProcs.length===procs.length;
     const someEnc=encProcs.length>0;
     if(isEncView&&!someEnc) return '';
@@ -14809,10 +14813,10 @@ function _rlBuildItem(grp, cf, isEncView){
     const totalFut=procs.reduce((s,p)=>(s+(cf[p.id]||0)),0);
     const hasTel=procs.some(p=>p.tel);
     const maxDorm=procs.reduce((m,p)=>Math.max(m,p.ultima_mov_dias||0),0);
-    const nProcs=procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).length;
-    const nats=[...new Set(procs.filter(p=>!(encerrados[p.id]||encerrados[String(p.id)])).map(p=>p.natureza))];
+    const nProcs=procs.filter(p=>!isEncerrado(p.id)).length;
+    const nats=[...new Set(procs.filter(p=>!isEncerrado(p.id)).map(p=>p.natureza))];
     const dataLabel=allEnc?('Encerrado '+encProcs[encProcs.length-1].data):
-      (procs.find(p=>!(encerrados[p.id]||encerrados[String(p.id)]))?.data_inicio||'').slice(0,7);
+      (procs.find(p=>!isEncerrado(p.id))?.data_inicio||'').slice(0,7);
     return`<div class="ci ${isAtivo?'on':''} ${allEnc?'enc-item':''}" onclick="openC(${grp.id})">
       <div class="cn">${grp.nome||'(sem nome)'}</div>
       <div class="cmeta">
@@ -14986,7 +14990,7 @@ function _renderFichaPessoa(grp){
 
 // Voltar da ficha da pessoa/processo para a lista de clientes
 function voltarParaLista(){
-  AC=null; AC_PROC=null;
+  AC=null; AC_PROC=null; _grupoAtual=null;
   var vclWrap = document.querySelector('.vcl-wrap');
   if(vclWrap){ vclWrap.classList.remove('fin-hidden'); if(_vclView==='table') vclWrap.classList.add('vcl-full'); }
   _finRemoverSidebar();
@@ -15000,15 +15004,8 @@ function voltarParaLista(){
   doSearch();
 }
 
-// Abrir processo específico (a ficha completa com abas)
-function openProc(cid){
-  var c = findClientById(cid);
-  if(!c) return;
-  var grp = CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===cid;});});
-  AC = c;
-  AC_PROC = grp;
-  renderFicha(AC, grp);
-}
+// Abrir processo específico — delega para openC (unificado)
+function openProc(cid){ openC(cid, cid); }
 
 function openC(id, procId=null){
   var grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===id;});});
@@ -15017,9 +15014,9 @@ function openC(id, procId=null){
   // Se foi chamado com procId, abrir processo direto
   if(procId){
     var procAlvo = grp.processos.find(function(p){return p.id===procId;});
-    if(procAlvo){ AC=procAlvo; AC_PROC=grp; }
+    if(procAlvo){ AC=procAlvo; AC_PROC=grp; _grupoAtual=grp; }
   } else {
-    AC_PROC=grp;
+    AC_PROC=grp; _grupoAtual=grp;
   }
 
   // Garantir view Clientes
@@ -15045,6 +15042,7 @@ function openC(id, procId=null){
   // Se só 1 processo → abrir direto também
   else if(grp.processos.length===1){
     AC = grp.processos[0];
+    _grupoAtual = grp;
     renderFicha(AC, grp);
   }
   // Se múltiplos processos → abrir ficha da pessoa
@@ -15367,7 +15365,7 @@ function editarDadosProcesso(cid){
       <div><label class="fm-lbl">Polo</label>
         <select class="fm-inp" id="edp-polo">
           <option value="">—</option>
-          ${['Ativo','Passivo','Litisconsorte'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
+          ${['Reclamante','Reclamado','Autor','Réu','Requerente','Requerido','Litisconsorte Ativo','Litisconsorte Passivo'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -15710,7 +15708,7 @@ function renderFicha(c, grp=null){
   const cMov=(localMov[c.id]||[]).concat(movProjuris);
   const agBadge=agFut.length?`<span class="tc gold">${agFut.length}fut</span>`:`<span class="tc">${(c.agenda||[]).length}</span>`;
 
-  const encInfo=(encerrados[c.id]||encerrados[String(c.id)]);
+  const encInfo=encerrados[c.id]||encerrados[String(c.id)]||null;
 
   let contato='';
   if(c.tel){
@@ -15804,7 +15802,7 @@ function renderFicha(c, grp=null){
               <button class="proc-btn ${p.id===c.id?'on':''}" onclick="openC(${grp.id},${p.id})">
                 <span class="proc-btn-pasta">Pasta ${p.pasta}</span>
                 <span class="proc-btn-nat ${nc(p.natureza)}">${p.natureza}</span>
-                ${(encerrados[p.id]||encerrados[String(p.id)])?'<span class="proc-btn-enc">encerrado</span>':''}
+                ${isEncerrado(p.id)?'<span class="proc-btn-enc">encerrado</span>':''}
               </button>`).join('')}
           </div>`:''}
         </div>
@@ -16097,7 +16095,7 @@ function _finVoltarClientes(){
   if(emp2) emp2.style.display='';
   var ficha = document.getElementById('ficha-vcl');
   if(ficha) ficha.innerHTML='';
-  AC=null; AC_PROC=null;
+  AC=null; AC_PROC=null; _grupoAtual=null;
   doSearch();
 }
 
@@ -18101,7 +18099,7 @@ function djSincronizar(cid){
 // Sincronizar TODOS os processos ativos com número
 function djSincronizarTodos(){
   var ativos = (CLIENTS||[]).filter(function(c){
-    return c.numero && !(encerrados[c.id] || encerrados[String(c.id)]);
+    return c.numero && !isEncerrado(c.id);
   });
   if(!ativos.length){ showToast('Nenhum processo com número cadastrado'); return; }
 
@@ -18130,4 +18128,3 @@ function djSincronizarTodos(){
   }
   proximo();
 }
-
