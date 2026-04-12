@@ -8381,7 +8381,7 @@ function novoProcesso(){
         +'<div><label class="fm-lbl">Natureza</label>'
           +'<select class="fm-inp" id="np-nat"><option>Trabalhista</option><option>Previdenci\u00e1rio</option><option>C\u00edvel</option><option>Fam\u00edlia</option><option>Administrativo</option><option>Penal</option><option>Banc\u00e1rio</option><option>Outro</option></select></div>'
         +'<div><label class="fm-lbl">Polo do cliente</label>'
-          +'<select class="fm-inp" id="np-polo"><option>Autor</option><option>R\u00e9u</option><option>Reclamante</option><option>Reclamado</option><option>Requerente</option><option>Requerido</option></select></div>'
+          +'<select class="fm-inp" id="np-polo"><option>Autor</option><option>R\u00e9u</option><option>Requerente</option><option>Requerido</option><option>Reclamante</option><option>Reclamado</option><option>Apelante</option><option>Apelado</option><option>Litisconsorte</option></select></div>'
       +'</div>'
       +'<div class="fm-row" style="margin-top:8px">'
         +'<div style="flex:2"><label class="fm-lbl">Vara / Ju\u00edzo</label>'
@@ -10651,8 +10651,8 @@ const MOV_INDEX={};
 
 // ── Salvar CLIENTS no Supabase ──
 function sbSalvarClientes(){
-  // Salvar todos os CLIENTS numa única chave (sem separar consultas)
-  sbSet('co_clientes', CLIENTS);
+  // Debounced — evita múltiplos POSTs em sequência
+  sbSetDebounced('co_clientes', CLIENTS);
 }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
@@ -14707,12 +14707,7 @@ function voltarParaLista(){
 
 // Abrir processo específico (a ficha completa com abas)
 function openProc(cid){
-  var c = findClientById(cid);
-  if(!c) return;
-  var grp = CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===cid;});});
-  AC = c;
-  AC_PROC = grp;
-  renderFicha(AC, grp);
+  openC(cid);
 }
 
 function openC(id, procId=null){
@@ -14733,9 +14728,10 @@ function openC(id, procId=null){
   if(procId){
     var spid = String(procId);
     var procAlvo = grp.processos.find(function(p){return String(p.id)===spid;});
-    if(procAlvo){ AC=procAlvo; AC_PROC=grp; }
+    if(procAlvo){ AC=procAlvo; AC_PROC=grp; _grupoAtual=grp; }
   } else {
     AC_PROC=grp;
+    _grupoAtual=grp;
   }
 
   // Garantir view Clientes
@@ -15083,7 +15079,7 @@ function editarDadosProcesso(cid){
       <div><label class="fm-lbl">Polo</label>
         <select class="fm-inp" id="edp-polo">
           <option value="">—</option>
-          ${['Ativo','Passivo','Litisconsorte'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
+          ${['Autor','Réu','Requerente','Requerido','Reclamante','Reclamado','Apelante','Apelado','Litisconsorte'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
