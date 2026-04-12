@@ -2130,7 +2130,7 @@ function vfTodos(){
     desc: l.desc||'—', cliente: l.cliente||'—',
     centro: l.centro||'', valor: l.valor||0,
     data: l.data||l.venc, venc: l.venc||l.data,
-    status: l.status==='pago'?'pago':(l.venc&&l.venc<hoje&&l.status!=='pago'?'vencido':'pendente'),
+    status: l.status==='pago'?'pago': l.status==='vencido'?'vencido': (l.venc&&l.venc<hoje?'vencido':'pendente'),
     forma: l.forma||'', obs: l.obs||''
   }));
 
@@ -2792,37 +2792,37 @@ function fmComplementarLanc(lid){
 }
 
 function finDelItem(lid, origem){
-  if(!confirm('Excluir este lançamento?')) return;
   if(origem==='global'){
-    finLancs = (finLancs||[]).filter(function(l){ return String(l.id)!==String(lid).replace('g',''); });
-    sbSet('co_fin', finLancs);
+    finDelGlobal(String(lid).replace('g',''));
   } else {
-    localLanc = (localLanc||[]).filter(function(l){ return 'l'+l.id!==lid && String(l.id)!==lid; });
-    sbSet('co_localLanc', localLanc);
+    vfDelLocal(String(lid).startsWith('l') ? lid : 'l'+lid);
   }
-  marcarAlterado(); vfRender();
-  showToast('Lançamento excluído');
 }
 
 // Helper: estornar any lançamento
 function finEstornarItem(lid, origem){
-  if(!confirm('Estornar este lançamento? Ele voltará para pendente.')) return;
-  if(origem==='global'){
-    var id = String(lid).replace('g','');
-    finLancs = (finLancs||[]).map(function(l){
-      if(String(l.id)===id) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
-      return l;
-    });
-    sbSet('co_fin', finLancs);
-  } else {
-    localLanc = (localLanc||[]).map(function(l){
-      if('l'+l.id===lid||String(l.id)===lid) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
-      return l;
-    });
-    sbSet('co_localLanc', localLanc);
-  }
-  marcarAlterado(); vfRender();
-  showToast('↩ Estorno registrado');
+  abrirModal('Estornar lançamento?',
+    '<div style="font-size:12px;color:var(--mu);line-height:1.7">O lançamento voltará para <strong>pendente</strong>. O valor de baixa será removido.</div>',
+    function(){
+      if(origem==='global'){
+        var id = String(lid).replace('g','');
+        finLancs = (finLancs||[]).map(function(l){
+          if(String(l.id)===id) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
+          return l;
+        });
+        sbSet('co_fin', finLancs);
+      } else {
+        localLanc = (localLanc||[]).map(function(l){
+          if('l'+l.id===lid||String(l.id)===lid) return Object.assign({},l,{pago:false,status:'pendente',dt_baixa:''});
+          return l;
+        });
+        sbSet('co_localLanc', localLanc);
+      }
+      invalidarCacheVfTodos();
+      marcarAlterado(); fecharModal(); vfRender();
+      showToast('↩ Estorno registrado');
+    }, 'Estornar'
+  );
 }
 
 // Helper: renders a block table (recebiveis or despesas)
@@ -4534,17 +4534,25 @@ function gerarReciboHonorarios(cid, d){
 
 
 function finDelGlobal(lid){
-  if(!confirm('Excluir este lançamento permanentemente?')) return;
-  var lidN = Number(lid)||lid;
-  finLancs = (finLancs||[]).filter(function(l){
-    return String(l.id) !== String(lidN);
-  });
-  sbSet('co_fin', finLancs);
-  marcarAlterado();
-  vfRender();
-  showToast('Lançamento excluído');
+  const l = (finLancs||[]).find(function(x){ return String(x.id)===String(Number(lid)||lid); });
+  abrirModal('Excluir lançamento?',
+    '<div style="padding:10px 12px;background:var(--sf3);border-radius:8px;margin-bottom:10px">'
+      +'<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(l?escapeHtml(l.desc||'—'):'Lançamento')+'</div>'
+      +(l?'<div style="font-size:15px;font-weight:800;color:#c9484a;margin-top:4px">'+fBRL(l.valor||0)+'</div>':'')
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mu)">Esta ação não pode ser desfeita.</div>',
+    function(){
+      var lidN = Number(lid)||lid;
+      finLancs = (finLancs||[]).filter(function(x){ return String(x.id) !== String(lidN); });
+      sbSet('co_fin', finLancs);
+      invalidarCacheVfTodos();
+      marcarAlterado(); fecharModal(); vfRender();
+      audit('exclusao','Lançamento global excluído: '+(l?l.desc:''),'lancamento');
+      showToast('Lançamento excluído');
+    }, '🗑 Confirmar exclusão'
+  );
+  setTimeout(()=>{ const btn=document.getElementById('modal-save'); if(btn){btn.style.background='var(--red)';btn.textContent='Confirmar exclusão';} },50);
 }
-
 
 function finIgnorarProjuris(pid, cid){
   abrirModal('Ignorar lançamento',
@@ -8107,32 +8115,8 @@ function renderFinLocal(cid){
 }
 
 function finDelLanc(cid, lid){
-  if(!confirm('Excluir este lan\u00e7amento?')) return;
-  var cidN = Number(cid)||cid, lidS = String(lid);
-  var antes = localLanc.length;
-  localLanc = localLanc.filter(function(l){ return String(l.id)!==lidS; });
-  if(localLanc.length===antes){ showToast('N\u00e3o encontrado (ID: '+lidS+')'); return; }
-  sbSet('co_localLanc', localLanc);
-  _finLocaisCache = {};
-  marcarAlterado();
-  // Re-render imediato (sem requestAnimationFrame)
-  if(cidN){
-    var el = document.getElementById('fin-tab-content-'+cidN);
-    if(el && typeof _finCurTab!=='undefined'){
-      var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-      var hoje = new Date().toISOString().slice(0,10);
-      var c = findClientById(cidN);
-      if(c){
-        var locais = _finGetLocais(cidN);
-        if(_finCurTab==='resumo') el.innerHTML = _finResumoTab2(cidN, c, locais, fV, hoje);
-        else if(_finCurTab==='honorarios') el.innerHTML = _finHonorariosTab(cidN, c, locais, fV, hoje);
-        else if(_finCurTab==='despesas') el.innerHTML = _finDespesasTab2(cidN, c, locais, fV, hoje);
-        else if(_finCurTab==='repasses') el.innerHTML = _finRepassesBancoTab(cidN, c, locais, fV, hoje);
-      }
-    }
-  }
-  if(document.getElementById('vf')?.classList.contains('on')) vfRender();
-  showToast('Lan\u00e7amento exclu\u00eddo');
+  // Delega para vfDelLocal que já tem modal de confirmação, audit e re-render completo
+  vfDelLocal('l'+String(lid));
 }
 
 function finEditarLanc(cid, lid){
@@ -8756,20 +8740,23 @@ function atAlterarStatus(id, novoStatus){
   sbSet('co_atend', localAtend);
   if(novoStatus==='contratou'){
     showToast('Status atualizado ✓');
-    setTimeout(()=>{
-      abrirModal('🎉 Cliente contratou!',
-        `<div style="text-align:center;padding:8px 0">
-          <div style="font-size:32px;margin-bottom:12px">⚖️</div>
-          <div style="font-size:14px;font-weight:600;color:var(--of);margin-bottom:8px">${at.cliente}</div>
-          <div style="font-size:12px;color:var(--mu);margin-bottom:16px">Deseja criar um processo vinculado a este cliente agora?</div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="tp-btn" style="flex:1" onclick="fecharModal();setTimeout(novoProcesso,150)">⚖️ Criar processo</button>
-            <button class="tp-btn ghost" style="flex:1" onclick="fecharModal()">Agora não</button>
-          </div>
-        </div>`,
-        null, null
-      );
-    }, 300);
+    const jaTemProcesso = CLIENTS.some(c=>String(c.id)===String(at.id_cliente)&&c.status_consulta==='processo');
+    if(!jaTemProcesso){
+      setTimeout(()=>{
+        abrirModal('🎉 Cliente contratou!',
+          `<div style="text-align:center;padding:8px 0">
+            <div style="font-size:32px;margin-bottom:12px">⚖️</div>
+            <div style="font-size:14px;font-weight:600;color:var(--of);margin-bottom:8px">${at.cliente}</div>
+            <div style="font-size:12px;color:var(--mu);margin-bottom:16px">Deseja criar um processo vinculado a este cliente agora?</div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="tp-btn" style="flex:1" onclick="fecharModal();setTimeout(novoProcesso,150)">⚖️ Criar processo</button>
+              <button class="tp-btn ghost" style="flex:1" onclick="fecharModal()">Agora não</button>
+            </div>
+          </div>`,
+          null, null
+        );
+      }, 300);
+    }
   } else {
     showToast('Status atualizado ✓');
   }
@@ -11632,31 +11619,12 @@ function _finAutoStatusVencidos(){
   if(alterados > 0){
     sbSet('co_localLanc', localLanc);
     sbSet('co_fin', finLancs);
+    invalidarCacheVfTodos();
   }
 }
 
 // Executar auto-status ao carregar
 try { _finAutoStatusVencidos(); } catch(e){}
-
-// Corrigir dt_baixa de lançamentos recebidos que ficaram com data errada
-(function _corrigirDtBaixa(){
-  var corrigidos = 0;
-  (localLanc||[]).forEach(function(l){
-    if(!isRec(l)) return;
-    if(!l.data) return;
-    // Se dt_baixa é diferente da data do lançamento E é de abril 2026 (data do bug)
-    if(l.dt_baixa && l.dt_baixa !== l.data && l.dt_baixa.startsWith('2026-04')){
-      l.dt_baixa = l.data;
-      corrigidos++;
-    }
-    // Se não tem dt_baixa mas está recebido
-    if(!l.dt_baixa && isRec(l)){
-      l.dt_baixa = l.data;
-      corrigidos++;
-    }
-  });
-  if(corrigidos > 0) sbSet('co_localLanc', localLanc);
-})();
 
 // ── Limpeza: remover registros de teste de todos os módulos ──
 (function _limparTestes(){
@@ -15493,7 +15461,8 @@ const ATEND_STATUS_FICHA = {
 };
 
 function renderAtendBanner(c){
-  const at = localAtend.find(a=>String(a.id_cliente)===String(c.id));
+  const ats = localAtend.filter(a=>String(a.id_cliente)===String(c.id));
+  const at = ats.sort((a,b)=>(b.criado_em||'').localeCompare(a.criado_em||''))[0];
   const status = at?.status||'inicial';
   const s = ATEND_STATUS_FICHA[status]||ATEND_STATUS_FICHA['inicial'];
   const cid = c.id;
@@ -15573,26 +15542,40 @@ function atAlterarStatusFicha(cid, novoStatus, atId){
     localAtend[idx].status = novoStatus;
     sbSet('co_atend', localAtend);
   }
-  // Se não prosseguiu → encerrar automaticamente
+  // Se não prosseguiu → confirmar antes de encerrar
   if(novoStatus==='nao-prosseguiu'){
     const c = findClientById(cid);
-    encerrados[cid] = {
-      data: new Date().toISOString().slice(0,10),
-      motivo: 'Atendimento: cliente não prosseguiu',
-      cliente: c?.cliente||''
-    };
-    sbSet('co_encerrados', encerrados);
-    marcarAlterado();
-    atualizarBadgeEnc();
-    doSearch()
-      atualizarStats();;
-    // Fechar ficha
-    if(AC&&AC.id===cid){
-      AC=null;
-      const _f2=document.getElementById('ficha-vcl'); if(_f2){_f2.classList.remove('on');_f2.innerHTML='';}
-      const _e2=document.getElementById('emp2'); if(_e2) _e2.style.display='flex';
-    }
-    showToast('Atendimento encerrado — cliente não prosseguiu');
+    abrirModal('Encerrar atendimento?',
+      `<div style="font-size:12px;color:var(--mu);line-height:1.7">
+        <p>Marcar como <strong style="color:#f87676">não prosseguiu</strong> irá encerrar o processo de <strong style="color:var(--tx)">${c?.cliente||''}</strong>.</p>
+        <p style="margin-top:8px">Esta ação pode ser desfeita em Encerrados → Reativar.</p>
+      </div>`,
+      ()=>{
+        if(idx>=0){ localAtend[idx].status = novoStatus; sbSet('co_atend', localAtend); }
+        encerrados[cid] = {
+          data: new Date().toISOString().slice(0,10),
+          motivo: 'Atendimento: cliente não prosseguiu',
+          cliente: c?.cliente||''
+        };
+        _encIdsCache = null;
+        sbSet('co_encerrados', encerrados);
+        marcarAlterado();
+        atualizarBadgeEnc();
+        doSearch();
+        atualizarStats();
+        if(AC&&AC.id===cid){
+          AC=null; AC_PROC=null; _grupoAtual=null;
+          const _f2=document.getElementById('ficha-vcl'); if(_f2){_f2.classList.remove('on');_f2.innerHTML='';}
+          const _e2=document.getElementById('emp2'); if(_e2) _e2.style.display='flex';
+        }
+        fecharModal();
+        showToast('Atendimento encerrado — cliente não prosseguiu');
+      }, 'Confirmar encerramento'
+    );
+    setTimeout(()=>{
+      const btn=document.getElementById('modal-save');
+      if(btn){btn.style.background='var(--red)';btn.textContent='Confirmar encerramento';}
+    },50);
     return;
   }
   // Atualizar banner
@@ -16730,8 +16713,8 @@ function abrirModalPrazo(cid){
 
 // abrirConsulta — abre ficha de consulta/atendimento
 function abrirConsulta(id){
-  const c = findClientById(id||String(x.id)===String(id));
-  if(c) openC(c);
+  const c = findClientById(id);
+  if(c) openC(c.id);
   else showToast('Consulta não encontrada');
 }
 
@@ -17064,7 +17047,7 @@ function auditExportar(){
 function atVerDetalhes(atId){
   const a = (localAtend||[]).find(x=>x.id===atId||String(x.id)===String(atId));
   if(!a){ showToast('Atendimento não encontrado'); return; }
-  const cli = CLIENTS.find(c=>c.cliente===a.cliente||String(c.id)===String(a.id_cliente));
+  const cli = CLIENTS.find(c=>String(c.id)===String(a.id_cliente)) || CLIENTS.find(c=>c.cliente===a.cliente);
   abrirModal('Detalhes — '+a.cliente,
     '<div style="padding:10px 12px;background:var(--sf3);border-radius:8px;margin-bottom:12px">'
       +'<div style="font-size:11px;color:var(--mu)">Atendimento registrado em '+(a.data||'—')+'</div>'
@@ -17073,15 +17056,40 @@ function atVerDetalhes(atId){
     +'</div>'
     +(cli?'<div style="font-size:12px;color:var(--mu);margin-bottom:8px">Cliente cadastrado como: <b style="color:var(--tx)">'+cli.cliente+'</b></div>':'')
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
-      +'<button class="tp-btn" onclick="fecharModal();atEvoluirParaProcesso('+atId+')">⚖️ Evoluir para Processo</button>'
-      +(cli?'<button class="tp-btn ghost" onclick="fecharModal();openC(CLIENTS.find(c=>c.cliente==='+JSON.stringify(a.cliente)+'))">📂 Abrir Pasta</button>':'')
+      +'<button class="tp-btn" onclick="fecharModal();atEvoluirParaProcesso(\''+atId+'\')">⚖️ Evoluir para Processo</button>'
+      +(cli?'<button class="tp-btn ghost" onclick="fecharModal();openC('+cli.id+')">📂 Abrir Pasta</button>':'')
+      +'<button class="tp-btn ghost" style="color:#f87676;border-color:#f87676;margin-left:auto" onclick="atExcluir(\''+atId+'\')">🗑 Excluir</button>'
     +'</div>',
   null, null);
 }
 
 function atAbrirCliente(nome){
   const c = CLIENTS.find(x=>x.cliente===nome);
-  if(c) openC(c); else showToast('Pasta não encontrada');
+  if(c) openC(c.id); else showToast('Pasta não encontrada');
+}
+
+function atExcluir(atId){
+  const idx = localAtend.findIndex(x=>x.id===atId||String(x.id)===String(atId));
+  if(idx<0){ showToast('Atendimento não encontrado'); return; }
+  const a = localAtend[idx];
+  fecharModal();
+  abrirModal('Excluir atendimento?',
+    `<div style="font-size:12px;color:var(--mu);line-height:1.7">
+      <p>Excluir o atendimento <strong style="color:var(--tx)">${a.assunto||''}</strong> de <strong style="color:var(--tx)">${a.cliente||''}</strong>?</p>
+      <p style="margin-top:8px;color:#f87676">Esta ação não pode ser desfeita.</p>
+    </div>`,
+    ()=>{
+      localAtend.splice(idx, 1);
+      sbSet('co_atend', localAtend);
+      fecharModal();
+      renderPipeline();
+      showToast('Atendimento excluído');
+    }, 'Excluir'
+  );
+  setTimeout(()=>{
+    const btn=document.getElementById('modal-save');
+    if(btn){btn.style.background='var(--red)';btn.textContent='Excluir';}
+  },50);
 }
 
 function atEvoluirParaProcesso(atId){
@@ -17089,7 +17097,7 @@ function atEvoluirParaProcesso(atId){
   if(!a){ showToast('Atendimento não encontrado'); return; }
 
   // Verificar se já tem pasta
-  const existente = CLIENTS.find(c=>c.cliente===a.cliente||String(c.id)===String(a.id_cliente));
+  const existente = CLIENTS.find(c=>String(c.id)===String(a.id_cliente)) || CLIENTS.find(c=>c.cliente===a.cliente);
 
   abrirModal('⚖️ Evoluir para Processo — '+a.cliente,
     '<div style="padding:10px;background:var(--sf3);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--mu)">'
