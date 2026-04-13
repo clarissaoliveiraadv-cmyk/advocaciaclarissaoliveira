@@ -821,15 +821,20 @@ function ctcEditar(id){
 // ── DELETAR ──
 function ctcDeletar(id){
   const c = ctcTodos().find(x=>String(x.id)===String(id));
-  if(!confirm(`Excluir o contato "${c?.nome}"?`)) return;
-  localContatos = localContatos.filter(x=>String(x.id)!==String(id));
-  invalidarCtcCache(); sbSet('co_ctc', localContatos);
-  marcarAlterado();
-  _ctcSel = null;
-  const main = document.getElementById('ctc-main');
-  if(main) main.innerHTML = `<div class="ctc-empty-state"><div style="font-size:32px;margin-bottom:10px">👤</div><div style="font-size:14px">Contato excluído</div></div>`;
-  ctcRenderLista();
-  showToast('Contato excluído');
+  if(!c) return;
+  abrirModal('Excluir contato',
+    `<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"${escapeHtml(c.nome||'este contato')}"</strong>?<br><span style="font-size:11px">Esta ação não pode ser desfeita.</span></div>`,
+    ()=>{
+      localContatos = localContatos.filter(x=>String(x.id)!==String(id));
+      invalidarCtcCache(); sbSet('co_ctc', localContatos);
+      marcarAlterado(); _ctcSel = null; fecharModal();
+      const main = document.getElementById('ctc-main');
+      if(main) main.innerHTML = `<div class="ctc-empty-state"><div style="font-size:32px;margin-bottom:10px">👤</div><div style="font-size:14px">Contato excluído</div></div>`;
+      ctcRenderLista();
+      showToast('Contato excluído');
+    }, 'Excluir'
+  );
+  setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar exclusão';} },50);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1026,14 +1031,19 @@ function parcEditar(cid, idx){
 }
 
 function parcDeletar(cid, idx){
-  if(!confirm('Remover esta parceria?')) return;
-  var c = CLIENTS.find(function(x){return String(x.id||x.pasta)===String(cid);})||{id:cid};
-  var lista = getParceriasDoProcesso(c);
-  lista.splice(idx, 1);
-  setParceriasDoProcesso(c, lista);
-  marcarAlterado();
-  renderFicha(c);
-  showToast('Parceria removida');
+  abrirModal('Remover parceria',
+    '<div style="font-size:13px;color:var(--mu)">Remover esta parceria? Esta ação não pode ser desfeita.</div>',
+    function(){
+      var c = CLIENTS.find(function(x){return String(x.id||x.pasta)===String(cid);})||{id:cid};
+      var lista = getParceriasDoProcesso(c);
+      lista.splice(idx, 1);
+      setParceriasDoProcesso(c, lista);
+      marcarAlterado(); fecharModal();
+      renderFicha(c);
+      showToast('Parceria removida');
+    }, 'Remover'
+  );
+  setTimeout(function(){ var b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar';} },50);
 }
 
 function parcMarcarPago(cid, idx){
@@ -1265,17 +1275,21 @@ function hcToggle(id, origem, tdIdx, hoje){
 }
 
 function hcRemover(id, origem, tdIdx, hoje){
-  if(!confirm('Excluir esta tarefa?')) return;
-  if(origem==='kanban'){
-    vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
-    vkSalvar();
-  } else {
-    if(tarefasDia[hoje]) tarefasDia[hoje].splice(tdIdx,1);
-    sbSet('co_td', tarefasDia);
-  }
-  renderChecklist();
-  marcarAlterado();
-  showToast('Tarefa removida');
+  abrirModal('Remover tarefa',
+    '<div style="font-size:13px;color:var(--mu);line-height:1.6">Remover esta tarefa do checklist?</div>',
+    ()=>{
+      if(origem==='kanban'){
+        vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
+        vkSalvar();
+      } else {
+        if(tarefasDia[hoje]) tarefasDia[hoje].splice(tdIdx,1);
+        sbSet('co_td', tarefasDia);
+      }
+      fecharModal(); renderChecklist(); marcarAlterado();
+      showToast('Tarefa removida');
+    }, 'Remover'
+  );
+  setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar';} },50);
 }
 
 function hcEnviarKanban(id, titulo, cliente, hoje){
@@ -1620,12 +1634,18 @@ function _criarTarefaDeAndamento(cid, idx){
 }
 
 function vkDeletarPasta(id, cid){
-  if(!confirm('Excluir esta tarefa?')) return;
-  vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
-  vkSalvar(); marcarAlterado();
-  var el = document.getElementById('tp7-list-'+cid);
-  if(el) el.innerHTML = _renderTarefasPasta(cid);
-  showToast('Tarefa excluída');
+  const t = vkTasks.find(function(x){return String(x.id)===String(id);});
+  abrirModal('Excluir tarefa',
+    '<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"'+(t?escapeHtml(t.titulo||'esta tarefa'):'esta tarefa')+'"</strong>?</div>',
+    ()=>{
+      vkTasks = vkTasks.filter(function(x){return String(x.id)!==String(id);});
+      vkSalvar(); marcarAlterado(); fecharModal();
+      var el = document.getElementById('tp7-list-'+cid);
+      if(el) el.innerHTML = _renderTarefasPasta(cid);
+      showToast('Tarefa excluída');
+    }, 'Excluir'
+  );
+  setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar exclusão';} },50);
 }
 
 function vkTogglePasta(id, cid){
@@ -1793,9 +1813,9 @@ function vkRenderUrgentes(tasks){
   const hoje = new Date(HOJE).toISOString().slice(0,10);
   const fmtDt= d=>d?fDt(d):'—';
   const urg  = tasks
-    .filter(t=>t.prazo && t.prazo>=hoje && t.status!=='concluido')
+    .filter(t=>t.prazo && t.prazo>=hoje && !isDone(t))
     .sort((a,b)=>a.prazo.localeCompare(b.prazo));
-  const atras= tasks.filter(t=>t.prazo && t.prazo<hoje && t.status!=='concluido')
+  const atras= tasks.filter(t=>t.prazo && t.prazo<hoje && !isDone(t))
     .sort((a,b)=>b.prazo.localeCompare(a.prazo));
 
   const itemHtml = t=>{
@@ -1833,7 +1853,7 @@ function vkRenderResponsavel(tasks){
   const cols  = resps.map(resp=>{
     const itens = tasks.filter(t=>t.responsavel===resp);
     if(!itens.length) return '';
-    const pendentes = itens.filter(t=>t.status!=='concluido').length;
+    const pendentes = itens.filter(t=>!isDone(t)).length;
     const cor = VK_RESP_COR[resp]||'#374151';
     const itensHtml = itens.map(t=>{
       const diasR = t.prazo ? Math.ceil((new Date(t.prazo)-new Date(HOJE))/(1000*60*60*24)) : null;
@@ -1997,11 +2017,17 @@ function vkMarcarHoje(id){
   vkRender();
 }
 function vkDeletar(id){
-  if(!confirm('Excluir esta tarefa?')) return;
-  vkTasks = vkTasks.filter(function(t){return String(t.id)!==String(id);});
-  vkSalvar(); marcarAlterado();
-  vkRender();
-  showToast('Tarefa exclu\u00edda');
+  const t = vkTasks.find(x=>String(x.id)===String(id));
+  if(!t) return;
+  abrirModal('Excluir tarefa',
+    `<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"${escapeHtml(t.titulo||'esta tarefa')}"</strong>?<br><span style="font-size:11px">Esta ação não pode ser desfeita.</span></div>`,
+    ()=>{
+      vkTasks = vkTasks.filter(x=>String(x.id)!==String(id));
+      vkSalvar(); marcarAlterado(); fecharModal(); vkRender();
+      showToast('Tarefa excluída');
+    }, 'Excluir'
+  );
+  setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar exclusão';} },50);
 }
 
 // ── Detecta tipo de evento pela campo tipo ou pelo título ──
@@ -16522,12 +16548,11 @@ function calcAtualizar(){
   }
 
   // Data de início da contagem:
-  // CPC: prazo começa no dia útil seguinte à intimação (art. 224 CPC)
-  // CLT: prazo começa no dia da publicação (art. 775 CLT)
-  // Regra: se publicação em fim de semana/feriado, conta a partir do próximo dia útil
+  // CLT art. 775 + OJ 1 SDI-2 TST: exclui o dia da publicação, conta a partir do 1º dia útil seguinte
+  // CPC art. 224: mesmo critério — exclui o dia da intimação, conta do próximo dia útil
   let inicio = new Date(dtPub + 'T12:00:00');
 
-  // Excluir o dia da intimação da contagem (tanto CPC quanto CLT)
+  // Excluir o dia da publicação/intimação (regra uniforme CLT e CPC)
   inicio.setDate(inicio.getDate() + 1);
 
   // Avançar se for dia não útil
@@ -17728,12 +17753,18 @@ function iniDrop(colId, el){
   i.status = colId;
   if(colId==='concluida' && oldStatus!=='concluida'){
     i.data_conclusao = getTodayKey();
-    // Pedir número do processo
+    iniSalvar(); iniRender();
+    // Pedir número do processo via modal
     setTimeout(function(){
-      var num = prompt('N\u00famero do processo distribu\u00eddo (opcional):');
-      if(num){ i.numero_processo = num.trim(); }
-      iniSalvar(); iniRender();
-    }, 100);
+      abrirModal('⚖️ Processo distribuído',
+        '<div style="margin-bottom:10px;font-size:13px;color:var(--mu)">Informe o número do processo (opcional):</div>'+'<input class="fm-inp" id="ini-num-proc2" placeholder="0000000-00.0000.5.03.0014">',
+        function(){
+          var num = (document.getElementById('ini-num-proc2')?.value||'').trim();
+          if(num){ i.numero_processo = num; iniSalvar(); iniRender(); }
+          fecharModal();
+        }, 'Salvar'
+      );
+    }, 200);
   } else {
     iniSalvar(); iniRender();
   }
@@ -17744,15 +17775,20 @@ function iniDrop(colId, el){
 function iniMover(id){
   var i = _iniciais.find(function(x){return String(x.id)===String(id);});
   if(!i) return;
-  if(i.status==='pendente') i.status='fazendo';
-  else if(i.status==='fazendo'){
-    i.status='concluida';
-    i.data_conclusao = getTodayKey();
-    var num = prompt('N\u00famero do processo distribu\u00eddo (opcional):');
-    if(num) i.numero_processo = num.trim();
+  if(i.status==='pendente'){ i.status='fazendo'; iniSalvar(); iniRender(); showToast('Inicial em andamento ✓'); return; }
+  if(i.status==='fazendo'){
+    abrirModal('⚖️ Processo distribuído',
+      '<div style="margin-bottom:10px;font-size:13px;color:var(--mu)">Informe o número do processo (opcional):</div>'+'<input class="fm-inp" id="ini-num-proc" placeholder="0000000-00.0000.5.03.0014">',
+      function(){
+        i.status='concluida';
+        i.data_conclusao = getTodayKey();
+        var num = (document.getElementById('ini-num-proc')?.value||'').trim();
+        if(num) i.numero_processo = num;
+        iniSalvar(); fecharModal(); marcarAlterado(); iniRender();
+        showToast('Inicial concluída ✓');
+      }, 'Concluir'
+    );
   }
-  iniSalvar(); iniRender();
-  showToast('Inicial avan\u00e7ada \u2713');
 }
 
 function iniNova(){
@@ -17842,10 +17878,16 @@ function iniEditar(id){
 }
 
 function iniExcluir(id){
-  if(!confirm('Excluir esta inicial?')) return;
-  _iniciais = _iniciais.filter(function(x){return String(x.id)!==String(id);});
-  iniSalvar(); marcarAlterado(); iniRender();
-  showToast('Inicial exclu\u00edda');
+  var ini = _iniciais.find(function(x){return String(x.id)===String(id);});
+  abrirModal('Excluir inicial',
+    '<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir a inicial de <strong style="color:var(--tx)">"'+(ini?escapeHtml(ini.cliente||'este cliente'):'este cliente')+'"</strong>?<br><span style="font-size:11px">Esta ação não pode ser desfeita.</span></div>',
+    function(){
+      _iniciais = _iniciais.filter(function(x){return String(x.id)!==String(id);});
+      iniSalvar(); marcarAlterado(); fecharModal(); iniRender();
+      showToast('Inicial excluída');
+    }, 'Excluir'
+  );
+  setTimeout(function(){ var b=document.getElementById('modal-save'); if(b){b.style.background='var(--red)';b.textContent='Confirmar exclusão';} },50);
 }
 
 
