@@ -12,7 +12,7 @@
 <meta name="description" content="Sistema de gestão para escritório de advocacia">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23510f10' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' fill='%23D4AF37' text-anchor='middle' font-family='serif'>CO</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=59">
+<link rel="stylesheet" href="styles.css?v=60">
 <style>
 /* ── KPI Row B — cards com borda lateral ── */
 .dsh-kpi-b-row {
@@ -22,7 +22,8 @@
   margin: 0 16px 12px;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 body.light .dsh-kpi-b-row { border-color: #DDE1E7; }
 
@@ -229,13 +230,13 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
         <div class="dsh-kpi-b-lbl">Saldo escritório</div>
       </div>
 
-      <div class="dsh-kpi-b-card dsh-kpi-b-neutral dsh-kpi-b-meta">
+      <div class="dsh-kpi-b-card dsh-kpi-b-neutral dsh-kpi-b-meta" style="overflow:visible">
         <div class="dsh-kpi-b-meta-inner">
           <span class="dsh-kpi-b-meta-txt" id="dsc-lastupd" onclick="_dshRefresh()" style="cursor:pointer" title="Atualizar">— · Atualizar</span>
         </div>
         <div style="position:relative">
           <button class="dsh-kpi-b-novo-btn" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'">+ Novo</button>
-          <div id="dsh-novo-dd" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--sf);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:100;min-width:200px;overflow:hidden">
+          <div id="dsh-novo-dd" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--sf);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:500;min-width:200px;overflow:hidden">
             <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
             <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
             <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
