@@ -759,10 +759,10 @@ function ctcVincularProcesso(ctcId, ctcNome){
     if(!proc.partes.some(p=>p.nome===ctcNome&&p.condicao===cond)){
       proc.partes.push({ nome:ctcNome, condicao:cond, cliente:'Não', contato_id:ctcId });
     }
-    // Atualizar contato com referência ao processo
+       // Atualizar contato com referência ao processo
     const ctc = localContatos.find(x=>String(x.id)===String(ctcId));
     if(ctc) ctc.processo = `${proc.cliente} (Pasta ${proc.pasta})`;
-    sbSalvarClientes();
+    sbSalvarClientesDebounced();
     sbSet('co_ctc', localContatos);
     marcarAlterado();
     fecharModal();
@@ -8429,15 +8429,15 @@ function novoProcesso(){
     tasks[id] = { extra:{ cpf:g('cpf') }};
     if(g('obs')) notes[id] = g('obs');
 
-    CLIENTS.push(novoCliente);
+       CLIENTS.push(novoCliente);
     sbSet('co_tasks', tasks);
     sbSet('co_notes', notes);
-    sbSalvarClientes();
+    sbSalvarClientesDebounced();
     marcarAlterado();
     montarClientesAgrupados();
     fecharModal();
     doSearch();
-    showToast('Processo cadastrado \u2713');
+    showToast('Processo cadastrado ✓');
   }, '\u2696 Cadastrar processo');
 }
 
@@ -8494,7 +8494,7 @@ function _novoProcessoDoCliente(cid, polo){
     if(tasks[cid]?.extra) tasks[id] = {extra:Object.assign({},tasks[cid].extra)};
     CLIENTS.push(novoProc);
     sbSet('co_tasks', tasks);
-    sbSalvarClientes();
+    sbSalvarClientesDebounced();
     marcarAlterado();
     montarClientesAgrupados();
     fecharModal();
@@ -9795,10 +9795,10 @@ function atSalvarNovoCliente(){
   };
   if(obs) notes[id] = obs;
   tasks[id] = { extra: { tel, email } };
-  CLIENTS.push(novoCliente);
+    CLIENTS.push(novoCliente);
   sbSet('co_tasks', tasks);
   sbSet('co_notes', notes);
-  sbSalvarClientes();
+  sbSalvarClientesDebounced();
   marcarAlterado();
   montarClientesAgrupados();
   doSearch();
@@ -10720,6 +10720,8 @@ function sbSalvarClientes(){
   // Usar debounce para evitar múltiplos POSTs em cascata (ex: novoProcesso chama sbSet + montarClientes + doSearch)
   sbSetDebounced('co_clientes', CLIENTS);
 }
+// Debounce de alto nível para operações de edição que disparam múltiplos salvamentos em sequência
+function sbSalvarClientesDebounced(){ _debounce('sbClientes', sbSalvarClientes, 600); }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
 async function sbCarregarClientes(){
@@ -11132,7 +11134,7 @@ function renumerarPastas(){
   ativos.forEach(function(c){ c.pasta = n; n++; });
   encerr.forEach(function(c){ c.pasta = n; n++; });
 
-  sbSalvarClientes();
+  sbSalvarClientesDebounced();
   marcarAlterado();
   montarClientesAgrupados();
   doSearch();
@@ -14458,8 +14460,7 @@ function getEncIds(){
   _encIdsVer = ver;
   return _encIdsCache;
 }
-function isEncerrado(id){ return getEncIds().has(id); }
-
+function isEncerrado(id){ return getEncIds().has(id)||getEncIds().has(String(id)); }
 // ── Painel resumo na área vazia de clientes ──
 function renderVclEmpty(){
   var el = document.getElementById('vcl-empty-dashboard');
@@ -14973,20 +14974,24 @@ function voltarParaLista(){
 }
 
 // Abrir processo específico — delega para openC (unificado)
-function openProc(cid){ openC(cid, cid); }
+function openProc(cid){
+  var c = findClientById(cid);
+  if(!c) return;
+  openC(cid, cid);
+}
 
 function openC(id, procId=null){
   var grp=CLIENTES_AGRUPADOS.find(function(g){return g.processos&&g.processos.some(function(p){return p.id===id;});});
   if(!grp) return;
+  _grupoAtual = grp;
 
   // Se foi chamado com procId, abrir processo direto
   if(procId){
     var procAlvo = grp.processos.find(function(p){return p.id===procId;});
-    if(procAlvo){ AC=procAlvo; AC_PROC=grp; _grupoAtual=grp; }
+    if(procAlvo){ AC=procAlvo; AC_PROC=grp; }
   } else {
-    AC_PROC=grp; _grupoAtual=grp;
+    AC_PROC=grp;
   }
-
   // Garantir view Clientes
   document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});
   document.getElementById('vcl').classList.add('on');
@@ -15330,10 +15335,10 @@ function editarDadosProcesso(cid){
     <div class="fm-row" style="margin-top:8px">
       <div style="flex:2"><label class="fm-lbl">Parte adversa</label>
         <input class="fm-inp" id="edp-adverso" value="${c.adverso||''}"></div>
-      <div><label class="fm-lbl">Polo</label>
+           <div><label class="fm-lbl">Polo</label>
         <select class="fm-inp" id="edp-polo">
           <option value="">—</option>
-          ${['Reclamante','Reclamado','Autor','Réu','Requerente','Requerido','Litisconsorte Ativo','Litisconsorte Passivo'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
+          ${['Autor','Réu','Reclamante','Reclamado','Requerente','Requerido'].map(p=>`<option ${c.polo===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
