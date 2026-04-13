@@ -1,70 +1,51 @@
 const fs = require('fs');
-function readLines(path) { return fs.readFileSync(path, 'utf8').split('\n'); }
-function writeLines(path, lines) { fs.writeFileSync(path, lines.join('\n')); }
 
-console.log('▸ Lendo app.js…');
-let appLines = readLines('app.js');
+console.log('▸ Criando bundle.js a partir de app.js…');
+if (!fs.existsSync('app.js')) { console.error('✗ app.js não existe'); process.exit(1); }
+let appContent = fs.readFileSync('app.js', 'utf8');
 
-const carregarIdx = appLines.findIndex(l => l.startsWith('async function carregarDados('));
-if (carregarIdx === -1) { console.error('✗ função carregarDados() não encontrada'); process.exit(1); }
+const before = appContent;
+appContent = appContent.replace("fetch('data-embedded.json?v=58')", "fetch('dados.json?v=59')");
+appContent = appContent.replace('[carregarDados] data-embedded.json indisponível', '[carregarDados] dados.json indisponível');
+if (appContent === before) { console.warn('  ⚠ fetch de data-embedded.json não encontrado'); }
 
-const dataLineIdx = carregarIdx + 2;
-const dataLine = appLines[dataLineIdx];
-if (!dataLine || !dataLine.includes('const d = {')) {
-  console.error('✗ linha esperada não bate. Início:', JSON.stringify((dataLine||'').slice(0, 100)));
-  process.exit(1);
-}
+fs.writeFileSync('bundle.js', appContent);
+console.log('  ✓ bundle.js criado (' + fs.readFileSync('bundle.js').length + ' bytes)');
 
-console.log('▸ Extraindo JSON embutido…');
-const start = dataLine.indexOf('{');
-const end = dataLine.lastIndexOf('};');
-const jsonText = dataLine.slice(start, end + 1);
-JSON.parse(jsonText);
-fs.writeFileSync('data-embedded.json', jsonText);
-console.log('  ✓ data-embedded.json criado (' + jsonText.length + ' bytes)');
+console.log('▸ Criando dados.json a partir de data-embedded.json…');
+if (!fs.existsSync('data-embedded.json')) { console.error('✗ data-embedded.json não existe'); process.exit(1); }
+const jsonContent = fs.readFileSync('data-embedded.json', 'utf8');
+JSON.parse(jsonContent);
+fs.writeFileSync('dados.json', jsonContent);
+console.log('  ✓ dados.json criado (' + jsonContent.length + ' bytes)');
 
-const newFunc =
-  'async function carregarDados(){\n' +
-  '  // Dados embutidos extraídos para data-embedded.json (reduzir tamanho do app.js)\n' +
-  '  // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)\n' +
-  '  let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};\n' +
-  '  try {\n' +
-  '    const r = await fetch(\'data-embedded.json?v=58\');\n' +
-  '    if(r.ok) d = await r.json();\n' +
-  '  } catch(e) { console.warn(\'[carregarDados] data-embedded.json indisponível:\', e.message); }\n' +
-  '  carregarDadosObj(d);\n' +
-  '}';
-appLines.splice(carregarIdx, 5, ...newFunc.split('\n'));
-console.log('  ✓ função carregarDados() substituída');
-
-const initCallIdx = appLines.findIndex(l => l.includes('carregarDados(); // carrega dados embutidos'));
-if (initCallIdx === -1) { console.error('✗ chamada de carregarDados() em init() não encontrada'); process.exit(1); }
-appLines[initCallIdx] = '  await carregarDados(); // carrega dados embutidos via fetch — precisa de await agora';
-console.log('  ✓ await adicionado em init()');
-
-writeLines('app.js', appLines);
-console.log('  ✓ app.js: ' + fs.readFileSync('app.js').length + ' bytes');
-
-console.log('▸ Atualizando sw.js…');
-let sw = fs.readFileSync('sw.js', 'utf8');
-sw = sw.replace("'co-advocacia-v57'", "'co-advocacia-v58'");
-sw = sw.replace("  './app.js',\n  './manifest.json'", "  './app.js',\n  './data-embedded.json',\n  './manifest.json'");
-fs.writeFileSync('sw.js', sw);
-console.log('  ✓ sw.js atualizado');
+console.log('▸ Deletando app.js e data-embedded.json antigos…');
+fs.unlinkSync('app.js');
+fs.unlinkSync('data-embedded.json');
+console.log('  ✓ deletados (git vai registrar como rename)');
 
 console.log('▸ Atualizando index.html…');
 let idx = fs.readFileSync('index.html', 'utf8');
-idx = idx.replace('styles.css?v=57', 'styles.css?v=58');
-idx = idx.replace('app.js?v=57', 'app.js?v=58');
+idx = idx.replace('styles.css?v=58', 'styles.css?v=59');
+idx = idx.replace('app.js?v=58', 'bundle.js?v=59');
 fs.writeFileSync('index.html', idx);
-console.log('  ✓ index.html atualizado');
+console.log('  ✓ index.html: v58 → v59 + app.js → bundle.js');
 
-console.log('▸ Validando sintaxe…');
+console.log('▸ Atualizando sw.js…');
+let sw = fs.readFileSync('sw.js', 'utf8');
+sw = sw.replace("'co-advocacia-v58'", "'co-advocacia-v59'");
+sw = sw.replace("'./app.js'", "'./bundle.js'");
+sw = sw.replace("'./data-embedded.json'", "'./dados.json'");
+fs.writeFileSync('sw.js', sw);
+console.log('  ✓ sw.js: v58 → v59 + precache de bundle.js / dados.json');
+
+console.log('▸ Validando sintaxe bundle.js…');
 const { execSync } = require('child_process');
-try { execSync('node --check app.js', { stdio: 'pipe' }); console.log('  ✓ app.js sintaxe OK'); }
-catch (e) { console.error('  ✗ app.js sintaxe ERRO:', e.stderr?.toString()); process.exit(1); }
+try { execSync('node --check bundle.js', { stdio: 'pipe' }); console.log('  ✓ bundle.js sintaxe OK'); }
+catch (e) { console.error('  ✗ bundle.js sintaxe ERRO:', e.stderr?.toString()); process.exit(1); }
 
-console.log('\n✓ Tudo pronto. Agora roda:');
-console.log('  git add app.js sw.js index.html data-embedded.json');
-console.log('  git commit -m "perf: extrair dados embutidos para data-embedded.json"');
-console.log('  git push');
+console.log('\n✓ Tudo pronto. Volta no GitHub Desktop, vai aparecer:');
+console.log('  • app.js (deletado) → bundle.js (novo)');
+console.log('  • data-embedded.json (deletado) → dados.json (novo)');
+console.log('  • index.html, sw.js (modificados)');
+
