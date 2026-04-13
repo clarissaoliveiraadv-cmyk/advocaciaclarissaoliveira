@@ -15366,7 +15366,7 @@ function editarDadosProcesso(cid){
       c.tipo_acao    = document.getElementById('edp-tipo')?.value.trim();
       c.valor_causa  = document.getElementById('edp-valor')?.value.trim();
       c.condicao     = document.getElementById('edp-cond')?.value.trim();
-      sbSalvarClientes();
+      sbSalvarClientesDebounced();
       marcarAlterado();
       montarClientesAgrupados();
       doSearch();
@@ -15439,7 +15439,7 @@ function fichaEditarContato(cid){
     tasks[key].contato = {tel:c.tel,tel2:c.tel2,email:c.email,
       rua:c.rua,num:c.num,comp:c.comp,bairro:c.bairro,cidade:c.cidade,uf:c.uf,cep:c.cep};
     sbSet('co_tasks', tasks);
-    sbSalvarClientes();
+    sbSalvarClientesDebounced();
     marcarAlterado();
     fecharModal();
     renderFicha(c);
@@ -15665,7 +15665,7 @@ function atConverterProcesso(cid){
       if(atIdx>=0) localAtend[atIdx].status = 'contratou';
       sbSet('co_atend', localAtend);
       sbSet('co_localMov', localMov);
-      sbSalvarClientes();
+      sbSalvarClientesDebounced();
       marcarAlterado();
       montarClientesAgrupados();
       doSearch();
@@ -15678,6 +15678,9 @@ function atConverterProcesso(cid){
 }
 
 function renderFicha(c, grp=null){
+  // FIX: fallback para _grupoAtual — muitos callers chamam renderFicha(c) sem grp,
+  // o que fazia o seletor de processos sumir quando o cliente tinha múltiplos processos.
+  if(!grp) grp = _grupoAtual;
   // Restaurar dados de contato editados localmente
   const _ctcSaved = tasks[String(c.id)]?.contato;
   if(_ctcSaved){ Object.assign(c, _ctcSaved); }
@@ -17170,7 +17173,7 @@ function atEvoluirParaProcesso(atId){
         criado: new Date().toISOString().slice(0,10)
       };
       CLIENTS.push(novoCliente);
-      sbSalvarClientes();
+      sbSalvarClientesDebounced();
       tasks[String(novoId)] = {};
       if(!localMov[novoId]) localMov[novoId]=[];
       localMov[novoId].push({
@@ -18141,4 +18144,15 @@ function djSincronizarTodos(){
   }
   proximo();
 }
+
+// ── Debounce no input de busca (#srch) ─────────────────────────
+// Substitui o oninput inline por um handler com _debounce para evitar
+// re-render a cada tecla (doSearch → renderVclEmpty → _vfConsolidar é caro).
+document.addEventListener('DOMContentLoaded', function(){
+  var srchEl = document.getElementById('srch');
+  if(srchEl){
+    // Remover oninput inline se existir, substituir por debounce
+    srchEl.oninput = function(){ _debounce('srchInput', doSearch, 250); };
+  }
+});
 
