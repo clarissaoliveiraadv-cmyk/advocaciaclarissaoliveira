@@ -519,7 +519,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=69"></script>
+<script src="bundle.js?v=70"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
@@ -570,7 +570,36 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 <!-- Phase 4: Service Worker para cache offline -->
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(function(e){ console.warn('SW:', e); });
+  navigator.serviceWorker.register('./sw.js').then(function(reg){
+    // Checar por nova versão do SW imediatamente e depois a cada 5 min
+    try{ reg.update(); }catch(e){}
+    setInterval(function(){ try{ reg.update(); }catch(e){} }, 5*60*1000);
+    // Quando uma nova versão do SW for instalada e estiver esperando, ativar
+    reg.addEventListener('updatefound', function(){
+      var installing = reg.installing;
+      if(!installing) return;
+      installing.addEventListener('statechange', function(){
+        if(installing.state==='installed' && navigator.serviceWorker.controller){
+          // Nova versão pronta. Forçar ativação.
+          try{ installing.postMessage({type:'SKIP_WAITING'}); }catch(e){}
+        }
+      });
+    });
+  }).catch(function(e){ console.warn('SW:', e); });
+  // Quando o SW novo tomar o controle (via clients.claim), recarregar a página
+  // para garantir que bundle.js e styles.css correspondam à versão ativa do SW.
+  var _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(_swReloaded) return;
+    _swReloaded = true;
+    window.location.reload();
+  });
+  // Ouvir mensagens do SW (ex: SW_UPDATED)
+  navigator.serviceWorker.addEventListener('message', function(e){
+    if(e.data && e.data.type==='SW_UPDATED'){
+      console.log('[SW] Atualizado para', e.data.version);
+    }
+  });
 }
 </script>
 </body>
