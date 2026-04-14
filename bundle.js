@@ -293,7 +293,9 @@ async function sbSet(chave, valor){
   // Sem isso, dois clientes que salvam simultaneamente se sobrescrevem
   // (Postgrest UPSERT substitui a coluna valor inteira, não faz merge de JSON).
   // Fluxo: ler remoto → mergear com local → escrever resultado merged.
-  if(_SB_MERGED_KEYS.has(chave) && Array.isArray(valor) && _sbOnline){
+  // NOTA: não gatear por _sbOnline — tentar o GET mesmo se "offline"; se
+  // voltar, é sinal de que a conexão voltou e não ficamos presos off-line.
+  if(_SB_MERGED_KEYS.has(chave) && Array.isArray(valor)){
     try{
       var _r0 = await fetch(
         _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
@@ -305,11 +307,12 @@ async function sbSet(chave, valor){
           // Merge: remote + local → resultado consistente sem perder dados de ninguém
           valor = _sbMergeArrays(valor, _rows0[0].valor, chave);
         }
+        if(!_sbOnline) _sbStatus(true); // GET funcionou → reconectado
       }
     }catch(e){}
   }
   // ═══ READ-MODIFY-WRITE para objetos-de-arrays (co_localMov, co_coments, co_notes) ═══
-  if(_SB_MERGED_OBJ_KEYS.has(chave) && valor && typeof valor==='object' && !Array.isArray(valor) && _sbOnline){
+  if(_SB_MERGED_OBJ_KEYS.has(chave) && valor && typeof valor==='object' && !Array.isArray(valor)){
     try{
       var _r1 = await fetch(
         _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
@@ -324,13 +327,18 @@ async function sbSet(chave, valor){
           else if(chave==='co_coments' && typeof comentarios!=='undefined') comentarios = valor;
           else if(chave==='co_notes' && typeof notes!=='undefined') notes = valor;
         }
+        if(!_sbOnline) _sbStatus(true);
       }
     }catch(e){}
   }
   lsSet(chave, JSON.stringify(valor));
   lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
-  if(!_sbOnline) return;
+  // CRÍTICO: NÃO gatear por _sbOnline aqui. Se a última request falhou,
+  // _sbOnline virou false — mas a próxima pode funcionar. Gatear silencioso
+  // causava sync travada até o usuário dar F5.
+  // Ao invés de bloquear, sempre tentar. Se falhar, _sbStatus(false) é setado
+  // pelo próprio sbSet no final. Se funcionar, _sbStatus(true) é setado no sucesso.
   for(var _retry=0; _retry<2; _retry++){
     try{
       var r = await fetch(_SB_URL+'/rest/v1/'+_SB_TBL, {
@@ -342,8 +350,13 @@ async function sbSet(chave, valor){
           _session_id: _sbSessionId
         })
       });
-      if(r.ok) return;
-      if(r.status < 500) return;
+      if(r.ok){
+        // POST ok → garantir indicador verde (pode ter vindo de false)
+        if(!_sbOnline) _sbStatus(true);
+        return;
+      }
+      // 4xx: não adianta retry (auth/permissão), mas marca offline
+      if(r.status < 500){ _sbStatus(false); return; }
     }catch(e){
       if(_retry===0) await new Promise(function(ok){setTimeout(ok, 1000);});
     }
@@ -352,7 +365,9 @@ async function sbSet(chave, valor){
 }
 
 async function sbGet(chave){
-  if(!_SB_SYNC.has(chave)||!_sbOnline){
+  // Não gatear por _sbOnline — tentar o GET mesmo se "offline", para
+  // reconectar automaticamente. Fallback ao localStorage se o fetch falhar.
+  if(!_SB_SYNC.has(chave)){
     try { return JSON.parse(lsGet(chave)||'null'); } catch(e){ return null; }
   }
   try{
@@ -406,11 +421,19 @@ async function sbCarregarTudo(){
 // Realtime — escuta mudanças de outras usuárias
 function sbRealtime(){
   try{
+    // Se já existe um WS aberto, não criar outro
+    if(window._sbWs && window._sbWs.readyState === 1) return;
+    // Se tem um em conexão, descartar (não cria duplicata)
+    if(window._sbWs && window._sbWs.readyState === 0){ try{ window._sbWs.close(); }catch(e){} }
     const ws = new WebSocket(
       _SB_URL.replace('https://','wss://')+
       `/realtime/v1/websocket?apikey=${_SB_KEY}&vsn=1.0.0`
     );
+    window._sbWs = ws;
+    window._sbWsLastState = 0;
     ws.onopen = ()=>{
+      window._sbWsLastState = 1;
+      console.debug('[SB Realtime] WebSocket aberto');
       ws.send(JSON.stringify({
         topic:`realtime:public:${_SB_TBL}`,
         event:'phx_join',
@@ -425,7 +448,11 @@ function sbRealtime(){
         {topic:'phoenix',event:'heartbeat',payload:{},ref:'hb'}
       )),25000);
     };
-    ws.onerror = ()=>{ if(window._sbHeartbeat) clearInterval(window._sbHeartbeat); };
+    ws.onerror = (err)=>{
+      window._sbWsLastState = 3;
+      console.debug('[SB Realtime] erro no WebSocket:', err);
+      if(window._sbHeartbeat) clearInterval(window._sbHeartbeat);
+    };
     ws.onmessage = e=>{
       try{
         const msg = JSON.parse(e.data);
@@ -450,8 +477,13 @@ function sbRealtime(){
         } catch(me){ lsSet(chave, JSON.stringify(valor)); sbAplicar(chave, valor, updated_by); }
       }catch{}
     };
-    ws.onclose = ()=>setTimeout(sbRealtime, 5000); // reconectar
-  }catch(e){}
+    ws.onclose = ()=>{
+      window._sbWsLastState = 3;
+      console.debug('[SB Realtime] WebSocket fechado, reconectando em 5s');
+      if(window._sbHeartbeat) clearInterval(window._sbHeartbeat);
+      setTimeout(sbRealtime, 5000);
+    };
+  }catch(e){ console.debug('[SB Realtime] erro ao criar WebSocket:', e); }
 }
 
 function sbAplicar(chave, valor, quem){
@@ -569,8 +601,57 @@ function sbAtualizarNome(){
   if(el) el.textContent=n;
 }
 
+// Watchdog de reconexão: a cada 30s, se estivermos offline, tenta
+// resincronizar. Também tenta se o WebSocket do Realtime estiver fechado.
+// Isso evita que o app fique "preso" offline depois de um hiccup de rede.
+var _sbWatchdogStarted = false;
+function sbStartWatchdog(){
+  if(_sbWatchdogStarted) return;
+  _sbWatchdogStarted = true;
+  setInterval(async function(){
+    try{
+      // Se perdeu o status online, tentar recarregar tudo
+      if(!_sbOnline){
+        console.debug('[SB] watchdog: offline detectado, tentando reconectar...');
+        await sbCarregarTudo();
+        if(_sbOnline) console.debug('[SB] watchdog: reconectado ✓');
+      }
+      // Se o WebSocket não está aberto, reiniciar
+      // (ws.onclose já agenda reconexão, mas pode falhar silencioso)
+      if(window._sbWsLastState !== 1){
+        // Força reabrir — sbRealtime é idempotente
+        try{ sbRealtime(); }catch(e){}
+      }
+    }catch(e){ console.debug('[SB] watchdog erro:', e); }
+  }, 30000);
+}
+
+// Função global exposta para debug: força ressincronização completa da nuvem
+// Uso: abrir console do browser (F12) e digitar coForceSync()
+window.coForceSync = async function(){
+  console.log('[coForceSync] Iniciando ressincronização completa...');
+  try{
+    var ok = await sbCarregarTudo();
+    console.log('[coForceSync] sbCarregarTudo:', ok ? 'OK' : 'FALHA');
+    if(typeof sbCarregarClientes === 'function'){
+      var clientes = await sbCarregarClientes();
+      console.log('[coForceSync] sbCarregarClientes:', clientes ? 'OK' : 'sem dados');
+    }
+    if(typeof sbRealtime === 'function') sbRealtime();
+    if(typeof doSearch === 'function') doSearch();
+    if(typeof renderFicha === 'function' && typeof AC !== 'undefined' && AC) renderFicha(AC);
+    if(typeof vfRender === 'function' && document.getElementById('vf')?.classList.contains('on')) vfRender();
+    if(typeof showToast === 'function') showToast('🔄 Ressincronização completa');
+    return 'OK';
+  }catch(e){
+    console.error('[coForceSync] erro:', e);
+    return 'ERRO: ' + (e.message || e);
+  }
+};
+
 async function sbInit(){
   const ok = await sbCarregarTudo();
+  sbStartWatchdog();
   if(ok){
     // Recarregar dados da nuvem na memória
     function ls(k,def){ try{return JSON.parse(lsGet(k)||'null')||def;}catch{return def;} }
