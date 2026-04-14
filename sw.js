@@ -1,11 +1,13 @@
 // Service Worker — Clarissa Oliveira Advocacia
 // Phase 4: cache offline para uso em campo sem internet
-const CACHE_NAME = 'co-advocacia-v59';
+// IMPORTANTE: bumpar CACHE_NAME sempre que bundle.js/styles.css mudarem.
+// Versão atual precisa bater (ou ser maior que) o ?v= no index.html.
+const CACHE_NAME = 'co-advocacia-v70';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './bundle.js',
+  './styles.css?v=60',
+  './bundle.js?v=70',
   './manifest.json'
 ];
 
@@ -19,7 +21,12 @@ self.addEventListener('install', function(e){
   self.skipWaiting();
 });
 
-// Activate: cleanup old caches
+// Permitir que a página force o SW a ativar imediatamente (via postMessage)
+self.addEventListener('message', function(e){
+  if(e.data && e.data.type==='SKIP_WAITING'){ self.skipWaiting(); }
+});
+
+// Activate: cleanup old caches + tomar controle imediato das abas abertas
 self.addEventListener('activate', function(e){
   e.waitUntil(
     caches.keys().then(function(names){
@@ -27,16 +34,25 @@ self.addEventListener('activate', function(e){
         names.filter(function(n){ return n !== CACHE_NAME; })
              .map(function(n){ return caches.delete(n); })
       );
+    }).then(function(){
+      return self.clients.claim();
+    }).then(function(){
+      // Notificar todas as abas abertas que um SW novo assumiu o controle
+      return self.clients.matchAll({includeUncontrolled:true}).then(function(clients){
+        clients.forEach(function(c){
+          try{ c.postMessage({type:'SW_UPDATED', version:CACHE_NAME}); }catch(e){}
+        });
+      });
     })
   );
-  self.clients.claim();
 });
 
-// Fetch: network-first for HTML/JS/CSS, cache-first for fonts/assets
+// Fetch: NETWORK-FIRST agressivo para HTML/JS/CSS (sempre pega última versão
+// se online), cache-first apenas para fontes e assets estáticos.
 self.addEventListener('fetch', function(e){
   var url = new URL(e.request.url);
 
-  // Google Fonts — cache-first (rarely change)
+  // Google Fonts — cache-first (raramente mudam)
   if(url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com'){
     e.respondWith(
       caches.match(e.request).then(function(cached){
@@ -50,12 +66,15 @@ self.addEventListener('fetch', function(e){
     return;
   }
 
-  // App files — network-first with cache fallback (always get latest, work offline)
+  // App files — network-first com fallback ao cache (offline ainda funciona)
   if(url.origin === self.location.origin){
     e.respondWith(
-      fetch(e.request).then(function(resp){
-        var clone = resp.clone();
-        caches.open(CACHE_NAME).then(function(c){ c.put(e.request, clone); });
+      fetch(e.request, {cache:'no-store'}).then(function(resp){
+        // Só cachear respostas OK (evita cachear 500/404)
+        if(resp && resp.ok){
+          var clone = resp.clone();
+          caches.open(CACHE_NAME).then(function(c){ c.put(e.request, clone); });
+        }
         return resp;
       }).catch(function(){
         return caches.match(e.request);
@@ -64,6 +83,6 @@ self.addEventListener('fetch', function(e){
     return;
   }
 
-  // Everything else — network only
+  // Qualquer outra coisa — network only (Supabase, APIs externas)
   e.respondWith(fetch(e.request));
 });
