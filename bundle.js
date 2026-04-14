@@ -89,16 +89,25 @@ function lsRemove(chave){
 // merge por ID — mantém items de ambos, remoto + local.
 // Para objetos simples: last-write-wins com versão.
 //
-function _sbMergeArrays(local, remote){
+function _sbMergeArrays(local, remote, chave){
   if(!Array.isArray(local) || !Array.isArray(remote)) return remote;
-  // Criar Map do remoto por ID
+  // Tombstones: filtrar IDs deletados de AMBOS os lados antes de mergear
+  var tombstones = (chave && typeof _arrayTombstones !== 'undefined') ? _tombstoneLoad(chave) : null;
+  function _isTombstoned(item){
+    if(!tombstones) return false;
+    var id = item.id||item.id_agenda||item._id;
+    return id != null && tombstones.has(String(id));
+  }
+  // Criar Map do remoto por ID (excluindo tombstoned)
   var map = new Map();
   remote.forEach(function(item){
+    if(_isTombstoned(item)) return; // item foi deletado pelo usuário — não ressuscitar
     var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
     map.set(String(id), item);
   });
-  // Adicionar itens locais que não existem no remoto
+  // Adicionar itens locais que não existem no remoto (também respeitando tombstone)
   local.forEach(function(item){
+    if(_isTombstoned(item)) return;
     var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
     var k = String(id);
     if(!map.has(k)){
@@ -115,9 +124,16 @@ function _sbMergeArrays(local, remote){
 }
 
 function _sbMerge(chave, localVal, remoteVal){
-  // Arrays: merge por ID
+  // Chaves de tombstone: union de sets
+  if(typeof chave==='string' && chave.endsWith('_del') && Array.isArray(remoteVal)){
+    var u = new Set();
+    if(Array.isArray(localVal)) localVal.forEach(function(x){ u.add(String(x)); });
+    remoteVal.forEach(function(x){ u.add(String(x)); });
+    return Array.from(u);
+  }
+  // Arrays: merge por ID (com tombstone)
   if(Array.isArray(localVal) && Array.isArray(remoteVal)){
-    return _sbMergeArrays(localVal, remoteVal);
+    return _sbMergeArrays(localVal, remoteVal, chave);
   }
   // Objetos (prazos, encerrados): merge de chaves
   if(localVal && remoteVal && typeof localVal==='object' && typeof remoteVal==='object'
@@ -301,10 +317,35 @@ function sbRealtime(){
 
 function sbAplicar(chave, valor, quem){
   var n = {clarissa:'Clarissa',assistente:'Assistente',financeiro:'Financeiro'}[quem]||quem;
+  // Chaves de tombstone: atualizar o Set em memória para bloquear ressuscitação
+  if(typeof chave==='string' && chave.endsWith('_del') && Array.isArray(valor)){
+    var baseKey = chave.slice(0, -4);
+    if(typeof _arrayTombstones !== 'undefined'){
+      var set = new Set();
+      valor.forEach(function(id){ set.add(String(id)); });
+      _arrayTombstones[baseKey] = set;
+    }
+    // Filtrar o array em memória também (caso já tenha sido carregado)
+    if(baseKey==='co_fin' && Array.isArray(finLancs)){
+      finLancs = finLancs.filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
+    } else if(baseKey==='co_localLanc' && Array.isArray(localLanc)){
+      localLanc = localLanc.filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
+    }
+    if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+    return;
+  }
   switch(chave){
     case 'co_vktasks': vkTasks=valor||[]; if(document.getElementById('vkt')?.classList.contains('on')) vkRender(); break;
-    case 'co_fin': finLancs=valor||[]; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
-    case 'co_localLanc': localLanc=valor||[]; _finLocaisCache={}; if(document.getElementById('vf')?.classList.contains('on')) vfRender(); break;
+    case 'co_fin':
+      // Filtrar tombstones ao receber do remoto (anti-zombificação)
+      finLancs=(valor||[]).filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
+      if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+      break;
+    case 'co_localLanc':
+      localLanc=(valor||[]).filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
+      _finLocaisCache={};
+      if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+      break;
     case 'co_localMov': localMov=valor||{}; break;
     case 'co_localAg': localAg=valor||[]; invalidarAllPend(); break;
     case 'co_ag': localAg=valor||[]; invalidarAllPend(); break;
@@ -358,8 +399,15 @@ async function sbInit(){
     tasks        = asObj(ls('co_tasks',{}));
     vkTasks      = asArr(ls('co_vktasks',[]));
     localAtend   = asArr(ls('co_atend',[]));
-    finLancs     = asArr(ls('co_fin',[]));
-    localLanc    = asArr(ls('co_localLanc',[]));
+    // Carregar tombstones PRIMEIRO, antes dos arrays, para filtrar na carga
+    try{
+      var _finDel = ls('co_fin_del',[]);
+      if(Array.isArray(_finDel)){ var s1=_tombstoneLoad('co_fin'); _finDel.forEach(function(id){ s1.add(String(id)); }); }
+      var _locDel = ls('co_localLanc_del',[]);
+      if(Array.isArray(_locDel)){ var s2=_tombstoneLoad('co_localLanc'); _locDel.forEach(function(id){ s2.add(String(id)); }); }
+    }catch{}
+    finLancs     = asArr(ls('co_fin',[])).filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
+    localLanc    = asArr(ls('co_localLanc',[])).filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
     localAg      = asArr(ls('co_ag',[]));
     localMov     = asObj(ls('co_localMov',{}));
     encerrados   = asObj(ls('co_encerrados',{}));
@@ -2468,6 +2516,7 @@ function _vfNovaDespEscritorio(){
 function _vfDelDespEscritorio(lid){
   abrirModal('Excluir despesa','<div style="font-size:13px;color:var(--mu)">Excluir esta despesa permanentemente?</div>',function(){
     var ls = String(lid);
+    _tombstoneAdd('co_fin', ls); // anti-zombificação via sync merge
     finLancs = finLancs.filter(function(l){ return String(l.id)!==ls; });
     fecharModal(); sbSet('co_fin', finLancs);
     _finLocaisCache = {};
@@ -4191,7 +4240,9 @@ function vfDelLocal(lid){
     +'<div style="font-size:12px;color:var(--mu)">Esta ação não pode ser desfeita.</div>',
   function(){
     const cid_del = l.id_processo;
-    // Tombstone: se o item foi migrado do Projuris, marcar como deletado para não reaparecer
+    // Tombstone por ID — anti-zombificação via sync merge do Supabase
+    _tombstoneAdd('co_localLanc', String(rawId));
+    // Tombstone adicional: se o item foi migrado do Projuris, marcar para a migração não reinserir
     if(l._migrado_projuris){
       var _key = l._migrado_projuris+'|'+l.tipo;
       _projurisDeletados.add(_key);
@@ -4622,6 +4673,7 @@ function finDelGlobal(lid){
     +'<div style="font-size:12px;color:var(--mu)">Esta ação não pode ser desfeita.</div>',
     function(){
       var lidN = Number(lid)||lid;
+      _tombstoneAdd('co_fin', String(lidN)); // anti-zombificação via sync merge
       finLancs = (finLancs||[]).filter(function(x){ return String(x.id) !== String(lidN); });
       sbSet('co_fin', finLancs);
       invalidarCacheVfTodos();
@@ -5381,6 +5433,7 @@ function extratoReativar(i){
 function extratoEstornar(i){
   const l = _extratoLinhas[i];
   if(l._lanc_id){
+    _tombstoneAdd('co_fin', String(l._lanc_id));
     finLancs = (finLancs||[]).filter(function(x){ return x.id !== l._lanc_id; });
     sbSet('co_fin', finLancs);
   }
@@ -5407,6 +5460,7 @@ function vfDelGlobal(id){
   abrirModal('Excluir lançamento','<div style="font-size:13px;color:var(--mu)">Excluir este lançamento permanentemente?</div>',function(){
     fecharModal();
     const rawId = id.startsWith('g') ? parseInt(id.slice(1)) : id;
+    _tombstoneAdd('co_fin', String(rawId)); // anti-zombificação via sync merge
     finLancs = finLancs.filter(l=>l.id!==rawId);
     sbSet('co_fin', finLancs);
     marcarAlterado();
@@ -10046,8 +10100,12 @@ function carregarDadosObj(d){
   localLanc     = loadKey('co_localLanc',     m.localLanc,     []);
   localContatos = loadKey('co_ctc', m.localContatos, []);
   tarefasDia    = loadKey('co_tarefasDia',    m.tarefasDia,    {});
+  // Filtrar localLanc carregado por tombstones (anti-zombificação)
+  if(typeof _tombstoneHas==='function'){
+    localLanc = (localLanc||[]).filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
+  }
   // Carregar dados financeiros globais do localStorage (persistidos via sbSet)
-  try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin; }catch{}
+  try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin.filter(function(x){ return typeof _tombstoneHas!=='function' || !_tombstoneHas('co_fin', x.id); }); }catch{}
   try{ const _clb=JSON.parse(lsGet('co_colab')||'null'); if(Array.isArray(_clb)) _colaboradores=_clb; }catch{}
   try{ const _dpf=JSON.parse(lsGet('co_despfixas')||'null'); if(Array.isArray(_dpf)) _despFixas=_dpf; }catch{}
   // Adicionar consultas locais aos clientes
@@ -10132,6 +10190,35 @@ let tasks={}, notes={}, localAg=[], localMov={}, localLanc=[], encerrados={}, lo
 // Usado pelo bloco de migração (bundle.js:~371) para não re-inserir itens deletados.
 var _projurisDeletados = new Set();
 try{ var _pd = JSON.parse(lsGet('co_projuris_del')||'[]'); if(Array.isArray(_pd)) _pd.forEach(function(k){ _projurisDeletados.add(k); }); }catch{}
+
+// ═══════════════════════════════════════════════════════════════
+// ══ TOMBSTONES UNIVERSAIS PARA SINCRONIZAÇÃO ═════════════════
+// ═══════════════════════════════════════════════════════════════
+// Sem isso, quando o usuário deleta um item localmente, o Supabase realtime
+// recebe o remoto (que ainda tem o item) e o _sbMergeArrays re-insere (união cega).
+// Este mapa armazena IDs deletados por chave (ex: co_fin, co_localLanc).
+// Persistido em localStorage + Supabase sob `<chave>_del` (ex: co_fin_del).
+var _arrayTombstones = {};
+function _tombstoneLoad(chave){
+  if(_arrayTombstones[chave]) return _arrayTombstones[chave];
+  var set = new Set();
+  try{ var raw = JSON.parse(lsGet(chave+'_del')||'[]'); if(Array.isArray(raw)) raw.forEach(function(id){ set.add(String(id)); }); }catch{}
+  _arrayTombstones[chave] = set;
+  return set;
+}
+function _tombstoneAdd(chave, id){
+  var set = _tombstoneLoad(chave);
+  set.add(String(id));
+  try{ lsSet(chave+'_del', JSON.stringify(Array.from(set))); }catch{}
+  try{ sbSet(chave+'_del', Array.from(set)); }catch{}
+}
+function _tombstoneHas(chave, id){
+  return _tombstoneLoad(chave).has(String(id));
+}
+// Carregar tombstones dos arrays financeiros no boot
+_tombstoneLoad('co_fin');
+_tombstoneLoad('co_localLanc');
+
 var localAtend=[];
 try{ localAtend=JSON.parse(lsGet('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
 
@@ -10141,7 +10228,12 @@ try { const _c = JSON.parse(lsGet('co_coments')||'null'); comentarios = (_c&&typ
 
 let modalCb=null, mvVisto={}, finTab='pagar';
 var finLancs=[];
-try{finLancs=JSON.parse(lsGet('co_fin')||'[]');}catch{}
+try{
+  finLancs=JSON.parse(lsGet('co_fin')||'[]');
+  if(typeof _tombstoneHas==='function'){
+    finLancs = finLancs.filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
+  }
+}catch{}
 
 // Fluxo de caixa global (Monte Mor) — co_monte_mor
 var monteMor=[];
@@ -10966,14 +11058,20 @@ try { _finAutoStatusVencidos(); } catch(e){}
 
 // Lançamentos de Fevereiro 2026
 (function lancarFevereiro(){
+  // ── Run-once: este seed só roda na primeira vez. Sem isso, o IIFE re-insere
+  // itens deletados pelo usuário toda vez que a página carrega.
+  try{ if(lsGet('co_seed_fev2026_done')==='1') return 0; }catch{}
   var hoje = '2026-02-28';
   var added = 0;
 
-  // Helper para não duplicar
+  // Helper para não duplicar — checa tanto localLanc quanto finLancs
   function jaExiste(desc, data, valor){
-    return (localLanc||[]).some(function(l){
-      return l.desc===desc && l.data===data && Math.abs((l.valor||0)-valor)<0.02;
-    });
+    var hit = function(arr){
+      return (arr||[]).some(function(l){
+        return l.desc===desc && l.data===data && Math.abs((l.valor||0)-valor)<0.02;
+      });
+    };
+    return hit(localLanc) || hit(finLancs);
   }
 
   function addHon(cliente, desc, valor, perc, data, forma, parcNome, parcPerc){
@@ -11052,6 +11150,8 @@ try { _finAutoStatusVencidos(); } catch(e){}
     sbSet('co_fin', finLancs);
     _finLocaisCache = {};
   }
+  // Marcar seed como executado para nunca mais rodar nesta instalação
+  try{ lsSet('co_seed_fev2026_done', '1'); }catch{}
   return added;
 })();
 
