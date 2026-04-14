@@ -2464,14 +2464,22 @@ function _vfDelDespEscritorio(lid){
 function _vfDespesasEscritorio(mesP){
   var fV = function(v){return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   var desp = [];
+  // Guard: repasse ao cliente NÃO é despesa do escritório (é liquidação de custódia).
+  // Filtra por flags e cat, mesmo que dados legados tenham sido gravados com tipo='pagar'.
+  var _ehRepasse = function(l){
+    if(l._repasse_alvara||l._repasse_acordo) return true;
+    if(l.cat==='Repasse ao cliente') return true;
+    if(l.tipo==='repasse') return true;
+    return false;
+  };
   (finLancs||[]).forEach(function(l){
-    if(l.tipo==='pagar'){
+    if(l.tipo==='pagar' && !_ehRepasse(l)){
       if(mesP && !(l.data||l.dt_baixa||'').startsWith(mesP)) return;
       desp.push({src:'fin', l:l});
     }
   });
   (localLanc||[]).forEach(function(l){
-    if(l.tipo==='despint'){
+    if(l.tipo==='despint' && !_ehRepasse(l)){
       if(mesP && !(l.data||'').startsWith(mesP)) return;
       desp.push({src:'loc', l:l});
     }
@@ -5639,22 +5647,35 @@ function _renderModalLanc(dados){
         dtRep.setDate(dtRep.getDate() + 2);
         const dtRepStr = dtRep.toISOString().slice(0,10);
         const cliNomeAlv = document.getElementById('gln-desc')?.value.trim() || base.desc;
-        const repasse = {
-          id: genId(),
-          tipo: 'pagar',
-          cat: 'Repasse ao cliente',
-          desc: 'Repasse alvará — ' + (cliNomeAlv||'cliente'),
-          cliente: cliNomeAlv || base.cliente || '',
-          valor: valorRepasse,
-          data: dtRepStr,
-          status: 'pendente',
-          pago: false,
-          obs: 'Gerado automaticamente — Alvará de ' + fBRL(valorTotal) + ' (' + perc + '% honorários)',
-          _repasse_alvara: true,
-          _alvara_id: Date.now()
-        };
-        finLancs.push(repasse);
-        showToast('⚖️ Repasse de ' + fBRL(valorRepasse) + ' gerado para ' + dtRepStr);
+        const cliRep = cliNomeAlv || base.cliente || '';
+        // Dedup: não criar outro repasse se já existe um com mesmo cliente/valor/data
+        const jaExisteRep = (finLancs||[]).some(function(x){
+          return (x._repasse_alvara||x._repasse_acordo||x.cat==='Repasse ao cliente')
+            && (x.cliente||'')===cliRep
+            && Math.abs((parseFloat(x.valor)||0) - valorRepasse) < 0.02
+            && (x.data||'')===dtRepStr;
+        });
+        if(jaExisteRep){
+          showToast('⚠ Repasse já existente para '+cliRep+' em '+dtRepStr+' — não duplicado');
+        } else {
+          const repasse = {
+            id: genId(),
+            tipo: 'repasse',
+            direcao: 'pagar',
+            cat: 'Repasse ao cliente',
+            desc: 'Repasse alvará — ' + (cliNomeAlv||'cliente'),
+            cliente: cliRep,
+            valor: valorRepasse,
+            data: dtRepStr,
+            status: 'pendente',
+            pago: false,
+            obs: 'Gerado automaticamente — Alvará de ' + fBRL(valorTotal) + ' (' + perc + '% honorários)',
+            _repasse_alvara: true,
+            _alvara_id: Date.now()
+          };
+          finLancs.push(repasse);
+          showToast('⚖️ Repasse de ' + fBRL(valorRepasse) + ' gerado para ' + dtRepStr);
+        }
       }
     }
     // Salvar template de despesa fixa se recorrente
