@@ -8,6 +8,13 @@ window.onerror = function(msg, src, line, col, err){
 };
 window.addEventListener('unhandledrejection', function(e){
   var msg = e.reason ? (e.reason.message||String(e.reason)) : 'Promise rejeitada';
+  // Filtrar erros benignos que não valem um toast pro usuário:
+  // - Falhas transientes de update do Service Worker (GitHub Pages 404)
+  // - AbortError de timeouts intencionais (fetch com AbortSignal.timeout)
+  if(/ServiceWorker/i.test(msg) || /AbortError/i.test(msg) || /aborted/i.test(msg)){
+    console.debug('[CO] rejection benigna ignorada:', msg);
+    return;
+  }
   if(typeof showToast==='function') showToast('⚠ ' + msg);
   console.error('[CO] unhandledrejection:', e.reason);
 });
