@@ -374,7 +374,10 @@ async function sbInit(){
       var added = 0;
       novos.forEach(function(n){
         var key = n._migrado_projuris+'|'+n.tipo;
-        if(!existeIds.has(key)){ localLanc.push(n); added++; }
+        // Pular se já existe OU se foi explicitamente excluído pelo usuário (tombstone)
+        if(existeIds.has(key)) return;
+        if(_projurisDeletados && _projurisDeletados.has(key)) return;
+        localLanc.push(n); added++;
       });
       if(added > 0){
         lsSet('co_localLanc', JSON.stringify(localLanc));
@@ -4163,6 +4166,13 @@ function vfDelLocal(lid){
     +'<div style="font-size:12px;color:var(--mu)">Esta ação não pode ser desfeita.</div>',
   function(){
     const cid_del = l.id_processo;
+    // Tombstone: se o item foi migrado do Projuris, marcar como deletado para não reaparecer
+    if(l._migrado_projuris){
+      var _key = l._migrado_projuris+'|'+l.tipo;
+      _projurisDeletados.add(_key);
+      try{ lsSet('co_projuris_del', JSON.stringify(Array.from(_projurisDeletados))); }catch{}
+      try{ sbSet('co_projuris_del', Array.from(_projurisDeletados)); }catch{}
+    }
     localLanc = (localLanc||[]).filter(function(x){ return String(x.id)!==rawId; });
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
@@ -10080,6 +10090,10 @@ function invalidarCacheVfTodos(){ _vfTodosInvalido = true; _vfTodosCache = null;
 
 let CLIENTES_AGRUPADOS=[];
 let tasks={}, notes={}, localAg=[], localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
+// Tombstone list: keys `_migrado_projuris|tipo` de lançamentos migrados que foram excluídos pelo usuário.
+// Usado pelo bloco de migração (bundle.js:~371) para não re-inserir itens deletados.
+var _projurisDeletados = new Set();
+try{ var _pd = JSON.parse(lsGet('co_projuris_del')||'[]'); if(Array.isArray(_pd)) _pd.forEach(function(k){ _projurisDeletados.add(k); }); }catch{}
 var localAtend=[];
 try{ localAtend=JSON.parse(lsGet('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
 
