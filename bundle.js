@@ -2212,8 +2212,15 @@ function _vfConsolidar(mesP){
   var recebimentos = [];
   var repasses = [];
   var despesas = [];
+  // Guard: mesma lógica de _vfDespesasEscritorio — repasse não é despesa
+  var _ehRepasse = function(l){
+    if(l._repasse_alvara||l._repasse_acordo) return true;
+    if(l.cat==='Repasse ao cliente') return true;
+    if(l.tipo==='repasse') return true;
+    return false;
+  };
   (localLanc||[]).forEach(function(l){
-    var isRep = l.tipo==='repasse'||l._repasse_acordo||l._repasse_alvara;
+    var isRep = _ehRepasse(l);
     var isDesp = l.tipo==='despesa'||l.tipo==='despint';
     var rec = isRec(l);
     if(isRep && rec){
@@ -2235,11 +2242,21 @@ function _vfConsolidar(mesP){
       });
     }
   });
+  // ── Despesas do escritório ficam em finLancs (tipo='pagar'), não em localLanc ──
+  // Sem isso o card "Despesas Escritório" no Resumo fica R$ 0 mesmo com a aba
+  // Despesas Escritório mostrando o total real. Excluir repasses (mesmo guard).
+  (finLancs||[]).forEach(function(l){
+    if(l.tipo==='pagar' && !_ehRepasse(l)){
+      despesas.push(l);
+    } else if(_ehRepasse(l) && (l.pago||l.status==='pago')){
+      repasses.push(l);
+    }
+  });
   // Filtrar por mês se informado
   if(mesP){
     recebimentos = recebimentos.filter(function(r){return (r.data||'').startsWith(mesP);});
     repasses = repasses.filter(function(r){return (r.dt_baixa||r.data||'').startsWith(mesP);});
-    despesas = despesas.filter(function(r){return (r.data||'').startsWith(mesP);});
+    despesas = despesas.filter(function(r){return (r.data||r.dt_baixa||'').startsWith(mesP);});
   }
   var totEntrou = recebimentos.reduce(function(s,r){return s+r.valor_bruto;},0);
   var totHon = recebimentos.reduce(function(s,r){return s+r.valor_honorarios;},0);
