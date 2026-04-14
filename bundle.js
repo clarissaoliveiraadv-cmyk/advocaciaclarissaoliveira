@@ -200,6 +200,10 @@ function _sbStatus(online){
 // ══ sbSet / sbGet / sbCarregarTudo (com merge) ═══════
 // ═══════════════════════════════════════════════════════
 
+// Chaves de array que precisam de read-modify-write antes de salvar
+// (para evitar que um cliente stale sobrescreva o trabalho de outro).
+var _SB_MERGED_KEYS = new Set(['co_fin','co_localLanc','co_clientes','co_ctc','co_vktasks','co_ag','co_localAg','co_atend']);
+
 async function sbSet(chave, valor){
   // Carimbar updated_at nos itens modificados de arrays financeiros
   // (co_localLanc, co_fin) antes de salvar. Crítico para _sbMergeArrays
@@ -232,6 +236,25 @@ async function sbSet(chave, valor){
         }
         if(changed) item.updated_at = _nowIso;
       });
+    }catch(e){}
+  }
+  // ═══ READ-MODIFY-WRITE para arrays sincronizados ═══
+  // Sem isso, dois clientes que salvam simultaneamente se sobrescrevem
+  // (Postgrest UPSERT substitui a coluna valor inteira, não faz merge de JSON).
+  // Fluxo: ler remoto → mergear com local → escrever resultado merged.
+  if(_SB_MERGED_KEYS.has(chave) && Array.isArray(valor) && _sbOnline){
+    try{
+      var _r0 = await fetch(
+        _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
+        {headers:_sbH(), signal:AbortSignal.timeout(3000)}
+      );
+      if(_r0.ok){
+        var _rows0 = await _r0.json();
+        if(_rows0.length && Array.isArray(_rows0[0].valor)){
+          // Merge: remote + local → resultado consistente sem perder dados de ninguém
+          valor = _sbMergeArrays(valor, _rows0[0].valor, chave);
+        }
+      }
     }catch(e){}
   }
   lsSet(chave, JSON.stringify(valor));
