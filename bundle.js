@@ -98,10 +98,16 @@ function _sbMergeArrays(local, remote, chave){
     var id = item.id||item.id_agenda||item._id;
     return id != null && tombstones.has(String(id));
   }
+  // Ordem de preferência para timestamp de "quando foi editado":
+  // 1. updated_at (carimbado por nós em toda edição) — fonte de verdade
+  // 2. dt_baixa / data (campos de negócio, usado como fallback pra dados antigos)
+  function _ts(item){
+    return item.updated_at||item._updated_at||item.dt_baixa||item.data||'';
+  }
   // Criar Map do remoto por ID (excluindo tombstoned)
   var map = new Map();
   remote.forEach(function(item){
-    if(_isTombstoned(item)) return; // item foi deletado pelo usuário — não ressuscitar
+    if(_isTombstoned(item)) return;
     var id = item.id||item.id_agenda||item._id||JSON.stringify(item);
     map.set(String(id), item);
   });
@@ -113,11 +119,11 @@ function _sbMergeArrays(local, remote, chave){
     if(!map.has(k)){
       map.set(k, item); // item local não existe no remoto → preservar
     } else {
-      // Ambos têm — usar o mais recente por dt_baixa/data/updated_at
       var r = map.get(k);
-      var localTs = item.dt_baixa||item.data||item.updated_at||'';
-      var remoteTs = r.dt_baixa||r.data||r.updated_at||'';
-      if(localTs > remoteTs) map.set(k, item); // local mais novo
+      var localTs = _ts(item);
+      var remoteTs = _ts(r);
+      // Local vence em empate (>=), pois o usuário acabou de editar
+      if(localTs >= remoteTs) map.set(k, item);
     }
   });
   return Array.from(map.values());
@@ -195,6 +201,39 @@ function _sbStatus(online){
 // ═══════════════════════════════════════════════════════
 
 async function sbSet(chave, valor){
+  // Carimbar updated_at nos itens modificados de arrays financeiros
+  // (co_localLanc, co_fin) antes de salvar. Crítico para _sbMergeArrays
+  // não reverter edições locais quando o Realtime chegar com versão antiga.
+  if((chave==='co_localLanc'||chave==='co_fin') && Array.isArray(valor)){
+    try{
+      var _prev = {};
+      var _prevArr = JSON.parse(lsGet(chave)||'[]');
+      if(Array.isArray(_prevArr)){
+        _prevArr.forEach(function(p){ if(p && p.id!=null) _prev[String(p.id)] = p; });
+      }
+      var _nowIso = new Date().toISOString();
+      valor.forEach(function(item){
+        if(!item||item.id==null) return;
+        var old = _prev[String(item.id)];
+        // Item novo ou item com alteração detectada → carimbar
+        if(!old){
+          if(!item.updated_at) item.updated_at = _nowIso;
+          return;
+        }
+        // Comparar campos-chave para detectar alteração real
+        var changed = false;
+        var keys = ['desc','valor','valor_integral','valor_parcela','percentual_honorarios',
+                    'parceiro_nome','parceiro_percentual','ressarcimento','data','venc','forma',
+                    'pago','status','recebido','dt_baixa','obs','tipo','cat','_vbruto','_honperc',
+                    '_parceiro','_parceiro_perc','_parceiro_val','_tipo_parc','_parcela','_total_parc'];
+        for(var ki=0; ki<keys.length; ki++){
+          var k = keys[ki];
+          if(JSON.stringify(item[k]) !== JSON.stringify(old[k])){ changed = true; break; }
+        }
+        if(changed) item.updated_at = _nowIso;
+      });
+    }catch(e){}
+  }
   lsSet(chave, JSON.stringify(valor));
   lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
@@ -6558,6 +6597,7 @@ function _finToggleRecebido(cid, lid){
   localLanc[i].pago = rec;
   localLanc[i].status = rec ? 'pago' : 'pendente';
   localLanc[i].dt_baixa = rec ? (localLanc[i].data||new Date().toISOString().slice(0,10)) : '';
+  localLanc[i].updated_at = new Date().toISOString();
   sbSet('co_localLanc', localLanc);
   marcarAlterado();
   _finLocaisCache = {};
@@ -6623,6 +6663,8 @@ function _finEditarHonorario(cid, lid){
     localLanc[i].status = recebido ? 'pago' : 'pendente';
     localLanc[i].dt_baixa = recebido ? data : '';
     localLanc[i].obs = obs;
+    // Carimbar timestamp de edição — crítico para _sbMergeArrays não reverter
+    localLanc[i].updated_at = new Date().toISOString();
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
     _finLocaisCache = {};
@@ -7508,6 +7550,7 @@ function finEditarLanc(cid, lid){
       _parceiro:  pNome,
       _parceiro_perc: pPerc,
       _parceiro_val:  pVal,
+      updated_at: new Date().toISOString(),
     });
     sbSet('co_localLanc', localLanc);
     marcarAlterado(); fecharModal();
