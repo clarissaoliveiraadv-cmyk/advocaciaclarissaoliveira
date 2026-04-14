@@ -129,6 +129,39 @@ function _sbMergeArrays(local, remote, chave){
   return Array.from(map.values());
 }
 
+// Merge profundo para objetos cujo valor é um array (ex: co_localMov = {cid: [movs]})
+// Une as chaves e, para cada chave presente em ambos, mergea os arrays por conteúdo
+// (hash estável dos campos relevantes) para não perder entradas criadas em PCs diferentes.
+function _sbMergeObjectOfArrays(local, remote){
+  var out = {};
+  var keys = new Set();
+  Object.keys(local||{}).forEach(function(k){ keys.add(k); });
+  Object.keys(remote||{}).forEach(function(k){ keys.add(k); });
+  function _movKey(m){
+    if(!m) return '';
+    if(m.id) return 'id:'+m.id;
+    // Fallback: hash dos campos essenciais (data+movimentacao+tipo)
+    return (m.data||'')+'|'+(m.movimentacao||m.texto||m.desc||'')+'|'+(m.tipo_movimentacao||m.tipo||'')+'|'+(m.origem||'');
+  }
+  keys.forEach(function(k){
+    var a = Array.isArray(local[k]) ? local[k] : [];
+    var b = Array.isArray(remote[k]) ? remote[k] : [];
+    if(!a.length){ out[k] = b.slice(); return; }
+    if(!b.length){ out[k] = a.slice(); return; }
+    // União por chave de conteúdo — ordena por data descendente
+    var map = new Map();
+    a.forEach(function(m){ map.set(_movKey(m), m); });
+    b.forEach(function(m){
+      var mk = _movKey(m);
+      if(!map.has(mk)) map.set(mk, m);
+    });
+    var merged = Array.from(map.values());
+    merged.sort(function(x,y){ return (y.data||'').localeCompare(x.data||''); });
+    out[k] = merged;
+  });
+  return out;
+}
+
 function _sbMerge(chave, localVal, remoteVal){
   // Chaves de tombstone: union de sets
   if(typeof chave==='string' && chave.endsWith('_del') && Array.isArray(remoteVal)){
@@ -140,6 +173,14 @@ function _sbMerge(chave, localVal, remoteVal){
   // Arrays: merge por ID (com tombstone)
   if(Array.isArray(localVal) && Array.isArray(remoteVal)){
     return _sbMergeArrays(localVal, remoteVal, chave);
+  }
+  // Objetos-de-arrays: co_localMov {clienteId: [movs]}, co_coments {cid: [coments]}
+  // Merge profundo: para cada chave, mergea os arrays internos por conteúdo
+  if(chave==='co_localMov' || chave==='co_coments' || chave==='co_notes'){
+    if(localVal && remoteVal && typeof localVal==='object' && typeof remoteVal==='object'
+       && !Array.isArray(localVal)){
+      return _sbMergeObjectOfArrays(localVal, remoteVal);
+    }
   }
   // Objetos (prazos, encerrados): merge de chaves
   if(localVal && remoteVal && typeof localVal==='object' && typeof remoteVal==='object'
@@ -203,6 +244,9 @@ function _sbStatus(online){
 // Chaves de array que precisam de read-modify-write antes de salvar
 // (para evitar que um cliente stale sobrescreva o trabalho de outro).
 var _SB_MERGED_KEYS = new Set(['co_fin','co_localLanc','co_clientes','co_ctc','co_vktasks','co_ag','co_localAg','co_atend']);
+// Chaves de objeto-de-arrays que precisam de merge profundo antes de salvar
+// (ex: co_localMov = {cid: [movs]} — cada cliente tem um array de movimentações)
+var _SB_MERGED_OBJ_KEYS = new Set(['co_localMov','co_coments','co_notes']);
 
 async function sbSet(chave, valor){
   // Carimbar updated_at nos itens modificados de arrays financeiros
@@ -253,6 +297,25 @@ async function sbSet(chave, valor){
         if(_rows0.length && Array.isArray(_rows0[0].valor)){
           // Merge: remote + local → resultado consistente sem perder dados de ninguém
           valor = _sbMergeArrays(valor, _rows0[0].valor, chave);
+        }
+      }
+    }catch(e){}
+  }
+  // ═══ READ-MODIFY-WRITE para objetos-de-arrays (co_localMov, co_coments, co_notes) ═══
+  if(_SB_MERGED_OBJ_KEYS.has(chave) && valor && typeof valor==='object' && !Array.isArray(valor) && _sbOnline){
+    try{
+      var _r1 = await fetch(
+        _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
+        {headers:_sbH(), signal:AbortSignal.timeout(3000)}
+      );
+      if(_r1.ok){
+        var _rows1 = await _r1.json();
+        if(_rows1.length && _rows1[0].valor && typeof _rows1[0].valor==='object' && !Array.isArray(_rows1[0].valor)){
+          valor = _sbMergeObjectOfArrays(valor, _rows1[0].valor);
+          // Atualizar em memória também (para a próxima render ver tudo)
+          if(chave==='co_localMov' && typeof localMov!=='undefined') localMov = valor;
+          else if(chave==='co_coments' && typeof comentarios!=='undefined') comentarios = valor;
+          else if(chave==='co_notes' && typeof notes!=='undefined') notes = valor;
         }
       }
     }catch(e){}
