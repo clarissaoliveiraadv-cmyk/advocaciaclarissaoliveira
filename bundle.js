@@ -426,7 +426,14 @@ function sbRealtime(){
         if(!rec) return;
         // Ignorar apenas updates DESTA sessão (não de outro computador do mesmo usuário)
         if(rec._session_id && rec._session_id===_sbSessionId) return;
-        const {chave,valor,updated_by} = rec;
+        const {chave,updated_by} = rec;
+        // Parse defensivo: valor pode vir como string JSON (dependendo de
+        // como o Postgrest serializa jsonb no webhook) — tentar parsear se
+        // for string antes de passar pro merge.
+        var valor = rec.valor;
+        if(typeof valor === 'string'){
+          try{ valor = JSON.parse(valor); }catch(pe){ /* mantém string se não for JSON */ }
+        }
         // Merge com dados locais antes de aplicar
         try {
           var localVal = JSON.parse(lsGet(chave)||'null');
@@ -471,26 +478,68 @@ function sbAplicar(chave, valor, quem){
       _finLocaisCache={};
       if(document.getElementById('vf')?.classList.contains('on')) vfRender();
       break;
-    case 'co_localMov': localMov=valor||{}; break;
-    case 'co_localAg': localAg=valor||[]; invalidarAllPend(); break;
-    case 'co_ag': localAg=valor||[]; invalidarAllPend(); break;
-    case 'co_encerrados': encerrados=valor||{}; _encIdsCache=null; break;
-    case 'co_notes': notes=valor||{}; break;
-    case 'co_ctc': localContatos=valor||[]; invalidarCtcCache(); break;
-    case 'co_tasks': if(typeof tasks!=='undefined') tasks=valor||{}; break;
-    case 'co_td': case 'co_prazos': prazos=valor||{}; break;
+    case 'co_localMov':
+      localMov=valor||{};
+      // Re-render da ficha do cliente se o usuário está com ela aberta
+      // (sem isso, andamentos adicionados por outro PC não aparecem até recarregar)
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){
+        try{ renderFicha(AC); }catch(e){}
+      }
+      if(document.getElementById('vf')?.classList.contains('on')) vfRender();
+      break;
+    case 'co_localAg':
+      localAg=valor||[]; invalidarAllPend();
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
+      if(typeof renderHomeWeek==='function') try{ renderHomeWeek(); }catch(e){}
+      break;
+    case 'co_ag':
+      localAg=valor||[]; invalidarAllPend();
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
+      break;
+    case 'co_encerrados': encerrados=valor||{}; _encIdsCache=null; if(typeof doSearch==='function') try{ doSearch(); }catch(e){} break;
+    case 'co_notes':
+      notes=valor||{};
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      break;
+    case 'co_ctc':
+      localContatos=valor||[]; invalidarCtcCache();
+      if(document.getElementById('ctc-view')?.classList.contains('on') && typeof ctcRender==='function'){ try{ ctcRender(); }catch(e){} }
+      break;
+    case 'co_tasks':
+      if(typeof tasks!=='undefined') tasks=valor||{};
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
+      break;
+    case 'co_td': case 'co_prazos':
+      prazos=valor||{};
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      break;
     case 'co_colab': if(typeof _colaboradores!=='undefined') _colaboradores=valor||[]; break;
     case 'co_despfixas': if(typeof _despFixas!=='undefined') _despFixas=valor||[]; break;
-    case 'co_coments': if(typeof comentarios!=='undefined') comentarios=valor||{}; break;
-    case 'co_atend': if(typeof localAtend!=='undefined') localAtend=valor||[]; break;
+    case 'co_coments':
+      if(typeof comentarios!=='undefined') comentarios=valor||{};
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+      break;
+    case 'co_atend':
+      if(typeof localAtend!=='undefined') localAtend=valor||[];
+      if(document.getElementById('at')?.classList.contains('on') && typeof atRender==='function'){ try{ atRender(); }catch(e){} }
+      break;
     case 'co_clientes':
       if(typeof CLIENTS!=='undefined' && Array.isArray(valor)){
-        // Merge: manter items locais que não existem no remoto
-        var merged = _sbMergeArrays(CLIENTS, valor);
+        // Merge com tombstones: passa 'co_clientes' como chave para que
+        // clientes excluídos não ressuscitem via sync.
+        var merged = _sbMergeArrays(CLIENTS, valor, 'co_clientes');
         CLIENTS.length=0; merged.forEach(function(c){CLIENTS.push(c);});
         _clientByIdCache={}; _clientByNameCache={};
         if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
         if(typeof doSearch==='function') doSearch();
+        // Se o usuário está vendo a ficha de um cliente, re-renderiza
+        // para que mudanças de parte/polo/pasta apareçam imediatamente.
+        if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){
+          try{ renderFicha(AC); }catch(e){}
+        }
       } break;
     case 'co_clientes_consulta': break; // ignorar — tudo está em co_clientes agora
     case 'co_audit': if(typeof _auditLog!=='undefined') _auditLog=valor||[]; break;
