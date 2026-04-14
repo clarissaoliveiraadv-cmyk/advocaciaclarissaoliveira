@@ -5279,7 +5279,20 @@ function extratoClassificar(i){
         else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
         sbSet('co_fin', finLancs);
         const c2=findClientByName(matchT.cliente);
-        if(c2){ if(!localMov[c2.id]) localMov[c2.id]=[]; localMov[c2.id].unshift({data:l.data,movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(c2.id); }
+        if(c2){
+          if(!localMov[c2.id]) localMov[c2.id]=[];
+          // De-dup: não criar [Financeiro] Recebimento via extrato se já existe [Recebimento] ou [Financeiro] equivalente
+          var jaExiste = localMov[c2.id].some(function(m){
+            if(m.data!==l.data) return false;
+            var mov = String(m.movimentacao||'');
+            return mov.indexOf(matchT.desc)!==-1 && mov.indexOf(fBRL(valorAbs))!==-1;
+          });
+          if(!jaExiste){
+            localMov[c2.id].unshift({data:l.data,movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'});
+            sbSet('co_localMov',localMov);
+          }
+          _reRenderFinPasta(c2.id);
+        }
       } else if(vinculo.startsWith('l')){
         const rawId=vinculo.slice(1);
         const li=(localLanc||[]).findIndex(function(x){return String(x.id)===rawId;});
@@ -6398,6 +6411,19 @@ function _finCalcLanc(l){
   var vp = parseFloat(l.valor_parcela)||0;
   var base = vp > 0 ? vp : vi;
   var perc = parseFloat(l.percentual_honorarios)||0;
+  // ── Compat: dados antigos/migrados do Projuris só têm `valor` (+ às vezes `_vbruto`/`_perc_hon`) ──
+  if(base === 0){
+    var vBruto = parseFloat(l._vbruto)||0;
+    var valor = parseFloat(l.valor)||0;
+    if(vBruto > 0){
+      base = vBruto;
+      if(!perc) perc = parseFloat(l._perc_hon)||0;
+    } else if(valor > 0){
+      base = valor;
+      // Sem percentual informado → honorário direto, 100% escritório (honorario_escritorio)
+      if(!perc) perc = 100;
+    }
+  }
   var ress = parseFloat(l.ressarcimento)||0;
   var hon = roundMoney(base * perc / 100);
   var ppn = (l.parceiro_nome||'').trim();
