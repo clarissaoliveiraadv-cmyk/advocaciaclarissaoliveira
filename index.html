@@ -519,7 +519,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=70"></script>
+<script src="bundle.js?v=71"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
@@ -570,10 +570,21 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 <!-- Phase 4: Service Worker para cache offline -->
 <script>
 if('serviceWorker' in navigator){
+  // Helper: reg.update() retorna uma Promise. Silenciar rejeições pra não
+  // poluir o console/toast com erros transientes de rede ('Not found' quando
+  // o GitHub Pages tem hiccup ao checar por novo sw.js).
+  function _swSafeUpdate(reg){
+    try{
+      var p = reg.update();
+      if(p && typeof p.catch === 'function'){
+        p.catch(function(e){ console.debug('[SW] update check falhou (ok):', e && e.message); });
+      }
+    }catch(e){ /* sync error — ignora */ }
+  }
   navigator.serviceWorker.register('./sw.js').then(function(reg){
     // Checar por nova versão do SW imediatamente e depois a cada 5 min
-    try{ reg.update(); }catch(e){}
-    setInterval(function(){ try{ reg.update(); }catch(e){} }, 5*60*1000);
+    _swSafeUpdate(reg);
+    setInterval(function(){ _swSafeUpdate(reg); }, 5*60*1000);
     // Quando uma nova versão do SW for instalada e estiver esperando, ativar
     reg.addEventListener('updatefound', function(){
       var installing = reg.installing;
@@ -585,7 +596,7 @@ if('serviceWorker' in navigator){
         }
       });
     });
-  }).catch(function(e){ console.warn('SW:', e); });
+  }).catch(function(e){ console.warn('SW register:', e); });
   // Quando o SW novo tomar o controle (via clients.claim), recarregar a página
   // para garantir que bundle.js e styles.css correspondam à versão ativa do SW.
   var _swReloaded = false;
