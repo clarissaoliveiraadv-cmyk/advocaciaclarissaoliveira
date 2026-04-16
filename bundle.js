@@ -10994,7 +10994,7 @@ function _abrirModalCompromisso(cid_fixo){
           cumprido: false
         });
       });
-      sbSet('co_td', prazos);
+      prazosSalvar(); // salva em co_prazos + co_td (legado)
     }
 
     marcarAlterado();
@@ -11608,6 +11608,57 @@ function prazoStatusCor(p){
   if(d!==null&&d<0) return '#ef4444';
   if(d!==null&&d<=1) return '#f59e0b';
   return 'var(--mu)';
+}
+
+// togglePrazo — alterna prazo entre cumprido/pendente (chamada pelo botão de status)
+function togglePrazo(cid, pid){
+  var lista = prazos[cid]||[];
+  var p = lista.find(function(x){ return x.id===pid||String(x.id)===String(pid); });
+  if(!p) return;
+  if(p.cumprido){
+    // Desfazer conclusão → voltar para pendente
+    p.cumprido = false;
+    p.cumprido_em = '';
+    p.obs_conclusao = '';
+  } else {
+    p.cumprido = true;
+    p.cumprido_em = new Date().toISOString().slice(0,10);
+  }
+  prazosSalvar();
+  marcarAlterado();
+  if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
+  showToast(p.cumprido ? 'Prazo concluído ✓' : 'Prazo reaberto');
+}
+
+// prazosConcluirComDesfecho — conclui prazo com modal de desfecho (chamada pelo botão de status)
+function prazosConcluirComDesfecho(cid, pid){
+  var lista = prazos[cid]||[];
+  var p = lista.find(function(x){ return x.id===pid||String(x.id)===String(pid); });
+  if(!p){ showToast('Prazo não encontrado'); return; }
+  abrirModal('Concluir Prazo — '+(p.titulo||''),
+    '<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:600;color:var(--tx)">'+(p.titulo||'Prazo')+'</div>'
+    +'<div style="font-size:11px;color:var(--mu);margin-top:3px">Vencimento: '+fDt(p.data)+'</div></div>'
+    +'<div><label class="fm-lbl">Desfecho / observação</label>'
+    +'<textarea class="fm-inp" id="pcd-obs" rows="2" placeholder="O que foi feito para cumprir o prazo..."></textarea></div>',
+  function(){
+    var obs = (document.getElementById('pcd-obs')?.value||'').trim();
+    p.cumprido = true;
+    p.cumprido_em = new Date().toISOString().slice(0,10);
+    p.obs_conclusao = obs;
+    prazosSalvar();
+    marcarAlterado();
+    fecharModal();
+    if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
+    // Registrar andamento na pasta
+    if(!localMov[cid]) localMov[cid]=[];
+    localMov[cid].unshift({
+      data: new Date().toISOString().slice(0,10),
+      movimentacao: '[Concluído] Prazo: '+(p.titulo||'')+(obs?' — '+obs:''),
+      tipo_movimentacao: 'Agenda', origem: 'prazo_concluido'
+    });
+    sbSet('co_localMov', localMov);
+    showToast('Prazo concluído ✓');
+  }, '✅ Concluir prazo');
 }
 
 function editarPrazo(cid,pid){
@@ -15013,7 +15064,7 @@ function calcSalvarPrazo(){
     cumprido: false,
   };
   prazos[cli.id].push(novo);
-  sbSet('co_td', prazos);
+  prazosSalvar(); // salva em co_prazos + co_td (legado)
   marcarAlterado();
   // Adicionar ao histórico
   _calcHistorico.unshift({..._calcUltimo, savedPasta: pasta, ts: Date.now()});
