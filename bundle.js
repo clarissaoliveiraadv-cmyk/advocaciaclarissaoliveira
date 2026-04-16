@@ -1074,6 +1074,7 @@ function ctcVincularProcesso(ctcId, ctcNome){
     if(ctc) ctc.processo = `${proc.cliente} (Pasta ${proc.pasta})`;
     sbSalvarClientesDebounced();
     sbSet('co_ctc', localContatos);
+    invalidarCtcCache();
     marcarAlterado();
     fecharModal();
     ctcAbrirFicha(ctcId); // recarregar ficha do contato
@@ -1094,7 +1095,7 @@ function ctcEditar(id){
     if(idx<0) return;
     localContatos[idx] = {
       ...localContatos[idx],
-      nome: v.nome, cpf: v.cpf, tipo: v.tipo||localContatos[idx].tipo,
+      nome: v.nome, cpf: v.cpf, doc: v.cpf, tipo: v.tipo||localContatos[idx].tipo,
       tel: v.tel, email: v.email, processo: v.proc||localContatos[idx].processo,
       extra:{
         nasc:v.nasc, natural:v.natural, nacion:v.nacion, ecivil:v.ecivil, mae:v.mae,
@@ -1104,6 +1105,7 @@ function ctcEditar(id){
       }
     };
     sbSet('co_ctc', localContatos);
+    invalidarCtcCache();
     marcarAlterado();
     fecharModal();
     ctcAbrirFicha(id);
@@ -1371,6 +1373,7 @@ function parcDesfazerPago(cid, idx){
   if(lista[idx]) lista[idx].repasse_status = 'pendente';
   setParceriasDoProcesso(c, lista);
   renderFicha(c);
+  showToast('Repasse reaberto como pendente ✓');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -10659,7 +10662,7 @@ function importarDados(){
         sbSet('co_localAg', localAg); invalidarAllPend();
         sbSet('co_localMov', localMov);
         sbSet('co_localLanc', localLanc);
-        sbSet('co_ctc', localContatos);
+        sbSet('co_ctc', localContatos); invalidarCtcCache();
         sbSet('co_tarefasDia', tarefasDia);
         marcarAlterado();
         montarClientesAgrupados(); atualizarStats(); renderChecklist(); renderHomeWeek(); doSearch();
