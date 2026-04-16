@@ -5418,6 +5418,7 @@ function extratoBaixarVinculo(i){
   }
   _extratoLinhas[i]._status='conciliado';
   _extratoLinhas[i]._match_tipo='confirmado';
+  invalidarCacheVfTodos();
   marcarAlterado(); vfRender(); renderFinDash();
   showToast('✅ Baixa confirmada: '+l._match_desc);
 }
@@ -5431,11 +5432,16 @@ function extratoBaixarTodosPendentes(){
       +'<div style="font-size:11px;color:var(--mu)">Todos os itens com "⚠ Baixa pendente" serão confirmados com a data e forma do extrato.</div>'
     +'</div>',
   function(){
+    var count = 0;
     _extratoLinhas.forEach(function(l, i){
-      if(l._status==='pendente_vinculo') extratoBaixarVinculo(i);
+      if(l._status==='pendente_vinculo'){ extratoBaixarVinculo(i); count++; }
     });
+    // extratoBaixarVinculo já invalida cache e re-renderiza a cada item.
+    // Garantir invalidação final para o caso de haver interações entre itens.
+    invalidarCacheVfTodos();
     fecharModal();
-    showToast('✅ '+pendentes.length+' baixas confirmadas');
+    vfRender(); renderFinDash(); atualizarStats();
+    showToast('✅ '+count+' baixas confirmadas');
   }, '✅ Confirmar tudo');
 }
 
