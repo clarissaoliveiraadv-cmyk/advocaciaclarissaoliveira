@@ -1511,10 +1511,11 @@ function renderChecklist(){
       }
     });
   });
-  const kanbanIds = new Set(doKanban.map(function(t){return t.titulo;}));
-  const legadasFiltradas = legadas.filter(function(t){return !kanbanIds.has(t.titulo);});
+  // Dedup por ID (prefere), fallback a título para compatibilidade com legadas que não têm ID
+  const kanbanKeys = new Set(doKanban.map(function(t){return t.id||t.titulo;}));
+  const legadasFiltradas = legadas.filter(function(t){return !kanbanKeys.has(t.id||t.titulo);});
   const tarefasAll = [...doKanban, ...legadasFiltradas, ...legadasAtrasadas.filter(function(la){
-    return !kanbanIds.has(la.titulo);
+    return !kanbanKeys.has(la.id||la.titulo);
   })];
 
   // Tarefas de sistema (admin, atendimento, audiencia-prep)
@@ -10554,7 +10555,7 @@ function excluirProcesso(cid){
       const _fOld=document.getElementById('ficha'); if(_fOld) _fOld.classList.remove('on');
       const _fvcl=document.getElementById('ficha-vcl'); if(_fvcl){_fvcl.classList.remove('on');_fvcl.innerHTML='';}
       const _e2b=document.getElementById('emp2'); if(_e2b) _e2b.style.display='flex';
-      document.getElementById('st1').textContent=CLIENTS.filter(function(c){return !getEncIds().has(c.id)&&c.tipo!=='consulta';}).length;
+      var _st1=document.getElementById('st1'); if(_st1) _st1.textContent=CLIENTS.filter(function(c){return !getEncIds().has(c.id)&&c.tipo!=='consulta';}).length;
       atualizarBadgeEnc();
       doSearch()
       atualizarStats();
@@ -14688,9 +14689,23 @@ function renderTasks(cid){
     <button class="tdel" onclick="delTask(${cid},${i})">✕</button>
   </div>`).join('');
 }
-function addTask(cid){const txt=document.getElementById(`ti-${cid}`).value.trim();const et=document.getElementById(`te-${cid}`).value;if(!txt)return;if(!tasks[cid])tasks[cid]=[];tasks[cid].push({text:txt,etapa:et,done:et==='FEITO'});sbSet('co_tasks', tasks);
-    marcarAlterado();document.getElementById(`ti-${cid}`).value='';document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);showToast('Tarefa adicionada');}
-function toggleTask(cid,i){tasks[cid][i].done=!tasks[cid][i].done;if(tasks[cid][i].done)tasks[cid][i].etapa='FEITO';sbSet('co_tasks', tasks);
+function addTask(cid){
+  var inp=document.getElementById('ti-'+cid); if(!inp) return;
+  var sel=document.getElementById('te-'+cid);
+  var txt=inp.value.trim(); var et=sel?sel.value:'';
+  if(!txt) return;
+  if(!tasks[cid]) tasks[cid]=[];
+  tasks[cid].push({text:txt,etapa:et,done:et==='FEITO'});
+  sbSet('co_tasks', tasks); marcarAlterado();
+  inp.value='';
+  var tl=document.getElementById('tl-'+cid); if(tl) tl.innerHTML=renderTasks(cid);
+  showToast('Tarefa adicionada');
+}
+function toggleTask(cid,i){
+  if(!tasks[cid]||!tasks[cid][i]) return;
+  tasks[cid][i].done=!tasks[cid][i].done;
+  if(tasks[cid][i].done) tasks[cid][i].etapa='FEITO';
+  sbSet('co_tasks', tasks);
     marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);}
 function delTask(cid,i){
   abrirModal('Excluir tarefa','<div style="font-size:13px;color:var(--mu)">Excluir esta tarefa?</div>',function(){
