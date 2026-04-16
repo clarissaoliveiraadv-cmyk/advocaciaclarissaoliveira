@@ -41,7 +41,12 @@ var _SB_URL = _SB_CFG.url;
 var _SB_KEY = _SB_CFG.key;
 var _SB_TBL = 'escritorio_dados';
 var _SB_SYNC = new Set([
-  'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta','co_iniciais'
+  'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta','co_iniciais','co_prazos',
+  // Tombstones: DEVEM sincronizar entre PCs, senão deleção feita num PC
+  // fica invisível para o outro (filtro por tombstone só existe localmente).
+  'co_fin_del','co_localLanc_del','co_clientes_del','co_ctc_del',
+  'co_vktasks_del','co_ag_del','co_localAg_del','co_atend_del',
+  'co_projuris_del'
 ]);
 
 var _sbOnline = false;
@@ -380,7 +385,20 @@ async function sbCarregarTudo(){
     );
     if(!r.ok) throw new Error(r.status);
     var rows = await r.json();
+    // IMPORTANTE: carregar TOMBSTONES PRIMEIRO — só depois aplicar os dados.
+    // Senão, dados com IDs tombstoneados são carregados e só filtrados tarde demais.
+    rows.filter(function(row){ return /_del$/.test(row.chave); }).forEach(function(row){
+      try{
+        var localVal = JSON.parse(lsGet(row.chave)||'null');
+        var merged = _sbMerge(row.chave, localVal, row.valor);
+        lsSet(row.chave, JSON.stringify(merged));
+        // Atualiza o Set em memória
+        if(typeof sbAplicar === 'function') sbAplicar(row.chave, merged, row.updated_by);
+      }catch(e){}
+    });
     rows.forEach(function(row){
+      // Tombstones já processados acima
+      if(/_del$/.test(row.chave)) return;
       var tsLocal = lsGet('_ts_'+row.chave)||'';
       var tsRemoto = row.updated_at||'';
       if(tsLocal && tsLocal > tsRemoto){
@@ -488,16 +506,43 @@ function sbAplicar(chave, valor, quem){
   // Chaves de tombstone: atualizar o Set em memória para bloquear ressuscitação
   if(typeof chave==='string' && chave.endsWith('_del') && Array.isArray(valor)){
     var baseKey = chave.slice(0, -4);
+    // Tratamento especial para co_projuris_del (usa chaves compostas, não IDs)
+    if(baseKey==='co_projuris'){
+      if(typeof _projurisDeletados !== 'undefined'){
+        var prjSet = new Set();
+        valor.forEach(function(k){ prjSet.add(String(k)); });
+        _projurisDeletados.clear();
+        prjSet.forEach(function(k){ _projurisDeletados.add(k); });
+      }
+      return;
+    }
     if(typeof _arrayTombstones !== 'undefined'){
       var set = new Set();
       valor.forEach(function(id){ set.add(String(id)); });
       _arrayTombstones[baseKey] = set;
     }
-    // Filtrar o array em memória também (caso já tenha sido carregado)
+    // Filtrar o array em memória conforme a chave base
     if(baseKey==='co_fin' && Array.isArray(finLancs)){
       finLancs = finLancs.filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
     } else if(baseKey==='co_localLanc' && Array.isArray(localLanc)){
       localLanc = localLanc.filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
+    } else if(baseKey==='co_clientes' && typeof CLIENTS!=='undefined' && Array.isArray(CLIENTS)){
+      var cFilt = CLIENTS.filter(function(x){ return !_tombstoneHas('co_clientes', x.id); });
+      CLIENTS.length = 0; cFilt.forEach(function(c){ CLIENTS.push(c); });
+      _clientByIdCache={}; _clientByNameCache={};
+      if(typeof montarClientesAgrupados==='function') montarClientesAgrupados();
+      if(typeof doSearch==='function') doSearch();
+    } else if(baseKey==='co_ctc' && Array.isArray(localContatos)){
+      localContatos = localContatos.filter(function(x){ return !_tombstoneHas('co_ctc', x.id); });
+      if(typeof invalidarCtcCache==='function') invalidarCtcCache();
+    } else if(baseKey==='co_vktasks' && Array.isArray(vkTasks)){
+      vkTasks = vkTasks.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+      if(typeof renderChecklist==='function') try{ renderChecklist(); }catch(e){}
+    } else if((baseKey==='co_ag'||baseKey==='co_localAg') && Array.isArray(localAg)){
+      localAg = localAg.filter(function(x){ return !_tombstoneHas(baseKey, x.id); });
+      if(typeof invalidarAllPend==='function') invalidarAllPend();
+    } else if(baseKey==='co_atend' && Array.isArray(localAtend)){
+      localAtend = localAtend.filter(function(x){ return !_tombstoneHas('co_atend', x.id); });
     }
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
     return;
@@ -644,6 +689,68 @@ window.coForceSync = async function(){
     console.error('[coForceSync] erro:', e);
     return 'ERRO: ' + (e.message || e);
   }
+};
+
+// Diagnóstico: mostra estado local x remoto. Uso: F12 → Console → coDiagnose()
+window.coDiagnose = async function(){
+  console.log('=== DIAGNÓSTICO DE SYNC ===');
+  console.log('Usuário:', _sbUsuario, '| Session:', _sbSessionId);
+  console.log('Online:', _sbOnline, '| WS state:', window._sbWsLastState);
+  console.log('---');
+  function count(x){ return Array.isArray(x) ? x.length : (typeof x==='object'&&x ? Object.keys(x).length : 0); }
+  var locals = {
+    CLIENTS: count(CLIENTS),
+    localLanc: count(localLanc),
+    finLancs: count(finLancs),
+    localContatos: count(localContatos),
+    vkTasks: count(vkTasks),
+    localAg: count(localAg),
+    localMov: count(localMov),
+    localAtend: count(localAtend),
+    tasks_clientes: count(tasks),
+    notes_clientes: count(notes),
+    prazos_clientes: count(prazos)
+  };
+  console.log('LOCAL (memória):', locals);
+  var tombs = {};
+  ['co_fin','co_localLanc','co_clientes','co_ctc','co_vktasks','co_ag','co_localAg','co_atend'].forEach(function(k){
+    var set = _tombstoneLoad(k);
+    tombs[k] = set.size;
+  });
+  tombs['co_projuris'] = _projurisDeletados ? _projurisDeletados.size : 0;
+  console.log('TOMBSTONES (itens marcados como deletados):', tombs);
+  console.log('---');
+  // Buscar remoto
+  try{
+    var r = await fetch(_SB_URL+'/rest/v1/'+_SB_TBL+'?select=chave,valor',{headers:_sbH()});
+    if(!r.ok){ console.error('Erro ao buscar remoto:', r.status); return; }
+    var rows = await r.json();
+    var remotos = {};
+    rows.forEach(function(row){
+      var v = typeof row.valor==='string' ? JSON.parse(row.valor) : row.valor;
+      remotos[row.chave] = count(v);
+    });
+    console.log('REMOTO (Supabase):', remotos);
+    console.log('---');
+    // Diffs críticos
+    var diffs = [];
+    if(remotos.co_clientes && locals.CLIENTS !== remotos.co_clientes){
+      diffs.push('CLIENTES: local='+locals.CLIENTS+' remoto='+remotos.co_clientes+' ('+(remotos.co_clientes - locals.CLIENTS)+' de diferença)');
+    }
+    if(remotos.co_localLanc && locals.localLanc !== remotos.co_localLanc){
+      diffs.push('LOCALLANC: local='+locals.localLanc+' remoto='+remotos.co_localLanc);
+    }
+    if(remotos.co_fin && locals.finLancs !== remotos.co_fin){
+      diffs.push('FINLANCS: local='+locals.finLancs+' remoto='+remotos.co_fin);
+    }
+    if(diffs.length){
+      console.warn('⚠ DIVERGÊNCIAS:', diffs);
+      console.log('→ Rodar coForceSync() para ressincronizar');
+    } else {
+      console.log('✓ Sem divergências detectadas');
+    }
+  }catch(e){ console.error('Erro no diagnóstico:', e); }
+  return 'Diagnóstico completo — veja o console';
 };
 
 async function sbInit(){
@@ -10315,10 +10422,12 @@ async function sbCarregarClientes(){
       if(Array.isArray(row.valor)) remoto = remoto.concat(row.valor);
     });
     if(!remoto.length) return false;
-    // MERGE com dados locais — preservar novos processos que ainda não chegaram ao Supabase
-    var merged = _sbMergeArrays(CLIENTS, remoto);
+    // MERGE com dados locais — preservar novos processos que ainda não chegaram ao Supabase.
+    // Passa 'co_clientes' como chave para que tombstones filtrem clientes deletados.
+    var merged = _sbMergeArrays(CLIENTS, remoto, 'co_clientes');
     CLIENTS.length = 0;
     merged.forEach(function(c){ CLIENTS.push(c); });
+    _clientByIdCache={}; _clientByNameCache={};
     return true;
   }catch(e){ return false; }
 }
