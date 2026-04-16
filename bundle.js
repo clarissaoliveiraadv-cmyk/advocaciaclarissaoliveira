@@ -1629,6 +1629,7 @@ function hcEnviarKanban(id, titulo, cliente, hoje){
   if(tarefasDia[hoje]) tarefasDia[hoje].splice(idx,1);
   sbSet('co_td', tarefasDia);
   vkSalvar();
+  marcarAlterado();
   renderChecklist();
   showToast('Tarefa enviada ao Kanban ✓');
 }
@@ -10720,8 +10721,9 @@ function limparPastasVazias(){
       });
       sbSalvarClientes();
       sbSet('co_encerrados', encerrados);
-      sbSet('co_t', tasks);
-      sbSet('co_n', notes);
+      sbSet('co_tasks', tasks);
+      sbSet('co_notes', notes);
+      sbSet('co_localMov', localMov);
       marcarAlterado();
       montarClientesAgrupados();
       fecharModal();
@@ -14632,20 +14634,26 @@ function renderTasks(cid){
     <button class="tdel" onclick="delTask(${cid},${i})">✕</button>
   </div>`).join('');
 }
-function addTask(cid){const txt=document.getElementById(`ti-${cid}`).value.trim();const et=document.getElementById(`te-${cid}`).value;if(!txt)return;if(!tasks[cid])tasks[cid]=[];tasks[cid].push({text:txt,etapa:et,done:et==='FEITO'});sbSet('co_t', tasks);
+function addTask(cid){const txt=document.getElementById(`ti-${cid}`).value.trim();const et=document.getElementById(`te-${cid}`).value;if(!txt)return;if(!tasks[cid])tasks[cid]=[];tasks[cid].push({text:txt,etapa:et,done:et==='FEITO'});sbSet('co_tasks', tasks);
     marcarAlterado();document.getElementById(`ti-${cid}`).value='';document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);showToast('Tarefa adicionada');}
-function toggleTask(cid,i){tasks[cid][i].done=!tasks[cid][i].done;if(tasks[cid][i].done)tasks[cid][i].etapa='FEITO';sbSet('co_t', tasks);
+function toggleTask(cid,i){tasks[cid][i].done=!tasks[cid][i].done;if(tasks[cid][i].done)tasks[cid][i].etapa='FEITO';sbSet('co_tasks', tasks);
     marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);}
 function delTask(cid,i){
   abrirModal('Excluir tarefa','<div style="font-size:13px;color:var(--mu)">Excluir esta tarefa?</div>',function(){
-    tasks[cid].splice(i,1);sbSet('co_t',tasks);
+    tasks[cid].splice(i,1);sbSet('co_tasks',tasks);
     marcarAlterado();fecharModal();
     var el=document.getElementById('tl-'+cid);if(el)el.innerHTML=renderTasks(cid);showToast('Tarefa exclu\u00edda');
   },'Excluir');
   setTimeout(function(){var b=document.getElementById('modal-save');if(b){b.style.background='var(--red)';b.textContent='Confirmar';}},50);
 }
-function saveNote(cid){notes[cid]=document.getElementById(`obs-${cid}`).value;sbSet('co_n', notes);
-    marcarAlterado();const s=document.getElementById(`osv-${cid}`);s.style.opacity='1';setTimeout(()=>s.style.opacity='0',2000);showToast('Observação salva');}
+function saveNote(cid){
+  notes[cid]=document.getElementById(`obs-${cid}`)?.value||'';
+  sbSet('co_notes', notes);
+  marcarAlterado();
+  var s=document.getElementById(`osv-${cid}`);
+  if(s){ s.style.opacity='1'; setTimeout(function(){ if(s) s.style.opacity='0'; },2000); }
+  showToast('Observação salva');
+}
 function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200);}
 
 // ═══════════════════════════════════════════════════════════════
