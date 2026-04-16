@@ -251,9 +251,13 @@ function _sbStatus(online){
 // Chaves de array que precisam de read-modify-write antes de salvar
 // (para evitar que um cliente stale sobrescreva o trabalho de outro).
 var _SB_MERGED_KEYS = new Set(['co_fin','co_localLanc','co_clientes','co_ctc','co_vktasks','co_ag','co_localAg','co_atend']);
-// Chaves de objeto-de-arrays que precisam de merge profundo antes de salvar
-// (ex: co_localMov = {cid: [movs]} — cada cliente tem um array de movimentações)
+// Chaves de objeto-de-arrays que precisam de merge profundo NO RECEBIMENTO (Realtime).
+// NÃO fazem read-modify-write no ENVIO (sbSet), porque o RMW re-insere itens deletados
+// — o GET remoto ainda tem o item, o merge-union o traz de volta.
+// A proteção contra concurrent writes fica por conta do Realtime (sbAplicar + _sbMergeObjectOfArrays).
 var _SB_MERGED_OBJ_KEYS = new Set(['co_localMov','co_coments','co_notes']);
+// Flag: quando true, sbSet pula o RMW para _SB_MERGED_OBJ_KEYS (usado em operações destrutivas)
+var _sbSkipObjRMW = false;
 
 async function sbSet(chave, valor){
   // Carimbar updated_at nos itens modificados de arrays financeiros
@@ -311,26 +315,12 @@ async function sbSet(chave, valor){
       }
     }catch(e){}
   }
-  // ═══ READ-MODIFY-WRITE para objetos-de-arrays (co_localMov, co_coments, co_notes) ═══
-  if(_SB_MERGED_OBJ_KEYS.has(chave) && valor && typeof valor==='object' && !Array.isArray(valor)){
-    try{
-      var _r1 = await fetch(
-        _SB_URL+'/rest/v1/'+_SB_TBL+'?chave=eq.'+encodeURIComponent(chave)+'&select=valor',
-        {headers:_sbH(), signal:AbortSignal.timeout(3000)}
-      );
-      if(_r1.ok){
-        var _rows1 = await _r1.json();
-        if(_rows1.length && _rows1[0].valor && typeof _rows1[0].valor==='object' && !Array.isArray(_rows1[0].valor)){
-          valor = _sbMergeObjectOfArrays(valor, _rows1[0].valor);
-          // Atualizar em memória também (para a próxima render ver tudo)
-          if(chave==='co_localMov' && typeof localMov!=='undefined') localMov = valor;
-          else if(chave==='co_coments' && typeof comentarios!=='undefined') comentarios = valor;
-          else if(chave==='co_notes' && typeof notes!=='undefined') notes = valor;
-        }
-        if(!_sbOnline) _sbStatus(true);
-      }
-    }catch(e){}
-  }
+  // ═══ Objetos-de-arrays (co_localMov, co_coments, co_notes) ═══
+  // NÃO fazer RMW aqui: o GET remoto traz itens que o usuário acabou de deletar,
+  // e o merge-union os re-insere. Isso quebra completamente a exclusão de andamentos.
+  // A proteção contra concurrent writes fica no lado RECEIVE (sbAplicar + _sbMergeObjectOfArrays
+  // no onmessage do Realtime). É um trade-off: priorizar deletar funcionar > proteção contra
+  // race em writes simultâneos no mesmo cliente.
   lsSet(chave, JSON.stringify(valor));
   lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
