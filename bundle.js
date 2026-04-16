@@ -9725,6 +9725,7 @@ function converterEmProcesso(cid){
 
     sbSet('co_tasks', tasks);
     sbSet('co_notes', notes);
+    sbSalvarClientesDebounced();
     marcarAlterado();
     fecharModal();
     montarClientesAgrupados();
@@ -10530,14 +10531,13 @@ function excluirProcesso(cid){
         if(g.processos.length===0) CLIENTES_AGRUPADOS.splice(gi,1);
         else g.id=g.processos[0].id;
       }
-      // Limpar localStorage deste id
+      // Limpar dados deste id em todos os stores
       delete encerrados[cid]; delete tasks[cid]; delete notes[cid]; delete localMov[cid];
       sbSet('co_encerrados', encerrados);
-    marcarAlterado();
-      sbSet('co_t', tasks);
-    marcarAlterado();
-      sbSet('co_n', notes);
-    marcarAlterado();
+      sbSet('co_tasks', tasks);
+      sbSet('co_notes', notes);
+      sbSet('co_localMov', localMov);
+      marcarAlterado();
       // Atualizar UI
       fecharModal();
       AC=null; AC_PROC=null; _grupoAtual=null;
