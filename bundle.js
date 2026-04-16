@@ -256,8 +256,11 @@ var _SB_MERGED_KEYS = new Set(['co_fin','co_localLanc','co_clientes','co_ctc','c
 // — o GET remoto ainda tem o item, o merge-union o traz de volta.
 // A proteção contra concurrent writes fica por conta do Realtime (sbAplicar + _sbMergeObjectOfArrays).
 var _SB_MERGED_OBJ_KEYS = new Set(['co_localMov','co_coments','co_notes']);
-// Flag: quando true, sbSet pula o RMW para _SB_MERGED_OBJ_KEYS (usado em operações destrutivas)
-var _sbSkipObjRMW = false;
+// Cooldown: após salvar uma chave de objeto-de-arrays, ignorar Realtime events
+// dessa chave por X ms. Sem isso, o Realtime traz o valor ANTIGO (do antes do
+// nosso POST completar) e o merge-union re-insere itens que acabamos de deletar.
+var _sbObjWriteTs = {};  // {chave: timestamp do último save local}
+var _SB_OBJ_COOLDOWN_MS = 5000; // 5 segundos de proteção após save
 
 async function sbSet(chave, valor){
   // Carimbar updated_at nos itens modificados de arrays financeiros
@@ -315,12 +318,8 @@ async function sbSet(chave, valor){
       }
     }catch(e){}
   }
-  // ═══ Objetos-de-arrays (co_localMov, co_coments, co_notes) ═══
-  // NÃO fazer RMW aqui: o GET remoto traz itens que o usuário acabou de deletar,
-  // e o merge-union os re-insere. Isso quebra completamente a exclusão de andamentos.
-  // A proteção contra concurrent writes fica no lado RECEIVE (sbAplicar + _sbMergeObjectOfArrays
-  // no onmessage do Realtime). É um trade-off: priorizar deletar funcionar > proteção contra
-  // race em writes simultâneos no mesmo cliente.
+  // Objetos-de-arrays: marcar timestamp do save para o cooldown do Realtime.
+  if(_SB_MERGED_OBJ_KEYS.has(chave)) _sbObjWriteTs[chave] = Date.now();
   lsSet(chave, JSON.stringify(valor));
   lsSet('_ts_'+chave, new Date().toISOString());
   if(!_SB_SYNC.has(chave)) return;
@@ -457,6 +456,14 @@ function sbRealtime(){
         var valor = rec.valor;
         if(typeof valor === 'string'){
           try{ valor = JSON.parse(valor); }catch(pe){ /* mantém string se não for JSON */ }
+        }
+        // Cooldown: se acabamos de salvar esta chave de objeto-de-arrays localmente,
+        // ignorar Realtime events por _SB_OBJ_COOLDOWN_MS para não re-inserir itens deletados.
+        // O Realtime pode trazer o valor ANTIGO (de antes do nosso POST completar).
+        if(_SB_MERGED_OBJ_KEYS.has(chave) && _sbObjWriteTs[chave] &&
+           (Date.now() - _sbObjWriteTs[chave]) < _SB_OBJ_COOLDOWN_MS){
+          console.debug('[SB Realtime] cooldown ativo para', chave, '— ignorando evento');
+          return; // nosso save local é mais recente, ignorar este evento
         }
         // Merge com dados locais antes de aplicar
         try {
