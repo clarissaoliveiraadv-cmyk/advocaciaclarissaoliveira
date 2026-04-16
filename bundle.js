@@ -693,13 +693,24 @@ window.coForceSync = async function(){
 
 // Diagnóstico: mostra estado local x remoto. Uso: F12 → Console → coDiagnose()
 window.coDiagnose = async function(){
-  console.log('=== DIAGNÓSTICO DE SYNC ===');
+  console.log('%c=== DIAGNÓSTICO DE SYNC ===','font-weight:bold;color:#60a5fa');
   console.log('Usuário:', _sbUsuario, '| Session:', _sbSessionId);
   console.log('Online:', _sbOnline, '| WS state:', window._sbWsLastState);
   console.log('---');
   function count(x){ return Array.isArray(x) ? x.length : (typeof x==='object'&&x ? Object.keys(x).length : 0); }
+  // Contagem de clientes ativos (como aparece no dashboard): total - encerrados - consultas
+  var encSet = getEncIds();
+  var ativos = CLIENTS.filter(function(c){ return !encSet.has(c.id) && c.tipo!=='consulta'; }).length;
+  var consultas = CLIENTS.filter(function(c){ return c.tipo==='consulta'; }).length;
+  var arquivados = CLIENTS.filter(function(c){ return encSet.has(c.id); }).length;
+  console.log('%cCLIENTES:','font-weight:bold');
+  console.log('  Total no CLIENTS array:', CLIENTS.length);
+  console.log('  → Ativos (mostrado no dashboard):', ativos);
+  console.log('  → Consultas:', consultas);
+  console.log('  → Arquivados (encerrados):', arquivados);
+  console.log('  Total encerrados (object keys):', Object.keys(encerrados||{}).length);
+  console.log('---');
   var locals = {
-    CLIENTS: count(CLIENTS),
     localLanc: count(localLanc),
     finLancs: count(finLancs),
     localContatos: count(localContatos),
@@ -711,7 +722,7 @@ window.coDiagnose = async function(){
     notes_clientes: count(notes),
     prazos_clientes: count(prazos)
   };
-  console.log('LOCAL (memória):', locals);
+  console.log('LOCAL (outras memórias):', locals);
   var tombs = {};
   ['co_fin','co_localLanc','co_clientes','co_ctc','co_vktasks','co_ag','co_localAg','co_atend'].forEach(function(k){
     var set = _tombstoneLoad(k);
@@ -726,31 +737,90 @@ window.coDiagnose = async function(){
     if(!r.ok){ console.error('Erro ao buscar remoto:', r.status); return; }
     var rows = await r.json();
     var remotos = {};
+    var remotoClientes = null;
+    var remotoEncerrados = null;
     rows.forEach(function(row){
       var v = typeof row.valor==='string' ? JSON.parse(row.valor) : row.valor;
       remotos[row.chave] = count(v);
+      if(row.chave==='co_clientes') remotoClientes = v;
+      if(row.chave==='co_encerrados') remotoEncerrados = v;
     });
     console.log('REMOTO (Supabase):', remotos);
+    if(Array.isArray(remotoClientes)){
+      var rEncSet = new Set([...Object.keys(remotoEncerrados||{}).map(Number),...Object.keys(remotoEncerrados||{})]);
+      var rAtivos = remotoClientes.filter(function(c){ return !rEncSet.has(c.id)&&c.tipo!=='consulta'; }).length;
+      console.log('  → Ativos no remoto:', rAtivos);
+    }
     console.log('---');
     // Diffs críticos
     var diffs = [];
-    if(remotos.co_clientes && locals.CLIENTS !== remotos.co_clientes){
-      diffs.push('CLIENTES: local='+locals.CLIENTS+' remoto='+remotos.co_clientes+' ('+(remotos.co_clientes - locals.CLIENTS)+' de diferença)');
+    if(remotos.co_clientes && CLIENTS.length !== remotos.co_clientes){
+      diffs.push('CLIENTS total: local='+CLIENTS.length+' remoto='+remotos.co_clientes);
+    }
+    if(remotos.co_encerrados !== undefined && Object.keys(encerrados||{}).length !== remotos.co_encerrados){
+      diffs.push('ENCERRADOS: local='+Object.keys(encerrados||{}).length+' remoto='+remotos.co_encerrados);
     }
     if(remotos.co_localLanc && locals.localLanc !== remotos.co_localLanc){
       diffs.push('LOCALLANC: local='+locals.localLanc+' remoto='+remotos.co_localLanc);
     }
-    if(remotos.co_fin && locals.finLancs !== remotos.co_fin){
-      diffs.push('FINLANCS: local='+locals.finLancs+' remoto='+remotos.co_fin);
-    }
     if(diffs.length){
-      console.warn('⚠ DIVERGÊNCIAS:', diffs);
+      console.warn('%c⚠ DIVERGÊNCIAS:','font-weight:bold;color:#f87676', diffs);
       console.log('→ Rodar coForceSync() para ressincronizar');
     } else {
-      console.log('✓ Sem divergências detectadas');
+      console.log('%c✓ Sem divergências detectadas','color:#4ade80');
     }
   }catch(e){ console.error('Erro no diagnóstico:', e); }
-  return 'Diagnóstico completo — veja o console';
+  console.log('---');
+  console.log('Comandos úteis:');
+  console.log('  coForceSync()       → ressincroniza com a nuvem');
+  console.log('  coVerEncerrados()   → lista IDs e nomes dos encerrados');
+  console.log('  coReativarTodos()   → desarquiva todos (cuidado!)');
+  return 'Diagnóstico completo — veja acima';
+};
+
+// Ver quais clientes estão encerrados/arquivados (pode ter sido feito sem querer)
+window.coVerEncerrados = function(){
+  var ids = Object.keys(encerrados||{});
+  if(!ids.length){ console.log('Nenhum processo encerrado.'); return; }
+  console.log('%c=== PROCESSOS ENCERRADOS ('+ids.length+') ===','font-weight:bold;color:#fb923c');
+  ids.forEach(function(id){
+    var c = findClientById(id) || findClientById(Number(id));
+    if(c){
+      console.log('  ['+id+'] '+c.cliente+(c.pasta?' — Pasta '+c.pasta:''));
+    } else {
+      console.log('  ['+id+'] (cliente não encontrado no CLIENTS)');
+    }
+  });
+  console.log('---');
+  console.log('Para desarquivar UM: coReativar(ID_DO_CLIENTE)');
+  console.log('Para desarquivar TODOS: coReativarTodos()');
+  return ids.length + ' encerrados';
+};
+
+// Desarquivar um cliente específico
+window.coReativar = function(id){
+  if(!encerrados[id] && !encerrados[String(id)]){ return 'ID '+id+' não está arquivado'; }
+  delete encerrados[id]; delete encerrados[String(id)];
+  _encIdsCache = null;
+  sbSet('co_encerrados', encerrados);
+  marcarAlterado();
+  if(typeof doSearch==='function') doSearch();
+  if(typeof atualizarStats==='function') atualizarStats();
+  return 'Cliente '+id+' reativado ✓';
+};
+
+// Desarquivar TODOS os clientes encerrados (usar com cuidado!)
+window.coReativarTodos = function(){
+  var ids = Object.keys(encerrados||{});
+  if(!ids.length){ return 'Nenhum encerrado'; }
+  var count = ids.length;
+  for(var k in encerrados) delete encerrados[k];
+  _encIdsCache = null;
+  sbSet('co_encerrados', encerrados);
+  marcarAlterado();
+  if(typeof doSearch==='function') doSearch();
+  if(typeof atualizarStats==='function') atualizarStats();
+  return count+' processos reativados ✓';
 };
 
 async function sbInit(){
