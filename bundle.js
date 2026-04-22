@@ -210,6 +210,12 @@ function _sbMerge(chave, localVal, remoteVal){
 var _sbSetTimers = {};
 var _sbSetPending = {};
 function sbSetDebounced(chave, valor){
+  // CRÍTICO: salvar no localStorage IMEDIATAMENTE — sem esperar o debounce.
+  // Sem isso, há uma janela de 300-900ms onde o dado só existe em memória.
+  // Se o usuário fechar a aba, dar F5, ou o browser crashar nessa janela,
+  // o dado é PERDIDO (ex: cliente "Reinaldo Chaves Batista" sumiu).
+  try{ lsSet(chave, JSON.stringify(valor)); }catch(e){}
+  // Debounce apenas o POST ao Supabase (operação de rede, cara, pode esperar)
   _sbSetPending[chave] = valor;
   clearTimeout(_sbSetTimers[chave]);
   _sbSetTimers[chave] = setTimeout(function(){ sbSet(chave, _sbSetPending[chave]); delete _sbSetPending[chave]; }, 300);
@@ -232,6 +238,38 @@ function _sbCheckQuota(){
   } catch(e){}
 }
 setInterval(_sbCheckQuota, 300000);
+
+// ── beforeunload: flush saves pendentes antes da aba fechar ──
+// Sem isso, sbSetDebounced agenda um timer de 300ms. Se o usuário
+// fecha a aba em <300ms, o POST nunca dispara e o dado se perde.
+// O lsSet imediato (fix acima) já protege o localStorage, mas o
+// Supabase ainda precisa do POST. Usamos navigator.sendBeacon
+// como fallback (funciona mesmo com a aba fechando).
+window.addEventListener('beforeunload', function(){
+  var keys = Object.keys(_sbSetPending);
+  if(!keys.length) return;
+  keys.forEach(function(chave){
+    var valor = _sbSetPending[chave];
+    if(!valor) return;
+    // Garantir lsSet (redundante com o fix no sbSetDebounced, mas seguro)
+    try{ lsSet(chave, JSON.stringify(valor)); }catch(e){}
+    // Tentar enviar ao Supabase via sendBeacon (non-blocking, funciona no unload)
+    try{
+      if(navigator.sendBeacon && _SB_SYNC.has(chave)){
+        navigator.sendBeacon(
+          _SB_URL+'/rest/v1/'+_SB_TBL,
+          new Blob([JSON.stringify({
+            chave: chave, valor: valor,
+            updated_at: new Date().toISOString(),
+            updated_by: _sbUsuario,
+            _session_id: _sbSessionId
+          })], {type:'application/json'})
+        );
+      }
+    }catch(e){}
+    delete _sbSetPending[chave];
+  });
+});
 
 function _sbH(){
   return {
@@ -10475,7 +10513,7 @@ function sbSalvarClientes(){
   sbSetDebounced('co_clientes', CLIENTS);
 }
 // Debounce de alto nível para operações de edição que disparam múltiplos salvamentos em sequência
-function sbSalvarClientesDebounced(){ _debounce('sbClientes', sbSalvarClientes, 600); }
+function sbSalvarClientesDebounced(){ _debounce('sbClientes', sbSalvarClientes, 200); }
 
 // ── Carregar CLIENTS do Supabase (sobrescreve embutidos se existir) ──
 async function sbCarregarClientes(){
