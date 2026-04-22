@@ -10506,6 +10506,9 @@ function toggleTema(){
 // Dados carregados do servidor (dados.json)
 var CLIENTS=[], ALL_LANC=[], PEND=[], FIN_XLSX=[];
 const MOV_INDEX={};
+// Despesas de processo (reembolso) — variável que era usada sem declaração (ReferenceError)
+var despesasProcesso = [];
+try{ var _dp = JSON.parse(lsGet('co_desp_proc')||'[]'); if(Array.isArray(_dp)) despesasProcesso=_dp; }catch{}
 
 // ── Salvar CLIENTS no Supabase ──
 function sbSalvarClientes(){
@@ -10587,11 +10590,11 @@ function carregarDadosObj(d){
   tasks         = loadKey('co_tasks',        m.tasks,         {});
   encerrados    = loadKey('co_encerrados',    m.encerrados,    {});
   notes         = loadKey('co_notes',         m.notes,         {});
-  localAg       = loadKey('co_localAg',       m.localAg,       []);
+  localAg       = loadKey('co_ag',             m.localAg,       []);
   localMov      = loadKey('co_localMov',      m.localMov,      {});
   localLanc     = loadKey('co_localLanc',     m.localLanc,     []);
   localContatos = loadKey('co_ctc', m.localContatos, []);
-  tarefasDia    = loadKey('co_tarefasDia',    m.tarefasDia,    {});
+  tarefasDia    = loadKey('co_td',             m.tarefasDia,    {});
   // Filtrar localLanc carregado por tombstones (anti-zombificação)
   if(typeof _tombstoneHas==='function'){
     localLanc = (localLanc||[]).filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
@@ -10877,11 +10880,11 @@ function importarDados(){
         sbSet('co_tasks', tasks);
         sbSet('co_encerrados', encerrados);
         sbSet('co_notes', notes);
-        sbSet('co_localAg', localAg); invalidarAllPend();
+        sbSet('co_ag', localAg); invalidarAllPend();
         sbSet('co_localMov', localMov);
         sbSet('co_localLanc', localLanc);
         sbSet('co_ctc', localContatos); invalidarCtcCache();
-        sbSet('co_tarefasDia', tarefasDia);
+        sbSet('co_td', tarefasDia);
         marcarAlterado();
         montarClientesAgrupados(); atualizarStats(); renderChecklist(); renderHomeWeek(); doSearch();
         alert('✓ Dados importados com sucesso!');
@@ -11803,7 +11806,9 @@ _SB_SYNC.add('co_prazos');
 
 function prazosSalvar(){
   sbSet('co_prazos', prazos);
-  sbSet('co_td', prazos); // sync legado
+  // NÃO escrever em co_td — essa chave é de tarefasDia, não de prazos.
+  // A linha anterior (sbSet('co_td', prazos)) sobrescrevia tarefasDia com
+  // dados de prazos, corrompendo o checklist de tarefas do dia.
 }
 
 // ── Helpers de prazo ──
