@@ -12184,34 +12184,52 @@ function togglePrazo(cid, pid){
 }
 
 // prazosConcluirComDesfecho — conclui prazo com modal de desfecho (chamada pelo botão de status)
+// Prazos na aba "Prazos" da pasta são SEMPRE judiciais → exige protocolo/ID do documento.
 function prazosConcluirComDesfecho(cid, pid){
   var lista = prazos[cid]||[];
   var p = lista.find(function(x){ return x.id===pid||String(x.id)===String(pid); });
   if(!p){ showToast('Prazo não encontrado'); return; }
-  abrirModal('Concluir Prazo — '+(p.titulo||''),
-    '<div style="margin-bottom:12px"><div style="font-size:13px;font-weight:600;color:var(--tx)">'+(p.titulo||'Prazo')+'</div>'
-    +'<div style="font-size:11px;color:var(--mu);margin-top:3px">Vencimento: '+fDt(p.data)+'</div></div>'
-    +'<div><label class="fm-lbl">Desfecho / observação</label>'
-    +'<textarea class="fm-inp" id="pcd-obs" rows="2" placeholder="O que foi feito para cumprir o prazo..."></textarea></div>',
+  abrirModal('⚖️ Cumprimento de Prazo — '+(p.titulo||''),
+    '<div style="margin-bottom:10px">'
+      +'<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(p.titulo||'Prazo')+'</div>'
+      +'<div style="font-size:11px;color:var(--mu);margin-top:3px">Vencimento: '+fDt(p.data)+'</div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+      +'Informe a <strong>prova do cumprimento</strong>. Isso fica registrado no histórico da pasta.'
+    +'</div>'
+    +'<div>'
+      +'<label class="fm-lbl">Link do protocolo ou ID do documento <span class="req">*</span></label>'
+      +'<input class="fm-inp" id="pcd-protocolo" value="'+escapeHtml(p.protocolo||'')+'" placeholder="Ex: PRJ-12345 · 0012345-67.2026.5.03.0001 · https://...">'
+    +'</div>'
+    +'<div style="margin-top:8px">'
+      +'<label class="fm-lbl">Desfecho / observação (opcional)</label>'
+      +'<textarea class="fm-inp" id="pcd-obs" rows="2" placeholder="O que foi feito para cumprir o prazo..."></textarea>'
+    +'</div>',
   function(){
+    var prot = (document.getElementById('pcd-protocolo')?.value||'').trim();
+    if(!prot){ showToast('Informe o link ou ID do protocolo'); return; }
     var obs = (document.getElementById('pcd-obs')?.value||'').trim();
     p.cumprido = true;
     p.cumprido_em = new Date().toISOString().slice(0,10);
     p.obs_conclusao = obs;
+    p.protocolo = prot;
     prazosSalvar();
     marcarAlterado();
     fecharModal();
     if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
-    // Registrar andamento na pasta
+    // Registrar andamento na pasta (com protocolo)
     if(!localMov[cid]) localMov[cid]=[];
+    var msg = 'Prazo "'+(p.titulo||'')+'" cumprido — protocolo: '+prot;
+    if(obs) msg += ' · '+obs;
     localMov[cid].unshift({
       data: new Date().toISOString().slice(0,10),
-      movimentacao: '[Concluído] Prazo: '+(p.titulo||'')+(obs?' — '+obs:''),
-      tipo_movimentacao: 'Agenda', origem: 'prazo_concluido'
+      movimentacao: msg,
+      tipo_movimentacao: 'Judicial',
+      origem: 'prazo_cumprido'
     });
     sbSet('co_localMov', localMov);
-    showToast('Prazo concluído ✓');
-  }, '✅ Concluir prazo');
+    showToast('Prazo cumprido ✓');
+  }, '✅ Confirmar Cumprimento');
 }
 
 function editarPrazo(cid,pid){
@@ -15904,12 +15922,32 @@ function agendaConcluirComDesfecho(agId, cid){
   const item = localAg[idx];
   if(item.realizado){ showToast('Ja esta concluido'); return; }
 
-  abrirModal('Concluir Compromisso',
+  // Se o compromisso é do tipo "Prazo", exige protocolo/ID como prova do cumprimento.
+  var tipoComp = (item.tipo_compromisso||item.tipo||'').toLowerCase();
+  var isPrazo = tipoComp === 'prazo';
+  var protocoloField = isPrazo
+    ? '<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+       +'Este compromisso é do tipo <strong style="color:var(--ouro)">Prazo Judicial</strong>. '
+       +'Informe a <strong>prova do cumprimento</strong>.'
+      +'</div>'
+      +'<div>'
+       +'<label class="fm-lbl">Link do protocolo ou ID do documento <span class="req">*</span></label>'
+       +'<input class="fm-inp" id="agcd-protocolo" value="'+escapeHtml(item.protocolo||'')+'" placeholder="Ex: PRJ-12345 · https://...">'
+      +'</div>'
+    : '';
+
+  abrirModal((isPrazo?'⚖️ Cumprimento de Prazo':'Concluir Compromisso'),
     '<div style="margin-bottom:10px;font-size:13px;font-weight:600;color:var(--tx)">'+(item.titulo||'Compromisso')+'</div>'
-    +'<div><label class="fm-lbl">Como foi? (opcional)</label>'
+    +protocoloField
+    +'<div'+(isPrazo?' style="margin-top:8px"':'')+'><label class="fm-lbl">'+(isPrazo?'Desfecho / observações (opcional)':'Como foi? (opcional)')+'</label>'
       +'<textarea class="fm-inp" id="agcd-obs" rows="3" placeholder="Resultado, observacoes, proximo passo..."></textarea>'
     +'</div>',
   ()=>{
+    var prot = '';
+    if(isPrazo){
+      prot = (document.getElementById('agcd-protocolo')?.value||'').trim();
+      if(!prot){ showToast('Informe o link ou ID do protocolo'); return; }
+    }
     const obs = document.getElementById('agcd-obs')?.value.trim()||'';
     localAg[idx] = {
       ...localAg[idx],
@@ -15918,14 +15956,26 @@ function agendaConcluirComDesfecho(agId, cid){
       dt_conclusao: new Date().toISOString().slice(0,10),
       obs_conclusao: obs
     };
+    if(prot) localAg[idx].protocolo = prot;
     sbSet('co_ag', localAg); invalidarAllPend();
     // Andamento na pasta
     if(cid){
       if(!localMov[cid]) localMov[cid]=[];
+      var msg, tipoMov, origem;
+      if(isPrazo){
+        msg = 'Prazo "'+(item.titulo||'Compromisso')+'" cumprido — protocolo: '+prot;
+        if(obs) msg += ' · '+obs;
+        tipoMov = 'Judicial';
+        origem = 'compromisso_prazo_cumprido';
+      } else {
+        msg = '[Concluido] '+(item.titulo||'Compromisso')+(obs?' — '+obs:'');
+        tipoMov = 'Agenda';
+        origem = 'agenda_concluido';
+      }
       localMov[cid].unshift({
         data: new Date().toISOString().slice(0,10),
-        movimentacao: '[Concluido] '+(item.titulo||'Compromisso')+(obs?' — '+obs:''),
-        tipo_movimentacao: 'Agenda', origem: 'agenda_concluido'
+        movimentacao: msg,
+        tipo_movimentacao: tipoMov, origem: origem
       });
       sbSet('co_localMov', localMov);
     }
