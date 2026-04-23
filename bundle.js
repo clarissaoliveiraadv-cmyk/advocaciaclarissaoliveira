@@ -1970,7 +1970,8 @@ function hcEnviarKanban(id, titulo, cliente, hoje){
     titulo, cliente, tipo:'tarefa',
     prioridade:'media', responsavel:'Clarissa',
     prazo: hoje, status:'todo', paraHoje: hoje,
-    obs:'', origem:'manual'
+    obs:'', origem:'manual',
+    status_since: hoje
   });
   // Remover do legado
   const parts = id.split('_');
@@ -2038,7 +2039,8 @@ function novoTarefaDia(){
       processo:    cliMatch ? cliMatch.id : 0,
       prioridade: 'media',
       prazo: hoje, paraHoje: hoje,
-      status: 'todo', origem: 'manual'
+      status: 'todo', origem: 'manual',
+      status_since: hoje
     });
     vkSalvar();
     fecharModal();
@@ -2084,6 +2086,49 @@ const VK_RESP_COR = {
   'Estagiário 1':'#065f46',
   'Estagiário 2':'#713f12',
 };
+
+// Mapa perfil (auth) -> nome do responsável (dropdown de tarefas).
+// Usado pelo filtro "Minha Pauta" para saber o que é do usuário logado.
+function _meuNome(){
+  var mapa = {advogada:'Clarissa', assistente:'Assistente', estagiario:'Estagiário 1'};
+  if(typeof _sbPerfil!=='undefined' && _sbPerfil && _sbPerfil.perfil){
+    return mapa[_sbPerfil.perfil] || 'Clarissa';
+  }
+  return 'Clarissa';
+}
+
+// Muda status de uma tarefa (via dropdown no card OU drag-drop).
+// Quando move para 'done', adiciona linha automática em localMov
+// da pasta do processo — evita escrever duas vezes a mesma coisa.
+function vkMudarStatus(id, novoStatus){
+  var t = vkTasks.find(function(x){ return String(x.id)===String(id); });
+  if(!t) return;
+  var antes = t.status;
+  t.status = novoStatus;
+  t.status_since = new Date(HOJE).toISOString().slice(0,10);
+  if(novoStatus==='done' || novoStatus==='concluido'){
+    t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
+    // Auto-histórico na pasta — só se a tarefa estiver vinculada a um processo
+    // e ainda não tiver gerado histórico (evita duplicar se voltar→concluir).
+    if(t.processo && antes!=='done' && antes!=='concluido'){
+      if(!localMov[t.processo]) localMov[t.processo] = [];
+      localMov[t.processo].unshift({
+        data: new Date(HOJE).toISOString().slice(0,10),
+        movimentacao: 'Tarefa "'+(t.titulo||'—')+'" concluída por '+(t.responsavel||'—'),
+        tipo_movimentacao: 'Sistema',
+        origem: 'kanban_conclusao'
+      });
+      sbSet('co_localMov', localMov);
+    }
+  } else {
+    delete t.concluido_em;
+  }
+  vkSalvar();
+  vkRender();
+  if(typeof renderChecklist==='function') renderChecklist();
+  var lbl = VK_COLUNAS.find(function(c){ return c.id===novoStatus; });
+  showToast('Movido para "'+(lbl?lbl.label:novoStatus)+'"');
+}
 
 // ── Helpers de status unificados ──
 const VK_ETAPA_LABEL = {todo:'A Fazer', andamento:'Fazendo', done:'Concluído', concluido:'Concluído'};
@@ -2149,7 +2194,49 @@ function vkRender(){
   else if(_vkTab==='lista')       el.innerHTML = vkRenderLista(tasks);
   else if(_vkTab==='urgentes')    el.innerHTML = vkRenderUrgentes(tasks);
   else if(_vkTab==='responsavel') el.innerHTML = vkRenderResponsavel(tasks);
+  else if(_vkTab==='minhapauta')  el.innerHTML = vkRenderMinhaPauta(tasks);
   vkBindDrag();
+}
+
+// ── MINHA PAUTA ──
+// Só tarefas atribuídas ao usuário logado com prazo ≤ hoje+2d.
+// "Botão de foco total" para começar o dia (spec da Clarissa).
+function vkRenderMinhaPauta(tasks){
+  var meu = _meuNome();
+  var hoje = new Date(HOJE).toISOString().slice(0,10);
+  var em2d = new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
+  var minhas = tasks.filter(function(t){
+    if(isDone(t)) return false;
+    if(t.responsavel !== meu) return false;
+    return t.prazo && t.prazo <= em2d;
+  });
+  var atras = minhas.filter(function(t){ return t.prazo < hoje; }).sort(function(a,b){ return (a.prazo||'').localeCompare(b.prazo||''); });
+  var prox = minhas.filter(function(t){ return t.prazo >= hoje; }).sort(function(a,b){ return (a.prazo||'').localeCompare(b.prazo||''); });
+
+  var item = function(t){
+    var dias = Math.ceil((new Date(t.prazo)-new Date(hoje))/(1000*60*60*24));
+    var cor = dias<0?'#f87171':dias===0?'#fb923c':dias<=2?'#fb923c':'#4ade80';
+    return '<div class="vk-urg-item tipo-'+(t.tipo||'tarefa')+'" onclick="vkEditar(\''+t.id+'\')" style="cursor:pointer">'
+      +'<span style="font-size:12px">'+(TIPO_LABEL[t.tipo]||'📋')+'</span>'
+      +'<div style="flex:1">'
+        +'<div class="vk-urg-txt">'+escapeHtml(t.titulo||'—')+'</div>'
+        +'<div class="vk-urg-cli">'+escapeHtml(t.cliente||'—')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:11px;font-weight:700;color:'+cor+'">'+(dias<0?'ATRASADO':dias===0?'HOJE':dias+'d')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu)">'+fDt(t.prazo)+'</div>'
+      +'</div>'
+    +'</div>';
+  };
+
+  if(!minhas.length){
+    return '<div style="text-align:center;padding:48px;color:var(--mu);font-size:13px">🎯 Nada pra hoje ou próximos 2 dias na sua pauta ('+meu+'). Aproveite para avançar em coisas maiores.</div>';
+  }
+  return '<div class="vk-urgentes" style="overflow-y:auto;flex:1">'
+    +'<div style="padding:12px 16px 4px;font-size:11px;color:var(--mu)">🎯 Foco em <strong>'+escapeHtml(meu)+'</strong> · próximos 2 dias</div>'
+    +(atras.length?'<div class="vk-urg-title" style="color:#f87171">⚠️ ATRASADAS — '+atras.length+'</div>'+atras.map(item).join(''):'')
+    +(prox.length?'<div class="vk-urg-title" style="color:#fb923c;margin-top:'+(atras.length?16:0)+'px">⏰ PRÓXIMAS — '+prox.length+'</div>'+prox.map(item).join(''):'')
+  +'</div>';
 }
 
 // ── KANBAN ──
@@ -2398,6 +2485,23 @@ function vkCard(t){
 
   const bloqueado = t.origem==='agenda';
 
+  // Indicador de gargalo: card parado há mais de 5 dias na mesma coluna.
+  // Só considera tarefas com status_since definido (evita falso positivo em
+  // cards antigos criados antes desse campo existir — eles ficam neutros).
+  var gargaloHtml = '';
+  if(t.status_since && t.status!=='done' && t.status!=='concluido'){
+    var diasParado = Math.floor((new Date(hoje)-new Date(t.status_since))/(1000*60*60*24));
+    if(diasParado>=5){
+      var corG = diasParado>=10 ? '#f87171' : '#fb923c';
+      gargaloHtml = '<span class="vk-gargalo" title="Parado há '+diasParado+' dias na coluna" style="font-size:10px;color:'+corG+';font-weight:700;margin-left:6px">⏱ '+diasParado+'d</span>';
+    }
+  }
+
+  // Status dropdown — permite mudar coluna no mobile (onde drag é ruim)
+  const statusSel = '<select class="vk-card-status-sel" onchange="vkMudarStatus(\''+t.id+'\', this.value); event.stopPropagation()" onclick="event.stopPropagation()" title="Mover">'
+    + VK_COLUNAS.map(function(c){ return '<option value="'+c.id+'"'+(c.id===t.status?' selected':'')+'>'+c.icon+' '+c.label+'</option>'; }).join('')
+    + '</select>';
+
   const isDone = t.status === 'done' || t.status === 'concluido';
   if(isDone){
     return '<div class="vk-card vk-card-done" data-id="'+t.id+'" id="vkcard-'+t.id+'">'
@@ -2409,6 +2513,7 @@ function vkCard(t){
           +(t.desfecho?'<div class="vk-card-done-desfecho">'+t.desfecho+'</div>':'')
           +'<div class="vk-card-done-data">Concluido em '+(t.concluido_em||'hoje')+'</div>'
         +'</div>'
+        +'<button class="vk-card-btn" onclick="vkMudarStatus(\''+t.id+'\',\'todo\')" title="Reabrir">↩</button>'
         +'<button class="vk-card-btn del" onclick="vkDeletar(\''+t.id+'\')" title="Apagar">✕</button>'
       +'</div>'
     +'</div>';
@@ -2416,7 +2521,7 @@ function vkCard(t){
 
   return `<div class="vk-card" draggable="true" data-id="${t.id}" id="vkcard-${t.id}">
     <div class="vk-card-top">
-      <div class="vk-card-titulo">${t.titulo}</div>
+      <div class="vk-card-titulo">${t.titulo}${gargaloHtml}</div>
       ${respTag}
     </div>
     <div class="vk-card-badges">
@@ -2431,6 +2536,7 @@ function vkCard(t){
     <div class="vk-card-footer">
       <span class="vk-card-cli">${t.contato_nome?`👤 ${t.contato_nome}`:(t.cliente||'—')}</span>
       <div class="vk-card-acoes">
+        ${statusSel}
         <button class="vk-card-btn" onclick="vkEditar('${t.id}')">✏</button>
         <button class="vk-card-btn" onclick="vkMarcarHoje('${t.id}')" title="Adicionar ao checklist de hoje">📋</button>
         ${t.status==='revisao'?`<button class="vk-card-btn concluir" onclick="vkConcluirComDesfecho('${t.id}')" title="Concluir e lançar próximo ato">✅ Concluir</button>`:''}
@@ -2468,17 +2574,18 @@ function vkDrop(colId, el){
       id: 'vk'+genId(), titulo:orig.titulo, tipo:agTipo(orig),
       status: colId, responsavel:'Clarissa', prioridade:'media',
       prazo:orig.dt_raw, cliente:orig.cliente||'', processo:orig.id_processo||0,
-      obs:'', origem:'manual'
+      obs:'', origem:'manual',
+      status_since: new Date(HOJE).toISOString().slice(0,10)
     };
+    if(colId==='done') t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
     vkTasks.push(t);
-  } else {
-    t.status = colId;
-    if(colId==='done'){ t.concluido_em = new Date(HOJE).toISOString().slice(0,10); }
-    else { delete t.concluido_em; }
+    vkSalvar();
+    vkRender();
+    var lbl = VK_COLUNAS.find(function(c){ return c.id===colId; });
+    showToast('Movido para "'+(lbl?lbl.label:colId)+'"');
+    return;
   }
-  vkSalvar();
-  vkRender();
-  showToast(`Movido para "${VK_COLUNAS.find(c=>c.id===colId)?.label}"`);
+  vkMudarStatus(id, colId);
 }
 
 // ── URGENTES ──
