@@ -1660,6 +1660,7 @@ function ctcDeletar(id){
   abrirModal('Excluir contato',
     `<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"${escapeHtml(c.nome||'este contato')}"</strong>?<br><span style="font-size:11px">Esta ação não pode ser desfeita.</span></div>`,
     ()=>{
+      _tombstoneAdd('co_ctc', id);
       localContatos = localContatos.filter(x=>String(x.id)!==String(id));
       invalidarCtcCache(); sbSet('co_ctc', localContatos);
       marcarAlterado(); _ctcSel = null; fecharModal();
@@ -2933,6 +2934,7 @@ function vkDeletarPasta(id, cid){
   abrirModal('Excluir tarefa',
     '<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"'+(t?escapeHtml(t.titulo||'esta tarefa'):'esta tarefa')+'"</strong>?</div>',
     ()=>{
+      _tombstoneAdd('co_vktasks', id);
       vkTasks = vkTasks.filter(function(x){return String(x.id)!==String(id);});
       vkSalvar(); marcarAlterado(); fecharModal();
       var el = document.getElementById('tp7-list-'+cid);
@@ -3334,6 +3336,7 @@ function vkDeletar(id){
   abrirModal('Excluir tarefa',
     `<div style="font-size:13px;color:var(--mu);line-height:1.6">Excluir <strong style="color:var(--tx)">"${escapeHtml(t.titulo||'esta tarefa')}"</strong>?<br><span style="font-size:11px">Esta ação não pode ser desfeita.</span></div>`,
     ()=>{
+      _tombstoneAdd('co_vktasks', id);
       vkTasks = vkTasks.filter(x=>String(x.id)!==String(id));
       vkSalvar(); marcarAlterado(); fecharModal(); vkRender();
       showToast('Tarefa excluída');
@@ -11644,6 +11647,9 @@ function excluirProcesso(cid){
       <p style="margin-top:8px">Processo: <strong style="color:var(--fg)">${c.cliente} — Pasta ${c.pasta}</strong></p>
     </div>`,
     ()=>{
+      // Tombstone: registra antes de splice local, pra que outro PC que tenha o
+      // cliente ainda no array receba a marca de exclusão e NÃO ressuscite.
+      _tombstoneAdd('co_clientes', cid);
       // Remover do CLIENTS
       const idx=CLIENTS.findIndex(x=>x.id===cid);
       if(idx>=0) CLIENTS.splice(idx,1);
@@ -13130,7 +13136,8 @@ function _migrarPrazosParaAg(){
 try { _migrarPrazosParaAg(); } catch(e){}
 
 function renderPrazos(cid){
-  const lista=prazos[cid]||[], hoje=getTodayKey();
+  // Filtra tombstones inline (prazos excluídos não devem reaparecer via sync)
+  const lista=(prazos[cid]||[]).filter(function(p){return !p.deleted;}), hoje=getTodayKey();
   const pend=lista.filter(p=>!p.cumprido).sort((a,b)=>a.data.localeCompare(b.data));
   const done=lista.filter(p=>p.cumprido).sort((a,b)=>b.data.localeCompare(a.data));
   const MA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -13295,6 +13302,10 @@ function excluirAgCliente(agId, cid){
       <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
     </div>`,
     ()=>{
+      // Tombstone o id real (e id_agenda se houver) — cobre os dois caminhos
+      // de resolução no sbAplicar.
+      _tombstoneAdd('co_ag', raw);
+      _tombstoneAdd('co_localAg', raw);
       localAg = (localAg||[]).filter(function(a){return String(a.id)!==raw&&String(a.id_agenda)!==raw;});
       sbSet('co_ag', localAg); invalidarAllPend();
       marcarAlterado();
@@ -13990,6 +14001,8 @@ function calEvtExcluir(id, cid){
         <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
       </div>`,
       ()=>{
+        _tombstoneAdd('co_ag', raw);
+        _tombstoneAdd('co_localAg', raw);
         localAg=(localAg||[]).filter(a=>String(a.id||a.id_agenda)!==raw);
         sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado(); fecharModal();
         if(cid){ const el=document.getElementById('tp-agenda-proc-'+cid); if(el) el.innerHTML=renderAgendaProc(cid); }
@@ -15977,13 +15990,19 @@ function _finRenderSidebar(cid){
 
 function renderTasks(cid){
   const list=tasks[cid]||[];
-  if(!list.length)return`<div class="fempty">Nenhuma tarefa adicionada</div>`;
-  return list.map((t,i)=>`<div class="titem">
-    <input type="checkbox" class="tcb" ${t.done?'checked':''} onchange="toggleTask(${cid},${i})">
-    <span class="ttxt ${t.done?'done':''}">${t.text}</span>
-    <span class="tetapa ${t.etapa==='A FAZER'?'ef':t.etapa==='FAZENDO'?'ez':'eo'}">${t.etapa}</span>
-    <button class="tdel" onclick="delTask(${cid},${i})">✕</button>
-  </div>`).join('');
+  const visiveis = list.filter(function(t){ return !t.deleted; });
+  if(!visiveis.length)return`<div class="fempty">Nenhuma tarefa adicionada</div>`;
+  // Preserva o índice original (i) para que os handlers onclick acertem o item certo
+  // mesmo com tombstones inline (itens com deleted:true são pulados).
+  return list.map((t,i)=>{
+    if(t.deleted) return '';
+    return `<div class="titem">
+      <input type="checkbox" class="tcb" ${t.done?'checked':''} onchange="toggleTask(${cid},${i})">
+      <span class="ttxt ${t.done?'done':''}">${t.text}</span>
+      <span class="tetapa ${t.etapa==='A FAZER'?'ef':t.etapa==='FAZENDO'?'ez':'eo'}">${t.etapa}</span>
+      <button class="tdel" onclick="delTask(${cid},${i})">✕</button>
+    </div>`;
+  }).join('');
 }
 function addTask(cid){
   var inp=document.getElementById('ti-'+cid); if(!inp) return;
@@ -16005,7 +16024,12 @@ function toggleTask(cid,i){
     marcarAlterado();document.getElementById(`tl-${cid}`).innerHTML=renderTasks(cid);}
 function delTask(cid,i){
   abrirModal('Excluir tarefa','<div style="font-size:13px;color:var(--mu)">Excluir esta tarefa?</div>',function(){
-    tasks[cid].splice(i,1);sbSet('co_tasks',tasks);
+    // Inline tombstone: tasks[cid] \u00e9 nested (objeto-de-arrays), sem suporte
+    // ao _tombstoneAdd array. Marca deleted:true para sobreviver ao merge
+    // de sync \u2014 renderTasks filtra inline, mantendo \u00edndices.
+    if(!tasks[cid]||!tasks[cid][i]){ fecharModal(); return; }
+    tasks[cid][i] = Object.assign({}, tasks[cid][i], {deleted:true, deleted_at:new Date().toISOString()});
+    sbSet('co_tasks',tasks);
     marcarAlterado();fecharModal();
     var el=document.getElementById('tl-'+cid);if(el)el.innerHTML=renderTasks(cid);showToast('Tarefa exclu\u00edda');
   },'Excluir');
@@ -16478,13 +16502,27 @@ function deletarPrazo(cid, pid){
   abrirModal('Excluir prazo','<div style="font-size:13px;color:var(--mu)">Excluir este prazo permanentemente?</div>',function(){
     fecharModal();
     if(!prazos[cid]) return;
-    prazos[cid] = prazos[cid].filter(function(p){return p.id!==pid && String(p.id)!==String(pid);});
+    // Inline tombstone: prazos é objeto-de-arrays (nested por cid).
+    // Marca deleted:true em vez de splice — evita ressurreição no merge.
+    // Renders filtram !p.deleted.
+    prazos[cid] = prazos[cid].map(function(p){
+      if(p.id===pid || String(p.id)===String(pid)){
+        return Object.assign({}, p, {deleted:true, deleted_at:new Date().toISOString()});
+      }
+      return p;
+    });
     prazosSalvar(); // salva em co_prazos E co_td
     marcarAlterado();
-    // Também remover de localAg se foi migrado
-    var agAntes = localAg.length;
-    localAg = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)!==String(pid); });
-    if(localAg.length<agAntes){ sbSet('co_ag', localAg); invalidarAllPend(); }
+    // Também remover de localAg se foi migrado — com tombstone array (flat)
+    var agsRemovidos = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)===String(pid); });
+    agsRemovidos.forEach(function(a){
+      _tombstoneAdd('co_ag', a.id);
+      _tombstoneAdd('co_localAg', a.id);
+    });
+    if(agsRemovidos.length){
+      localAg = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)!==String(pid); });
+      sbSet('co_ag', localAg); invalidarAllPend();
+    }
     // Re-renderizar
     var wrap = document.querySelector('#prazo-'+cid+'-'+pid)?.closest('.prazos-wrap')?.parentElement;
     if(wrap) wrap.innerHTML = renderPrazos(cid);
