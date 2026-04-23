@@ -40,6 +40,132 @@ var _SB_CFG = (function(){
 var _SB_URL = _SB_CFG.url;
 var _SB_KEY = _SB_CFG.key;
 var _SB_TBL = 'escritorio_dados';
+
+// ═══════════════════════════════════════════════════════
+// ══ AUTENTICAÇÃO — Supabase Auth (gate de acesso) ═══
+// ═══════════════════════════════════════════════════════
+//
+// Fluxo:
+// 1. Usuário abre o app → authBoot() checa sessão em localStorage
+// 2. Se sessão válida → roda init() normalmente
+// 3. Se ausente/expirada → mostra tela de login (#auth-overlay)
+// 4. Após login, _sbSession é preenchido e init() é chamado
+// 5. _sbH() usa o access_token do usuário no header Authorization
+//
+var _sbSession = null;  // {access_token, refresh_token, expires_at, user:{id,email}}
+var _sbPerfil = null;   // {nome, perfil} da tabela perfis (carregado após login)
+
+function _authLoadSession(){
+  try {
+    var s = localStorage.getItem('co_session');
+    if(!s) return null;
+    var sess = JSON.parse(s);
+    // Checar validade
+    if(!sess || !sess.access_token || !sess.expires_at) return null;
+    var now = Math.floor(Date.now()/1000);
+    // Se já expirou completamente, descartar
+    if(sess.expires_at <= now) return null;
+    return sess;
+  } catch(e){ return null; }
+}
+
+function _authSaveSession(sess){
+  _sbSession = sess;
+  if(sess){
+    try { localStorage.setItem('co_session', JSON.stringify(sess)); } catch(e){}
+    if(sess.user && sess.user.email){
+      _sbUsuario = sess.user.email.split('@')[0];
+      try { localStorage.setItem('co_usuario', _sbUsuario); } catch(e){}
+    }
+  } else {
+    try { localStorage.removeItem('co_session'); } catch(e){}
+  }
+}
+
+async function authLogin(email, password){
+  var r = await fetch(_SB_URL+'/auth/v1/token?grant_type=password', {
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'apikey':_SB_KEY},
+    body: JSON.stringify({email:email, password:password})
+  });
+  var data = await r.json();
+  if(!r.ok){
+    throw new Error(data.error_description || data.msg || data.message || 'Falha no login');
+  }
+  // Resposta: {access_token, refresh_token, expires_in, expires_at, user:{id,email,...}}
+  _authSaveSession(data);
+  return data;
+}
+
+async function authMagicLink(email){
+  var r = await fetch(_SB_URL+'/auth/v1/otp', {
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'apikey':_SB_KEY},
+    body: JSON.stringify({email:email, create_user:false})
+  });
+  if(!r.ok){
+    var data = await r.json().catch(()=>({}));
+    throw new Error(data.error_description || data.msg || data.message || 'Falha ao enviar link');
+  }
+  return true;
+}
+
+async function authRefresh(){
+  if(!_sbSession || !_sbSession.refresh_token) return false;
+  try {
+    var r = await fetch(_SB_URL+'/auth/v1/token?grant_type=refresh_token', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'apikey':_SB_KEY},
+      body: JSON.stringify({refresh_token: _sbSession.refresh_token})
+    });
+    if(!r.ok) return false;
+    var data = await r.json();
+    _authSaveSession(data);
+    return true;
+  } catch(e){ return false; }
+}
+
+async function authLogout(){
+  if(_sbSession && _sbSession.access_token){
+    try {
+      await fetch(_SB_URL+'/auth/v1/logout', {
+        method:'POST',
+        headers:{'apikey':_SB_KEY, 'Authorization':'Bearer '+_sbSession.access_token}
+      });
+    } catch(e){}
+  }
+  _authSaveSession(null);
+  _sbPerfil = null;
+  window.location.reload();
+}
+
+async function authCarregarPerfil(){
+  if(!_sbSession || !_sbSession.user) return null;
+  try {
+    var r = await fetch(_SB_URL+'/rest/v1/perfis?id=eq.'+_sbSession.user.id+'&select=nome,perfil', {
+      headers:{'apikey':_SB_KEY, 'Authorization':'Bearer '+_sbSession.access_token}
+    });
+    if(!r.ok) return null;
+    var rows = await r.json();
+    if(rows && rows.length){
+      _sbPerfil = rows[0];
+      return _sbPerfil;
+    }
+  } catch(e){}
+  return null;
+}
+
+// Auto-refresh 5 min antes de expirar
+function _authScheduleRefresh(){
+  if(!_sbSession || !_sbSession.expires_at) return;
+  var now = Math.floor(Date.now()/1000);
+  var ms = (_sbSession.expires_at - now - 300) * 1000;
+  if(ms < 1000) ms = 1000;
+  setTimeout(async ()=>{
+    var ok = await authRefresh();
+    if(ok) _authScheduleRefresh();
+  }, ms);
+}
 var _SB_SYNC = new Set([
   'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta','co_iniciais','co_prazos',
   // Tombstones: DEVEM sincronizar entre PCs, senão deleção feita num PC
@@ -272,10 +398,14 @@ window.addEventListener('beforeunload', function(){
 });
 
 function _sbH(){
+  // Com usuário logado, Authorization usa o access_token (JWT do usuário).
+  // Isso permite que RLS policies como auth.uid() funcionem nas tabelas novas.
+  // Sem login, cai no anon key — útil só durante migração/testes da tabela legada.
+  var token = (_sbSession && _sbSession.access_token) ? _sbSession.access_token : _SB_KEY;
   return {
     'Content-Type':'application/json',
     'apikey': _SB_KEY,
-    'Authorization': 'Bearer '+_SB_KEY
+    'Authorization': 'Bearer '+token
   };
 }
 
@@ -15908,14 +16038,138 @@ window.onerror = function(msg, src, line, col, err) {
     '<strong>Erro JS:</strong><br>' + msg + '<br>linha ' + line + '</div>';
   return false;
 };
-try {
-  init();
-} catch(e) {
-  document.getElementById('clist').innerHTML = 
-    '<div style="color:#f87676;padding:16px;font-size:11px;font-family:monospace">'+
-    '<strong>Erro no init():</strong><br>' + e.message + '<br>' + 
-    (e.stack||'').split('\n').slice(0,3).join('<br>') + '</div>';
+// ═══════════════════════════════════════════════════════
+// ══ AUTH GATE — decide entre login e app ════════════════
+// ═══════════════════════════════════════════════════════
+async function authBoot(){
+  _sbSession = _authLoadSession();
+  // Se há sessão mas está perto de expirar (ou já expirou parcialmente), tentar refresh
+  if(_sbSession){
+    var now = Math.floor(Date.now()/1000);
+    if(_sbSession.expires_at - now < 300){  // menos de 5 min até expirar
+      var ok = await authRefresh();
+      if(!ok) _sbSession = null;
+    }
+  }
+  if(!_sbSession){
+    authMostrarLogin();
+    return;
+  }
+  // Sessão válida → carregar perfil e bootar app
+  _authScheduleRefresh();
+  await authCarregarPerfil();  // não bloqueia se falhar
+  authEsconderLogin();
+  try {
+    await init();
+  } catch(e) {
+    document.getElementById('clist').innerHTML =
+      '<div style="color:#f87676;padding:16px;font-size:11px;font-family:monospace">'+
+      '<strong>Erro no init():</strong><br>' + e.message + '<br>' +
+      (e.stack||'').split('\n').slice(0,3).join('<br>') + '</div>';
+  }
 }
+
+function authMostrarLogin(){
+  var ov = document.getElementById('auth-overlay');
+  if(ov) ov.style.display = 'flex';
+  // esconder app pra não mostrar estado vazio
+  var hdr = document.querySelector('body > header');
+  if(hdr) hdr.style.display = 'none';
+}
+
+function authEsconderLogin(){
+  var ov = document.getElementById('auth-overlay');
+  if(ov) ov.style.display = 'none';
+  var hdr = document.querySelector('body > header');
+  if(hdr) hdr.style.display = '';
+  // atualizar label do usuário no header se existir
+  var el = document.getElementById('sb-usuario');
+  if(el && _sbSession && _sbSession.user){
+    el.textContent = (_sbPerfil && _sbPerfil.nome) ? _sbPerfil.nome : _sbSession.user.email;
+  }
+}
+
+// Handlers dos botões do form de login (chamados pelo HTML do overlay)
+async function authSubmitLogin(ev){
+  if(ev && ev.preventDefault) ev.preventDefault();
+  var email = (document.getElementById('auth-email')||{}).value || '';
+  var senha = (document.getElementById('auth-senha')||{}).value || '';
+  var msg = document.getElementById('auth-msg');
+  var btn = document.getElementById('auth-btn-entrar');
+  if(!email || !senha){
+    if(msg){ msg.textContent = 'Preencha e-mail e senha.'; msg.style.color = '#f87676'; }
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Entrando...'; }
+  if(msg){ msg.textContent = ''; }
+  try {
+    await authLogin(email.trim(), senha);
+    // Sucesso → bootar app
+    authEsconderLogin();
+    _authScheduleRefresh();
+    await authCarregarPerfil();
+    await init();
+  } catch(e){
+    if(msg){
+      msg.textContent = 'Falha no login: ' + (e.message || 'e-mail ou senha incorretos');
+      msg.style.color = '#f87676';
+    }
+    if(btn){ btn.disabled = false; btn.textContent = 'Entrar'; }
+  }
+}
+
+async function authSubmitMagicLink(){
+  var email = (document.getElementById('auth-email')||{}).value || '';
+  var msg = document.getElementById('auth-msg');
+  if(!email){
+    if(msg){ msg.textContent = 'Digite o e-mail primeiro.'; msg.style.color = '#f87676'; }
+    return;
+  }
+  if(msg){ msg.textContent = 'Enviando link...'; msg.style.color = '#9e9e9e'; }
+  try {
+    await authMagicLink(email.trim());
+    if(msg){
+      msg.textContent = 'Link enviado! Verifique seu e-mail.';
+      msg.style.color = '#97C459';
+    }
+  } catch(e){
+    if(msg){
+      msg.textContent = 'Falha: ' + (e.message || 'tente novamente');
+      msg.style.color = '#f87676';
+    }
+  }
+}
+
+// Expor no escopo global (onclick handlers do HTML)
+window.authSubmitLogin = authSubmitLogin;
+window.authSubmitMagicLink = authSubmitMagicLink;
+window.authLogout = authLogout;
+
+// Detectar magic link no hash (#access_token=... após clicar no e-mail)
+(function _authHandleHash(){
+  if(!window.location.hash) return;
+  var h = window.location.hash.substring(1);
+  var params = {};
+  h.split('&').forEach(function(kv){
+    var p = kv.split('=');
+    if(p[0]) params[decodeURIComponent(p[0])] = decodeURIComponent(p[1]||'');
+  });
+  if(params.access_token && params.refresh_token){
+    var expiresIn = parseInt(params.expires_in||'3600', 10);
+    _authSaveSession({
+      access_token: params.access_token,
+      refresh_token: params.refresh_token,
+      expires_in: expiresIn,
+      expires_at: Math.floor(Date.now()/1000) + expiresIn,
+      token_type: params.token_type || 'bearer',
+      user: { id: '', email: '' }  // será preenchido depois via /auth/v1/user se necessário
+    });
+    // limpar o hash da URL
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+})();
+
+authBoot();
 
 // ═══════════════════════════════════════════════════════
 // ── MOBILE HELPERS ──
