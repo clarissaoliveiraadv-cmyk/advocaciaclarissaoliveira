@@ -134,6 +134,19 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
   .dsh-kpi-b-card { border-bottom: 1px solid #2a2a2a; }
   body.light .dsh-kpi-b-card { border-bottom-color: #DDE1E7; }
 }
+
+/* Status dropdown no card do Kanban (mobile-friendly) */
+.vk-card-status-sel {
+  font-size: 10px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: var(--sf3);
+  border: 1px solid var(--bd);
+  color: var(--tx);
+  cursor: pointer;
+  max-width: 120px;
+}
+.vk-card-status-sel:hover { border-color: var(--ouro); }
 </style>
 </head>
 <body>
@@ -471,6 +484,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
         <button class="vk-tab on" onclick="vkSetTab('kanban',this)">🗂 Kanban</button>
         <button class="vk-tab" onclick="vkSetTab('urgentes',this)">⚠️ Urgentes</button>
         <button class="vk-tab" onclick="vkSetTab('responsavel',this)">👤 Por Responsável</button>
+        <button class="vk-tab" onclick="vkSetTab('minhapauta',this)" title="Só o que está comigo e vence em até 2 dias">🎯 Minha Pauta</button>
       </div>
       <div class="vk-actions"><button class="vk-btn" onclick="vkNovaTask()">＋ Nova Tarefa</button></div>
     </div>
@@ -558,7 +572,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=87"></script>
+<script src="bundle.js?v=88"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
