@@ -2076,6 +2076,164 @@ window._procPickerPick = _procPickerPick;
 window._procPickerHide = _procPickerHide;
 window._procPickerCreate = _procPickerCreate;
 
+// ═══════════════════════════════════════════════════════
+// ══ _contatoPicker — autocomplete de contatos ══════════
+// ═══════════════════════════════════════════════════════
+// Busca sempre sobre localContatos AO VIVO (não usa cache).
+// Se não encontra, permite criar contato inline (sem fechar o modal pai).
+// Uso: _contatoPickerHtml('pfx', {onPick: function(ctc){...}})
+// IDs gerados: #{pfx}-nome (input visível), #{pfx}-contato-id (hidden).
+
+function _fuzzySearchContatos(query, maxResults){
+  maxResults = maxResults || 15;
+  var q = _fuzzyNorm(query);
+  var base = (localContatos||[]).slice();
+  if(!q) return base.slice(0, maxResults);
+  var exact = [], starts = [], contains = [];
+  base.forEach(function(c){
+    var n = _fuzzyNorm(c.nome||'');
+    var doc = _fuzzyNorm(c.doc||c.cpf||'');
+    if(n === q){ exact.push(c); return; }
+    if(n.indexOf(q) === 0){ starts.push(c); return; }
+    if(_fuzzyMatch(n+' '+doc+' '+_fuzzyNorm(c.email||'')+' '+_fuzzyNorm(c.tel||''), query)){
+      contains.push(c);
+    }
+  });
+  return exact.concat(starts).concat(contains).slice(0, maxResults);
+}
+
+function _contatoPickerHtml(prefix, opts){
+  opts = opts || {};
+  var placeholder = opts.placeholder || 'Digite nome, CPF, telefone ou e-mail...';
+  window['_contatoPicker_' + prefix] = {onPick: opts.onPick};
+  return ''
+    +'<div style="position:relative">'
+      +'<input class="fm-inp" id="'+prefix+'-nome" placeholder="'+escapeHtml(placeholder)+'" autocomplete="off"'
+        +' oninput="_contatoPickerFilter(\''+prefix+'\')"'
+        +' onfocus="_contatoPickerFilter(\''+prefix+'\')"'
+        +' onblur="setTimeout(function(){_contatoPickerHide(\''+prefix+'\');},200)">'
+      +'<input type="hidden" id="'+prefix+'-contato-id" value="">'
+      +'<div id="'+prefix+'-contato-list" style="position:absolute;top:100%;left:0;right:0;z-index:9999;max-height:260px;overflow-y:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;margin-top:2px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>'
+    +'</div>';
+}
+
+function _contatoPickerFilter(prefix){
+  var inp  = document.getElementById(prefix+'-nome');
+  var list = document.getElementById(prefix+'-contato-list');
+  var idEl = document.getElementById(prefix+'-contato-id');
+  if(!inp || !list) return;
+  // Digitou algo diferente da seleção? invalida o id ligado
+  if(idEl && idEl.value){
+    var selCtc = (localContatos||[]).find(function(c){ return String(c.id)===idEl.value; });
+    if(selCtc && _fuzzyNorm(inp.value) !== _fuzzyNorm(selCtc.nome)) idEl.value = '';
+  }
+  var q = inp.value.trim();
+  // Sempre lê localContatos ao vivo (não cacheia) — garante que contato criado
+  // há segundos, mesmo em outro modal, apareça imediatamente.
+  var results = _fuzzySearchContatos(q, 12);
+  var items = results.map(function(c){
+    var nome = escapeHtml(c.nome||'—');
+    var meta = [];
+    if(c.doc||c.cpf) meta.push('Doc: '+escapeHtml(c.doc||c.cpf));
+    if(c.tel) meta.push('📞 '+escapeHtml(c.tel));
+    if(c.email) meta.push('✉ '+escapeHtml(c.email));
+    var sub = meta.join(' · ');
+    return '<div onmousedown="_contatoPickerPick(\''+prefix+'\',\''+c.id+'\')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--bd);transition:background .1s" onmouseover="this.style.background=\'var(--sf3)\'" onmouseout="this.style.background=\'\'">'
+      +'<div style="font-size:13px;color:var(--tx);font-weight:600">'+nome+'</div>'
+      +(sub?'<div style="font-size:10px;color:var(--mu);margin-top:1px">'+sub+'</div>':'')
+    +'</div>';
+  }).join('');
+  var hasExact = results.some(function(c){ return _fuzzyNorm(c.nome) === _fuzzyNorm(q); });
+  var createBtn = '';
+  if(q && !hasExact){
+    createBtn = '<div onmousedown="_contatoPickerCreate(\''+prefix+'\')" style="padding:10px 12px;cursor:pointer;background:rgba(212,175,55,.12);border-top:1px solid var(--bd);color:var(--ouro);font-weight:600;font-size:12px;text-align:center">+ Criar contato "'+escapeHtml(q)+'" agora</div>';
+  }
+  if(!items && !createBtn){
+    list.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--mu);text-align:center">Nenhum contato. Digite para buscar ou criar.</div>';
+  } else {
+    list.innerHTML = items + createBtn;
+  }
+  list.style.display = 'block';
+  // Indicador visual: borda dourada quando está em modo "criar novo"
+  if(q && !hasExact){
+    inp.style.borderColor = '#D4AF37';
+    inp.style.boxShadow = '0 0 0 1px rgba(212,175,55,.3)';
+  } else {
+    inp.style.borderColor = '';
+    inp.style.boxShadow = '';
+  }
+}
+
+function _contatoPickerPick(prefix, ctcId){
+  var c = (localContatos||[]).find(function(x){ return String(x.id)===String(ctcId); });
+  if(!c) return;
+  var inp = document.getElementById(prefix+'-nome');
+  var idEl = document.getElementById(prefix+'-contato-id');
+  var list = document.getElementById(prefix+'-contato-list');
+  if(inp) inp.value = c.nome || '';
+  if(idEl) idEl.value = String(c.id);
+  if(list) list.style.display = 'none';
+  var cfg = window['_contatoPicker_' + prefix] || {};
+  if(typeof cfg.onPick === 'function'){ try{ cfg.onPick(c); }catch(e){} }
+}
+
+function _contatoPickerHide(prefix){
+  var list = document.getElementById(prefix+'-contato-list');
+  if(list) list.style.display = 'none';
+}
+
+// Cria contato inline (sem fechar o modal pai). O id gerado é gravado
+// no hidden field e também disponibilizado via onPick.
+// Captura CPF do modal pai se existir (ex: np-cpf no Novo Processo) — ajuda
+// a gerar um contato mais completo no "double-save" atômico.
+function _contatoPickerCreate(prefix){
+  var inp = document.getElementById(prefix+'-nome');
+  var nomeNovo = inp ? inp.value.trim() : '';
+  if(!nomeNovo){ showToast('Digite o nome antes'); return; }
+  // Procura CPF no mesmo modal (convenção: #np-cpf, #ec-cpf, #vknt-cpf)
+  var cpfEl = document.getElementById('np-cpf') || document.getElementById(prefix+'-cpf');
+  var cpfVal = cpfEl ? (cpfEl.value||'').trim() : '';
+  var nowIso = new Date().toISOString();
+  var novoCtc = {
+    id: 'ctc'+genId(),
+    nome: nomeNovo,
+    tipo: 'pf',
+    doc: cpfVal, cpf: cpfVal,
+    criado: nowIso.slice(0,10),
+    updated_at: nowIso
+  };
+  if(!Array.isArray(localContatos)) window.localContatos = [];
+  localContatos.push(novoCtc);
+  if(typeof invalidarCtcCache==='function') invalidarCtcCache();
+  sbSet('co_ctc', localContatos);
+  marcarAlterado();
+  showToast('✓ Contato "'+nomeNovo+'" criado e vinculado');
+  // Dispara evento global para outras views (contatos, dashboard, etc.)
+  // atualizarem contadores e listas sem precisar de F5.
+  try { window.dispatchEvent(new CustomEvent('co:reloadState', {detail:{source:'contatoCreate', id:novoCtc.id}})); } catch(e){}
+  // Seleciona o recém-criado (fecha dropdown, grava id, chama onPick)
+  _contatoPickerPick(prefix, novoCtc.id);
+}
+
+window._contatoPickerHtml = _contatoPickerHtml;
+window._contatoPickerFilter = _contatoPickerFilter;
+window._contatoPickerPick = _contatoPickerPick;
+window._contatoPickerHide = _contatoPickerHide;
+window._contatoPickerCreate = _contatoPickerCreate;
+window._fuzzySearchContatos = _fuzzySearchContatos;
+
+// Listener global de 'co:reloadState' — disparado por fluxos que criam/alteram
+// dados atomicamente (ex: novoProcesso com cascade). Atualiza listas, contadores
+// e views abertas sem F5. Outros PCs/abas via Realtime já chegam no sbAplicar.
+window.addEventListener('co:reloadState', function(ev){
+  try { if(typeof invalidarCtcCache==='function') invalidarCtcCache(); }catch(e){}
+  try { if(typeof renderCtcEmpty==='function' && document.getElementById('vct')?.classList.contains('on')) renderCtcEmpty(); }catch(e){}
+  try { if(typeof ctcRenderLista==='function' && document.getElementById('vct')?.classList.contains('on')) ctcRenderLista(); }catch(e){}
+  try { if(typeof atualizarStats==='function') atualizarStats(); }catch(e){}
+  try { if(typeof montarClientesAgrupados==='function') montarClientesAgrupados(); }catch(e){}
+  try { if(typeof doSearch==='function') doSearch(); }catch(e){}
+});
+
 // ── Helper unificado: lançamento está recebido/pago? ──
 function isRec(l){ return !!(l.recebido || l.pago || l.status==='pago'); }
 
@@ -8777,7 +8935,14 @@ function novoProcesso(prefill){
     +'</div>'
     +'<div class="fm-row" style="margin-top:8px">'
       +'<div style="flex:2"><label class="fm-lbl">Nome do cliente <span class="req">*</span></label>'
-        +'<input class="fm-inp" id="np-nome" placeholder="Nome completo"></div>'
+        + _contatoPickerHtml('np', {
+            placeholder: 'Busque ou digite um nome novo...',
+            onPick: function(ctc){
+              var e = document.getElementById('np-cpf');
+              if(e && !e.value && (ctc.doc || ctc.cpf)) e.value = ctc.doc || ctc.cpf;
+            }
+          })
+      + '</div>'
       +'<div><label class="fm-lbl">CPF</label>'
         +'<input class="fm-inp" id="np-cpf" placeholder="000.000.000-00"></div>'
     +'</div>'
@@ -8831,28 +8996,45 @@ function novoProcesso(prefill){
     tasks[id] = { extra:{ cpf:g('cpf') }};
     if(g('obs')) notes[id] = g('obs');
 
-    // Cascade: se não há contato com este nome (fuzzy), cria um vinculado
-    // usando o mesmo updated_at do cliente. Evita "cliente fantasma".
-    var temContato = (localContatos||[]).some(function(c){
-      return _fuzzyNorm(c.nome) === _fuzzyNorm(g('nome'));
-    });
-    if(!temContato && g('nome')){
-      var novoCtc = {
+    // Double-save atômico: cliente (processo) + pessoa (contato) com mesmo
+    // updated_at, salvos no mesmo tick. Ordem:
+    //  1. Se o usuário picou um contato existente via picker, usa o id dele
+    //  2. Senão, se há contato com nome fuzzy-igual em localContatos, usa ele
+    //  3. Senão, cria um novo contato inline aqui
+    var pickedCtcId = (document.getElementById('np-contato-id')||{}).value || '';
+    var ctcVinc = null;
+    if(pickedCtcId){
+      ctcVinc = (localContatos||[]).find(function(c){ return String(c.id)===pickedCtcId; });
+    }
+    if(!ctcVinc){
+      ctcVinc = (localContatos||[]).find(function(c){ return _fuzzyNorm(c.nome)===_fuzzyNorm(g('nome')); });
+    }
+    if(!ctcVinc && g('nome')){
+      ctcVinc = {
         id: 'ctc'+genId(),
         nome: g('nome'),
         tipo: 'pf',
         doc: g('cpf'), cpf: g('cpf'),
-        processo: g('nome')+' (Pasta —)',
-        id_processo: id,
-        criado: new Date().toISOString().slice(0,10),
+        criado: novoCliente.updated_at.slice(0,10),
         updated_at: novoCliente.updated_at
       };
-      localContatos.push(novoCtc);
+      localContatos.push(ctcVinc);
+    }
+    // Linka contato ao processo (tanto novo quanto existente) com o mesmo timestamp
+    if(ctcVinc){
+      ctcVinc.id_processo = id;
+      ctcVinc.processo = g('nome')+' (Pasta —)';
+      ctcVinc.updated_at = novoCliente.updated_at;
+      // Se não tinha CPF e o form tem, preserva no contato
+      if(!ctcVinc.doc && !ctcVinc.cpf && g('cpf')){
+        ctcVinc.doc = g('cpf');
+        ctcVinc.cpf = g('cpf');
+      }
       if(typeof invalidarCtcCache==='function') invalidarCtcCache();
       sbSet('co_ctc', localContatos);
     }
 
-       CLIENTS.push(novoCliente);
+    CLIENTS.push(novoCliente);
     sbSet('co_tasks', tasks);
     sbSet('co_notes', notes);
     sbSalvarClientesDebounced();
@@ -8860,7 +9042,10 @@ function novoProcesso(prefill){
     montarClientesAgrupados();
     fecharModal();
     doSearch();
-    showToast('Processo cadastrado ✓');
+    // Reload state: notifica outras views (contatos, dashboard) para atualizar
+    // contadores/listas sem F5. Supabase Realtime cuida de outros PCs/abas.
+    try { window.dispatchEvent(new CustomEvent('co:reloadState', {detail:{source:'novoProcesso', id:id}})); } catch(e){}
+    showToast('Processo + contato cadastrados ✓');
   }, '\u2696 Cadastrar processo');
   // Pr\u00e9-preenche a partir de um contato rec\u00e9m-criado (fluxo p\u00f3s-cadastro)
   if(prefill){
