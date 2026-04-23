@@ -110,6 +110,43 @@ async function authMagicLink(email){
   return true;
 }
 
+// Pede ao Supabase um e-mail de recuperação de senha. O link no e-mail
+// volta para o app com #type=recovery&access_token=... — _authHandleHash
+// detecta isso e mostra a tela de "Defina uma nova senha".
+async function authResetSenha(email){
+  var redirectTo = window.location.origin + window.location.pathname;
+  var r = await fetch(_SB_URL+'/auth/v1/recover', {
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'apikey':_SB_KEY},
+    body: JSON.stringify({email:email, redirect_to:redirectTo})
+  });
+  if(!r.ok){
+    var data = await r.json().catch(()=>({}));
+    throw new Error(data.error_description || data.msg || data.message || 'Falha ao enviar e-mail de recuperação');
+  }
+  return true;
+}
+
+// Atualiza a senha do usuário logado (precisa de access_token válido —
+// vindo do hash de recovery ou de uma sessão ativa).
+async function authAtualizarSenha(novaSenha){
+  if(!_sbSession || !_sbSession.access_token) throw new Error('Sessão inválida');
+  var r = await fetch(_SB_URL+'/auth/v1/user', {
+    method:'PUT',
+    headers:{
+      'Content-Type':'application/json',
+      'apikey':_SB_KEY,
+      'Authorization':'Bearer '+_sbSession.access_token
+    },
+    body: JSON.stringify({password: novaSenha})
+  });
+  if(!r.ok){
+    var data = await r.json().catch(()=>({}));
+    throw new Error(data.error_description || data.msg || data.message || 'Falha ao atualizar senha');
+  }
+  return true;
+}
+
 async function authRefresh(){
   if(!_sbSession || !_sbSession.refresh_token) return false;
   try {
@@ -16649,6 +16686,11 @@ async function authBoot(){
       '<strong>Erro no init():</strong><br>' + e.message + '<br>' +
       (e.stack||'').split('\n').slice(0,3).join('<br>') + '</div>';
   }
+  // Veio de um link de recuperação de senha → abre modal de nova senha
+  if(window._authPendingRecovery){
+    window._authPendingRecovery = false;
+    setTimeout(authMostrarNovaSenha, 400);
+  }
 }
 
 function authMostrarLogin(){
@@ -16722,9 +16764,81 @@ async function authSubmitMagicLink(){
   }
 }
 
+// Tela "Esqueci minha senha" — modal pra digitar o e-mail e disparar recovery.
+function authMostrarEsqueciSenha(){
+  var emailAtual = (document.getElementById('auth-email')||{}).value || '';
+  abrirModal('🔑 Recuperar senha',
+    '<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+      +'Vamos te enviar um e-mail com um link para definir uma nova senha. Clica no link e você volta pro app já autenticada para escolher a nova senha.'
+    +'</div>'
+    +'<div>'
+      +'<label class="fm-lbl">E-mail</label>'
+      +'<input class="fm-inp" id="rec-email" type="email" value="'+escapeHtml(emailAtual)+'" placeholder="seu@email.com">'
+    +'</div>'
+    +'<div id="rec-msg" style="min-height:18px;margin-top:10px;font-size:11px;color:var(--mu)"></div>',
+    async function(){
+      var email = ((document.getElementById('rec-email')||{}).value||'').trim();
+      var msg = document.getElementById('rec-msg');
+      if(!email){
+        if(msg){ msg.textContent='Digite o e-mail.'; msg.style.color='#f87676'; }
+        return;
+      }
+      if(msg){ msg.textContent='Enviando...'; msg.style.color='#9e9e9e'; }
+      try {
+        await authResetSenha(email);
+        if(msg){ msg.textContent='✓ E-mail enviado. Verifique sua caixa.'; msg.style.color='#97C459'; }
+        setTimeout(fecharModal, 1800);
+      } catch(e){
+        if(msg){ msg.textContent='Falha: '+(e.message||'tente novamente'); msg.style.color='#f87676'; }
+      }
+    },
+    'Enviar e-mail');
+}
+
+// Tela "Defina sua nova senha" — mostrada quando o usuário volta do link de recovery.
+function authMostrarNovaSenha(){
+  abrirModal('🔑 Defina sua nova senha',
+    '<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+      +'Você foi autenticado pelo link de recuperação. Escolha uma nova senha para o seu acesso.'
+    +'</div>'
+    +'<div>'
+      +'<label class="fm-lbl">Nova senha (mínimo 6 caracteres)</label>'
+      +'<input class="fm-inp" id="ns-senha" type="password" placeholder="••••••••">'
+    +'</div>'
+    +'<div style="margin-top:8px">'
+      +'<label class="fm-lbl">Confirmar nova senha</label>'
+      +'<input class="fm-inp" id="ns-senha2" type="password" placeholder="••••••••">'
+    +'</div>'
+    +'<div id="ns-msg" style="min-height:18px;margin-top:10px;font-size:11px;color:var(--mu)"></div>',
+    async function(){
+      var s1 = ((document.getElementById('ns-senha')||{}).value||'');
+      var s2 = ((document.getElementById('ns-senha2')||{}).value||'');
+      var msg = document.getElementById('ns-msg');
+      if(s1.length < 6){
+        if(msg){ msg.textContent='Senha precisa ter no mínimo 6 caracteres.'; msg.style.color='#f87676'; }
+        return;
+      }
+      if(s1 !== s2){
+        if(msg){ msg.textContent='As senhas não conferem.'; msg.style.color='#f87676'; }
+        return;
+      }
+      if(msg){ msg.textContent='Atualizando...'; msg.style.color='#9e9e9e'; }
+      try {
+        await authAtualizarSenha(s1);
+        if(msg){ msg.textContent='✓ Senha atualizada! Use ela no próximo login.'; msg.style.color='#97C459'; }
+        setTimeout(function(){ fecharModal(); }, 1500);
+      } catch(e){
+        if(msg){ msg.textContent='Falha: '+(e.message||'tente novamente'); msg.style.color='#f87676'; }
+      }
+    },
+    'Salvar senha');
+}
+
 // Expor no escopo global (onclick handlers do HTML)
 window.authSubmitLogin = authSubmitLogin;
 window.authSubmitMagicLink = authSubmitMagicLink;
+window.authMostrarEsqueciSenha = authMostrarEsqueciSenha;
+window.authMostrarNovaSenha = authMostrarNovaSenha;
 window.authLogout = authLogout;
 
 // Detectar magic link no hash (#access_token=... após clicar no e-mail)
@@ -16748,6 +16862,10 @@ window.authLogout = authLogout;
     });
     // limpar o hash da URL
     history.replaceState(null, '', window.location.pathname + window.location.search);
+    // Se veio de um link de recovery, força tela de nova senha após o boot
+    if(params.type === 'recovery'){
+      window._authPendingRecovery = true;
+    }
   }
 })();
 
