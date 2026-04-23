@@ -847,7 +847,12 @@ function sbAplicar(chave, valor, quem){
     return;
   }
   switch(chave){
-    case 'co_vktasks': vkTasks=valor||[]; if(document.getElementById('vkt')?.classList.contains('on')) vkRender(); break;
+    case 'co_vktasks':
+      // Filtrar tombstones ao receber (anti-zombificação — se o array chegou
+      // antes do tombstone num race, não deixamos itens deletados ressuscitarem)
+      vkTasks=(valor||[]).filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+      if(document.getElementById('vkt')?.classList.contains('on')) vkRender();
+      break;
     case 'co_fin':
       // Filtrar tombstones ao receber do remoto (anti-zombificação)
       finLancs=(valor||[]).filter(function(x){ return !_tombstoneHas('co_fin', x.id); });
@@ -868,13 +873,15 @@ function sbAplicar(chave, valor, quem){
       if(document.getElementById('vf')?.classList.contains('on')) vfRender();
       break;
     case 'co_localAg':
-      localAg=valor||[]; invalidarAllPend();
+      localAg=(valor||[]).filter(function(x){ return !_tombstoneHas('co_localAg', x.id) && !_tombstoneHas('co_ag', x.id); });
+      invalidarAllPend();
       if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
       if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
       if(typeof renderHomeWeek==='function') try{ renderHomeWeek(); }catch(e){}
       break;
     case 'co_ag':
-      localAg=valor||[]; invalidarAllPend();
+      localAg=(valor||[]).filter(function(x){ return !_tombstoneHas('co_ag', x.id) && !_tombstoneHas('co_localAg', x.id); });
+      invalidarAllPend();
       if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
       if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
       break;
@@ -884,7 +891,8 @@ function sbAplicar(chave, valor, quem){
       if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
       break;
     case 'co_ctc':
-      localContatos=valor||[]; invalidarCtcCache();
+      localContatos=(valor||[]).filter(function(x){ return !_tombstoneHas('co_ctc', x.id); });
+      invalidarCtcCache();
       if(document.getElementById('ctc-view')?.classList.contains('on') && typeof ctcRender==='function'){ try{ ctcRender(); }catch(e){} }
       break;
     case 'co_tasks':
@@ -903,7 +911,9 @@ function sbAplicar(chave, valor, quem){
       if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
       break;
     case 'co_atend':
-      if(typeof localAtend!=='undefined') localAtend=valor||[];
+      if(typeof localAtend!=='undefined'){
+        localAtend=(valor||[]).filter(function(x){ return !_tombstoneHas('co_atend', x.id); });
+      }
       if(document.getElementById('at')?.classList.contains('on') && typeof atRender==='function'){ try{ atRender(); }catch(e){} }
       break;
     case 'co_clientes':
@@ -2245,6 +2255,7 @@ function toggleTarefa(key, idx){
 
 var vkTasks = [];
 try { const _vk = JSON.parse(lsGet('co_vktasks')||'[]'); vkTasks = Array.isArray(_vk) ? _vk : []; } catch{}
+// Filtro de tombstone aplicado mais abaixo, depois que _tombstoneHas estiver definido.
 
 let _vkTab = 'kanban';
 let _vkDrag = null;
@@ -11132,9 +11143,12 @@ function carregarDadosObj(d){
   localLanc     = loadKey('co_localLanc',     m.localLanc,     []);
   localContatos = loadKey('co_ctc', m.localContatos, []);
   tarefasDia    = loadKey('co_td',             m.tarefasDia,    {});
-  // Filtrar localLanc carregado por tombstones (anti-zombificação)
+  // Filtrar arrays carregados por tombstones (anti-zombificação — itens deletados
+  // num PC podem ainda estar no snapshot carregado se chegaram antes do tombstone).
   if(typeof _tombstoneHas==='function'){
     localLanc = (localLanc||[]).filter(function(x){ return !_tombstoneHas('co_localLanc', x.id); });
+    localContatos = (localContatos||[]).filter(function(x){ return !_tombstoneHas('co_ctc', x.id); });
+    localAg = (localAg||[]).filter(function(x){ return !_tombstoneHas('co_ag', x.id) && !_tombstoneHas('co_localAg', x.id); });
   }
   // Carregar dados financeiros globais do localStorage (persistidos via sbSet)
   try{ const _fin=JSON.parse(lsGet('co_fin')||'null'); if(Array.isArray(_fin)&&_fin.length) finLancs=_fin.filter(function(x){ return typeof _tombstoneHas!=='function' || !_tombstoneHas('co_fin', x.id); }); }catch{}
@@ -11251,8 +11265,19 @@ function _tombstoneHas(chave, id){
 _tombstoneLoad('co_fin');
 _tombstoneLoad('co_localLanc');
 
+// Cleanup: arrays carregados ANTES dos helpers de tombstone existirem
+// (como vkTasks, já lido em linha ~2256) podem conter itens deletados em outro PC.
+// Filtrar agora garante que a UI nunca mostra "fantasmas" no primeiro render.
+if(Array.isArray(vkTasks)){
+  vkTasks = vkTasks.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+}
+
 var localAtend=[];
-try{ localAtend=JSON.parse(lsGet('co_atend')||'[]'); if(!Array.isArray(localAtend)) localAtend=[]; }catch{}
+try{
+  localAtend=JSON.parse(lsGet('co_atend')||'[]');
+  if(!Array.isArray(localAtend)) localAtend=[];
+  localAtend = localAtend.filter(function(x){ return !_tombstoneHas('co_atend', x.id); });
+}catch{}
 
 // Carregar comentários do localStorage
 var comentarios = {};
