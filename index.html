@@ -147,6 +147,15 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
   max-width: 120px;
 }
 .vk-card-status-sel:hover { border-color: var(--ouro); }
+
+/* Prazo judicial — borda lateral vibrante para destacar dos cards comuns */
+.vk-card-prazo {
+  border-left: 4px solid #f59e0b !important;
+  padding-left: 10px;
+}
+.vk-card-prazo .vk-card-titulo::before {
+  content: '⚖️ ';
+}
 </style>
 </head>
 <body>
@@ -572,7 +581,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=88"></script>
+<script src="bundle.js?v=89"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
