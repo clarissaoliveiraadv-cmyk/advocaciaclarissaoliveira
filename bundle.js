@@ -2003,6 +2003,7 @@ function novoTarefaDia(){
         <label class="fm-lbl">Tipo</label>
         <select class="fm-inp" id="ntd-tipo">
           <option value="tarefa">📋 Tarefa</option>
+          <option value="prazo">⚖️ Prazo Judicial</option>
           <option value="atendimento">📞 Atendimento</option>
           <option value="admin">🗂 Administrativo</option>
           <option value="audiencia-prep">🎯 Prep. Audiência</option>
@@ -2100,23 +2101,50 @@ function _meuNome(){
 // Muda status de uma tarefa (via dropdown no card OU drag-drop).
 // Quando move para 'done', adiciona linha automática em localMov
 // da pasta do processo — evita escrever duas vezes a mesma coisa.
-function vkMudarStatus(id, novoStatus){
+// Para tipo='prazo': intercepta e pede protocolo/ID do documento antes
+// de marcar como concluído (spec da Clarissa: Mariane só dá baixa se
+// anexar prova de cumprimento).
+function vkMudarStatus(id, novoStatus, opts){
+  opts = opts || {};
   var t = vkTasks.find(function(x){ return String(x.id)===String(id); });
   if(!t) return;
   var antes = t.status;
+  var indoPraDone = (novoStatus==='done' || novoStatus==='concluido');
+  var jaDone      = (antes==='done' || antes==='concluido');
+
+  // Intercept: prazo indo pra done precisa de protocolo.
+  if(!opts.skipPrazoCheck && t.tipo==='prazo' && indoPraDone && !jaDone){
+    vkConcluirPrazoComProtocolo(id, novoStatus);
+    vkRender();  // redesenha card (garante que drag visual não deixe card órfão)
+    return;
+  }
+
   t.status = novoStatus;
   t.status_since = new Date(HOJE).toISOString().slice(0,10);
-  if(novoStatus==='done' || novoStatus==='concluido'){
+  if(indoPraDone){
     t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
     // Auto-histórico na pasta — só se a tarefa estiver vinculada a um processo
     // e ainda não tiver gerado histórico (evita duplicar se voltar→concluir).
-    if(t.processo && antes!=='done' && antes!=='concluido'){
+    if(t.processo && !jaDone){
       if(!localMov[t.processo]) localMov[t.processo] = [];
+      var titulo = t.titulo||'—';
+      var resp = t.responsavel||'—';
+      var msg, tipoMov, origem;
+      if(t.tipo==='prazo' && t.protocolo){
+        msg = 'Prazo "'+titulo+'" cumprido por '+resp+' — protocolo: '+t.protocolo;
+        if(t.desfecho) msg += ' · '+t.desfecho;
+        tipoMov = 'Judicial';
+        origem = 'kanban_cumprimento_prazo';
+      } else {
+        msg = 'Tarefa "'+titulo+'" concluída por '+resp;
+        tipoMov = 'Sistema';
+        origem = 'kanban_conclusao';
+      }
       localMov[t.processo].unshift({
         data: new Date(HOJE).toISOString().slice(0,10),
-        movimentacao: 'Tarefa "'+(t.titulo||'—')+'" concluída por '+(t.responsavel||'—'),
-        tipo_movimentacao: 'Sistema',
-        origem: 'kanban_conclusao'
+        movimentacao: msg,
+        tipo_movimentacao: tipoMov,
+        origem: origem
       });
       sbSet('co_localMov', localMov);
     }
@@ -2128,6 +2156,38 @@ function vkMudarStatus(id, novoStatus){
   if(typeof renderChecklist==='function') renderChecklist();
   var lbl = VK_COLUNAS.find(function(c){ return c.id===novoStatus; });
   showToast('Movido para "'+(lbl?lbl.label:novoStatus)+'"');
+}
+
+// Modal específico para concluir tarefas tipo=prazo — exige prova do cumprimento.
+function vkConcluirPrazoComProtocolo(id, novoStatus){
+  var t = vkTasks.find(function(x){ return String(x.id)===String(id); });
+  if(!t) return;
+  abrirModal('⚖️ Cumprimento de Prazo — '+(t.titulo||''),
+    '<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+      +'Para marcar este <strong style="color:var(--ouro)">prazo judicial</strong> como cumprido, '
+      +'informe a <strong>prova do cumprimento</strong>. Isso fica registrado no histórico da pasta.'
+    +'</div>'
+    +'<div>'
+      +'<label class="fm-lbl">Link do protocolo ou ID do documento <span class="req">*</span></label>'
+      +'<input class="fm-inp" id="prazo-protocolo" value="'+escapeHtml(t.protocolo||'')+'" placeholder="Ex: PRJ-12345 · 0012345-67.2026.5.03.0001 · https://...">'
+    +'</div>'
+    +'<div style="margin-top:8px">'
+      +'<label class="fm-lbl">Observações (opcional)</label>'
+      +'<textarea class="fm-inp" id="prazo-desfecho" rows="2" placeholder="Detalhes do cumprimento (peça protocolada, etc.)">'+escapeHtml(t.desfecho||'')+'</textarea>'
+    +'</div>',
+    function(){
+      var prot = ((document.getElementById('prazo-protocolo')||{}).value||'').trim();
+      if(!prot){
+        showToast('Informe o link ou ID do protocolo');
+        return;
+      }
+      t.protocolo = prot;
+      var dfc = ((document.getElementById('prazo-desfecho')||{}).value||'').trim();
+      if(dfc) t.desfecho = dfc;
+      fecharModal();
+      vkMudarStatus(id, novoStatus, {skipPrazoCheck:true});
+    },
+    '✅ Confirmar Cumprimento');
 }
 
 // ── Helpers de status unificados ──
@@ -2519,7 +2579,8 @@ function vkCard(t){
     +'</div>';
   }
 
-  return `<div class="vk-card" draggable="true" data-id="${t.id}" id="vkcard-${t.id}">
+  const prazoCardClass = t.tipo==='prazo' ? ' vk-card-prazo' : '';
+  return `<div class="vk-card${prazoCardClass}" draggable="true" data-id="${t.id}" id="vkcard-${t.id}">
     <div class="vk-card-top">
       <div class="vk-card-titulo">${t.titulo}${gargaloHtml}</div>
       ${respTag}
@@ -2692,9 +2753,10 @@ function vkNovaTask(tipoDefault='tarefa'){
     +'</div>'
     +'<div class="fm-row" style="margin-top:8px">'
       +'<div><label class="fm-lbl">Tipo</label><select class="fm-inp" id="vknt-tipo">'
-        +'<option value="tarefa"'+(tipoDefault==='tarefa'?' selected':'')+'>Tarefa</option>'
-        +'<option value="audiencia"'+(tipoDefault==='audiencia'?' selected':'')+'>Audi\u00eancia</option>'
-        +'<option value="compromisso"'+(tipoDefault==='compromisso'?' selected':'')+'>Compromisso</option>'
+        +'<option value="tarefa"'+(tipoDefault==='tarefa'?' selected':'')+'>\ud83d\udccb Tarefa</option>'
+        +'<option value="prazo"'+(tipoDefault==='prazo'?' selected':'')+'>\u2696\ufe0f Prazo Judicial</option>'
+        +'<option value="audiencia"'+(tipoDefault==='audiencia'?' selected':'')+'>\ud83d\udd28 Audi\u00eancia</option>'
+        +'<option value="compromisso"'+(tipoDefault==='compromisso'?' selected':'')+'>\ud83d\udcc5 Compromisso</option>'
       +'</select></div>'
       +'<div><label class="fm-lbl">Prioridade</label><select class="fm-inp" id="vknt-prior">'
         +'<option value="alta">Alta</option><option value="media" selected>M\u00e9dia</option><option value="baixa">Baixa</option></select></div>'
@@ -2720,7 +2782,8 @@ function vkNovaTask(tipoDefault='tarefa'){
       prazo: (document.getElementById('vknt-prazo')||{}).value||'',
       cliente: _cliNome, processo: _procId,
       status:'todo', obs: ((document.getElementById('vknt-obs')||{}).value||'').trim(),
-      origem:'manual'
+      origem:'manual',
+      status_since: new Date(HOJE).toISOString().slice(0,10)
     });
     vkSalvar(); fecharModal(); vkRender(); marcarAlterado();
     // Re-renderizar pasta se vinculada
@@ -2828,7 +2891,8 @@ function agTipo(p){
   return 'outro';
 }
 const TIPO_LABEL = {
-  tarefa:'📋 Tarefa', audiencia:'🔨 Audiência', compromisso:'📅 Compromisso'
+  tarefa:'📋 Tarefa', audiencia:'🔨 Audiência', compromisso:'📅 Compromisso',
+  prazo:'⚖️ Prazo Judicial'
 };
 
 
