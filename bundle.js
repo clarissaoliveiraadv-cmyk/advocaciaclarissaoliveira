@@ -166,6 +166,100 @@ function _authScheduleRefresh(){
     if(ok) _authScheduleRefresh();
   }, ms);
 }
+
+// ═══════════════════════════════════════════════════════
+// ══ APIs PÚBLICAS — ViaCEP + BrasilAPI CNPJ ══════════
+// ═══════════════════════════════════════════════════════
+//
+// Usadas no cadastro para auto-preencher endereço/razão social.
+// Ambas são públicas (sem chave) e suportam CORS direto do browser.
+
+async function _buscarCep(cepStr){
+  var cep = String(cepStr||'').replace(/\D/g,'');
+  if(cep.length !== 8) return null;
+  try {
+    var r = await fetch('https://viacep.com.br/ws/'+cep+'/json/', {signal: AbortSignal.timeout(5000)});
+    if(!r.ok) return null;
+    var data = await r.json();
+    if(data.erro) return null;
+    return {
+      rua: data.logradouro||'',
+      bairro: data.bairro||'',
+      cidade: data.localidade||'',
+      uf: data.uf||''
+    };
+  } catch(e){ return null; }
+}
+
+async function _buscarCnpj(cnpjStr){
+  var cnpj = String(cnpjStr||'').replace(/\D/g,'');
+  if(cnpj.length !== 14) return null;
+  try {
+    var r = await fetch('https://brasilapi.com.br/api/cnpj/v1/'+cnpj, {signal: AbortSignal.timeout(8000)});
+    if(!r.ok) return null;
+    var data = await r.json();
+    var cepFmt = String(data.cep||'').replace(/\D/g,'').replace(/(\d{5})(\d{3})/,'$1-$2');
+    var nomeFinal = data.nome_fantasia || data.razao_social || '';
+    return {
+      nome: nomeFinal,
+      razao_social: data.razao_social||'',
+      nome_fantasia: data.nome_fantasia||'',
+      cep: cepFmt,
+      rua: data.logradouro||'',
+      num: String(data.numero||''),
+      complemento: data.complemento||'',
+      bairro: data.bairro||'',
+      cidade: data.municipio||'',
+      uf: data.uf||'',
+      email: data.email||'',
+      tel: data.ddd_telefone_1||''
+    };
+  } catch(e){ return null; }
+}
+
+// Preenche campos de endereço dado um prefixo de id (ex: 'nc', 'ec').
+// Só escreve em campos vazios — não sobrescreve o que o usuário já digitou.
+async function _preencherCepFields(prefixo){
+  var cepEl = document.getElementById(prefixo+'-cep');
+  if(!cepEl) return;
+  var btn = document.getElementById(prefixo+'-cep-btn');
+  if(btn){ btn.textContent='⏳'; btn.disabled=true; }
+  try {
+    var data = await _buscarCep(cepEl.value);
+    if(!data){ if(typeof showToast==='function') showToast('CEP não encontrado'); return; }
+    ['rua','bairro','cidade','uf'].forEach(function(f){
+      var el = document.getElementById(prefixo+'-'+f);
+      if(el && !el.value && data[f]) el.value = data[f];
+    });
+    if(typeof showToast==='function') showToast('✓ Endereço preenchido');
+  } finally {
+    if(btn){ btn.textContent='🔍'; btn.disabled=false; }
+  }
+}
+window._preencherCepFields = _preencherCepFields;
+
+async function _preencherCnpjFields(prefixo){
+  var docEl = document.getElementById(prefixo+'-doc') || document.getElementById(prefixo+'-cpf');
+  if(!docEl) return;
+  var btn = document.getElementById(prefixo+'-cnpj-btn');
+  if(btn){ btn.textContent='⏳'; btn.disabled=true; }
+  try {
+    var data = await _buscarCnpj(docEl.value);
+    if(!data){ if(typeof showToast==='function') showToast('CNPJ não encontrado'); return; }
+    var map = {nome:'nome', cep:'cep', rua:'rua', num:'num', complemento:'comp',
+               bairro:'bairro', cidade:'cidade', uf:'uf', email:'email', tel:'tel'};
+    Object.keys(map).forEach(function(apiKey){
+      var fieldSuffix = map[apiKey];
+      var el = document.getElementById(prefixo+'-'+fieldSuffix);
+      if(el && !el.value && data[apiKey]) el.value = data[apiKey];
+    });
+    if(typeof showToast==='function') showToast('✓ Dados da empresa preenchidos');
+  } finally {
+    if(btn){ btn.textContent='🔍'; btn.disabled=false; }
+  }
+}
+window._preencherCnpjFields = _preencherCnpjFields;
+
 var _SB_SYNC = new Set([
   'co_tasks','co_vktasks','co_fin','co_localLanc','co_ag','co_encerrados','co_notes','co_ctc','co_consultas','co_colab','co_despfixas','co_td','co_tarefasDia','co_t','co_n','co_localAg','co_localMov','co_localLanc','co_desp_proc','co_coments','co_atend','co_clientes','co_clientes_consulta','co_iniciais','co_prazos',
   // Tombstones: DEVEM sincronizar entre PCs, senão deleção feita num PC
@@ -1205,6 +1299,7 @@ function ctcAbrirFicha(id){
       ${field('Naturalidade', ex.natural)}
       ${field('Estado civil', ex.ecivil)}
       ${field('Nome da m\u00e3e', ex.mae)}
+      ${field('Origem', c.origem)}
     </div>`;
 
   const secContato = `
@@ -1442,6 +1537,7 @@ function ctcEditar(id){
       ...localContatos[idx],
       nome: v.nome, cpf: v.cpf, doc: v.cpf, tipo: v.tipo||localContatos[idx].tipo,
       tel: v.tel, email: v.email, processo: v.proc||localContatos[idx].processo,
+      origem: v.origem || localContatos[idx].origem || '',
       extra:{
         nasc:v.nasc, natural:v.natural, nacion:v.nacion, ecivil:v.ecivil, mae:v.mae,
         rua:v.rua, num:v.num, comp:v.comp, bairro:v.bairro, cep:v.cep,
@@ -1470,6 +1566,7 @@ function ctcEditar(id){
     s('prof',ex.prof); s('nit',ex.nit); s('ctps',ex.ctps);
     s('banco',ex.banco); s('tconta',ex.tconta); s('ag',ex.ag);
     s('conta',ex.conta); s('pix',ex.pix); s('inss',ex.inss);
+    s('origem', c.origem);
     if(c.tipo){ const el=document.getElementById('ec-tipo'); if(el) el.value=c.tipo; }
     if(c.processo){ const el=document.getElementById('ec-proc'); if(el) el.value=c.processo; }
   }, 80);
@@ -9475,7 +9572,10 @@ function cadHtml(pfx, opts={}){
     <div class="cad-row">
       <div class="cad-field sm">
         <label class="cad-lbl">CEP</label>
-        <input class="cad-inp" id="${pfx}-cep" placeholder="00000-000" maxlength="9">
+        <div style="display:flex;gap:4px">
+          <input class="cad-inp" id="${pfx}-cep" placeholder="00000-000" maxlength="9" style="flex:1" onblur="_preencherCepFields('${pfx}')">
+          <button type="button" id="${pfx}-cep-btn" onclick="_preencherCepFields('${pfx}')" style="padding:0 8px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--tx);cursor:pointer" title="Buscar CEP">🔍</button>
+        </div>
       </div>
       <div class="cad-field">
         <label class="cad-lbl">Cidade</label>
@@ -9487,6 +9587,13 @@ function cadHtml(pfx, opts={}){
           <option value="">UF</option>
           ${['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>`<option>${u}</option>`).join('')}
         </select>
+      </div>
+    </div>
+    <div class="cad-sep">📢 Origem</div>
+    <div class="cad-row">
+      <div class="cad-field full">
+        <label class="cad-lbl">Origem do contato</label>
+        <select class="cad-inp" id="${pfx}-origem">${_origemOptionsHtml('')}</select>
       </div>
     </div>
     ${opts.processoField ? `
@@ -9620,6 +9727,7 @@ function getCadValues(pfx){
     nat:     g('nat'),    pend:    g('pend'),    obs:     g('obs'),
     banco:   g('banco'),  tconta:  g('tconta'),  ag:      g('ag'),
     conta:   g('conta'),  pix:     g('pix'),     inss:    g('inss'),
+    origem:  g('origem'),
   };
 }
 
@@ -11634,35 +11742,84 @@ function cmCliChange(){
 }
 
 
+// Dropdown de origem do contato \u2014 reuso entre novoContato e cadHtml.
+var _ORIGEM_OPTS = ['Instagram','Direct/WhatsApp','Indica\u00e7\u00e3o de cliente','Google','An\u00fancio','Site','LinkedIn','Outro'];
+function _origemOptionsHtml(selecionado){
+  return '<option value="">\u2014 Origem do contato \u2014</option>'
+    + _ORIGEM_OPTS.map(function(o){
+        return '<option'+(o===selecionado?' selected':'')+'>'+o+'</option>';
+      }).join('');
+}
+window._origemOptionsHtml = _origemOptionsHtml;
+
 function novoContato(){
   document.getElementById('novo-menu').style.display='none';
   abrirModal('\ud83d\udc64 Novo Contato', ''
+    // Toggle PF/PJ
     +'<div style="display:flex;gap:8px;margin-bottom:14px">'
       +'<button class="ctc-tipo-btn on" id="ctc-pf-btn" onclick="setCtcTipo(\'pf\')">\ud83e\uddd1 Pessoa F\u00edsica</button>'
       +'<button class="ctc-tipo-btn" id="ctc-pj-btn" onclick="setCtcTipo(\'pj\')">\ud83c\udfe2 Pessoa Jur\u00eddica</button>'
     +'</div>'
-    +'<div style="margin-bottom:10px"><label class="fm-lbl">Nome completo *</label>'
+    // Nome
+    +'<div style="margin-bottom:10px"><label class="fm-lbl">Nome completo <span class="req">*</span></label>'
       +'<input class="fm-inp" id="nc-nome" placeholder="Nome..."></div>'
+    // Documento + bot\u00e3o de lookup CNPJ (vis\u00edvel s\u00f3 em PJ)
     +'<div style="display:flex;gap:8px;margin-bottom:10px">'
       +'<div style="flex:1"><label class="fm-lbl" id="ctc-doc-lbl">CPF</label>'
-        +'<input class="fm-inp" id="nc-doc" placeholder="000.000.000-00" oninput="fmtDocContato()"></div>'
+        +'<div style="display:flex;gap:4px">'
+          +'<input class="fm-inp" id="nc-doc" placeholder="000.000.000-00" oninput="fmtDocContato()" style="flex:1">'
+          +'<button type="button" id="nc-cnpj-btn" onclick="_preencherCnpjFields(\'nc\')" style="display:none;padding:0 10px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--tx);cursor:pointer" title="Buscar CNPJ na Receita">\ud83d\udd0d</button>'
+        +'</div>'
+      +'</div>'
       +'<div style="flex:1" id="nc-rg-row"><label class="fm-lbl">RG</label>'
         +'<input class="fm-inp" id="nc-rg" placeholder="MG-00.000.000"></div>'
     +'</div>'
+    // Data de nascimento (s\u00f3 PF)
+    +'<div style="display:flex;gap:8px;margin-bottom:10px" id="nc-nasc-row">'
+      +'<div style="flex:1"><label class="fm-lbl">Data de nascimento</label>'
+        +'<input class="fm-inp" id="nc-nasc" type="date"></div>'
+      +'<div style="flex:1" id="nc-pis-row2"><label class="fm-lbl">PIS/PASEP/NIT</label>'
+        +'<input class="fm-inp" id="nc-pis" placeholder="000.00000.00-0"></div>'
+    +'</div>'
+    // Contato
     +'<div style="display:flex;gap:8px;margin-bottom:10px">'
       +'<div style="flex:1"><label class="fm-lbl">Telefone</label>'
         +'<input class="fm-inp" id="nc-tel" placeholder="(00) 00000-0000"></div>'
       +'<div style="flex:1"><label class="fm-lbl">E-mail</label>'
         +'<input class="fm-inp" id="nc-email" type="email" placeholder="email@exemplo.com"></div>'
     +'</div>'
-    +'<div id="nc-pis-row" style="display:flex;gap:8px;margin-bottom:10px">'
-      +'<div style="flex:1"><label class="fm-lbl">PIS/PASEP/NIT</label>'
-        +'<input class="fm-inp" id="nc-pis" placeholder="000.00000.00-0"></div>'
-      +'<div style="flex:1"><label class="fm-lbl">Endere\u00e7o</label>'
-        +'<input class="fm-inp" id="nc-end" placeholder="Rua, n\u00ba, bairro, cidade"></div>'
+    // Endere\u00e7o (estruturado, com lookup via CEP)
+    +'<div style="border-top:1px solid var(--bd);margin:12px 0 8px;padding-top:10px">'
+      +'<div style="font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:600">\ud83d\udccd Endere\u00e7o</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:8px">'
+        +'<div style="flex:0 0 140px"><label class="fm-lbl">CEP</label>'
+          +'<div style="display:flex;gap:4px">'
+            +'<input class="fm-inp" id="nc-cep" placeholder="00000-000" maxlength="9" style="flex:1" onblur="_preencherCepFields(\'nc\')">'
+            +'<button type="button" id="nc-cep-btn" onclick="_preencherCepFields(\'nc\')" style="padding:0 8px;border-radius:6px;background:var(--sf3);border:1px solid var(--bd);color:var(--tx);cursor:pointer" title="Buscar CEP">\ud83d\udd0d</button>'
+          +'</div>'
+        +'</div>'
+        +'<div style="flex:1"><label class="fm-lbl">Rua</label>'
+          +'<input class="fm-inp" id="nc-rua" placeholder="Logradouro"></div>'
+        +'<div style="flex:0 0 90px"><label class="fm-lbl">N\u00ba</label>'
+          +'<input class="fm-inp" id="nc-num" placeholder="123"></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px">'
+        +'<div style="flex:1"><label class="fm-lbl">Bairro</label>'
+          +'<input class="fm-inp" id="nc-bairro" placeholder=""></div>'
+        +'<div style="flex:1"><label class="fm-lbl">Cidade</label>'
+          +'<input class="fm-inp" id="nc-cidade" placeholder=""></div>'
+        +'<div style="flex:0 0 80px"><label class="fm-lbl">UF</label>'
+          +'<select class="fm-inp" id="nc-uf"><option value="">\u2014</option>'
+            +['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(function(u){return '<option>'+u+'</option>';}).join('')
+          +'</select></div>'
+      +'</div>'
     +'</div>'
+    // Origem do contato
+    +'<div style="margin-bottom:10px"><label class="fm-lbl">\ud83d\udce2 Origem do contato</label>'
+      +'<select class="fm-inp" id="nc-origem">'+_origemOptionsHtml('')+'</select></div>'
+    // Observa\u00e7\u00f5es
     +'<div style="margin-bottom:10px"><label class="fm-lbl">Observa\u00e7\u00f5es</label>'
-      +'<input class="fm-inp" id="nc-obs" placeholder="Cargo, rela\u00e7\u00e3o, notas..."></div>',
+      +'<input class="fm-inp" id="nc-obs" placeholder="Cargo, rela\u00e7\u00e3o, notas, resumo do problema..."></div>',
   function(){
     var nome = (document.getElementById('nc-nome')?.value||'').trim();
     if(!nome){ showToast('Informe o nome'); return; }
@@ -11670,15 +11827,29 @@ function novoContato(){
     var dup = ctcTodos().find(function(c){ return (c.nome||'').toLowerCase().trim()===nome.toLowerCase(); });
     if(dup && !confirm('Contato "'+nome+'" j\u00e1 existe. Criar mesmo assim?')) return;
     var tipo = document.getElementById('ctc-pj-btn')?.classList.contains('on') ? 'pj' : 'pf';
+    var get = function(id){ return (document.getElementById(id)?.value||'').trim(); };
+    // Endere\u00e7o formatado para exibi\u00e7\u00e3o r\u00e1pida (campo legado "endereco")
+    var rua = get('nc-rua'), num = get('nc-num'), bairro = get('nc-bairro'),
+        cidade = get('nc-cidade'), uf = get('nc-uf');
+    var enderecoTxt = [rua + (num?', '+num:''), bairro, cidade+(uf?'/'+uf:'')].filter(Boolean).join(', ');
     var novoCtc = {
       id:'ctc'+genId(), nome:nome, tipo:tipo,
-      doc: (document.getElementById('nc-doc')?.value||'').trim(),
-      rg: (document.getElementById('nc-rg')?.value||'').trim(),
-      pis: (document.getElementById('nc-pis')?.value||'').trim(),
-      tel: (document.getElementById('nc-tel')?.value||'').trim(),
-      email: (document.getElementById('nc-email')?.value||'').trim(),
-      endereco: (document.getElementById('nc-end')?.value||'').trim(),
-      obs: (document.getElementById('nc-obs')?.value||'').trim()
+      doc: get('nc-doc'),
+      cpf: tipo==='pf' ? get('nc-doc') : '',
+      rg:  get('nc-rg'),
+      pis: get('nc-pis'),
+      tel: get('nc-tel'),
+      email: get('nc-email'),
+      origem: get('nc-origem'),
+      endereco: enderecoTxt,  // compat com leitura antiga
+      extra: {
+        nasc: get('nc-nasc'),
+        cep: get('nc-cep'),
+        rua: rua, num: num, bairro: bairro,
+        cidade: cidade, uf: uf
+      },
+      obs: get('nc-obs'),
+      criado: new Date().toISOString().slice(0,10)
     };
     localContatos.push(novoCtc); invalidarCtcCache();
     sbSet('co_ctc', localContatos);
@@ -12675,19 +12846,22 @@ function setCtcTipo(tipo){
   var pjBtn = document.getElementById('ctc-pj-btn');
   var lbl = document.getElementById('ctc-doc-lbl');
   var inp = document.getElementById('nc-doc');
-  var pisRow = document.getElementById('nc-pis-row');
+  var cnpjBtn = document.getElementById('nc-cnpj-btn');
+  var nascRow = document.getElementById('nc-nasc-row');
   var rgRow = document.getElementById('nc-rg-row');
   if(tipo==='pf'){
     pfBtn?.classList.add('on'); pjBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CPF';
     if(inp) inp.placeholder='000.000.000-00';
-    if(pisRow) pisRow.style.display='flex';
+    if(cnpjBtn) cnpjBtn.style.display='none';
+    if(nascRow) nascRow.style.display='flex';
     if(rgRow) rgRow.style.display='block';
   } else {
     pjBtn?.classList.add('on'); pfBtn?.classList.remove('on');
     if(lbl) lbl.textContent='CNPJ';
     if(inp) inp.placeholder='00.000.000/0000-00';
-    if(pisRow) pisRow.style.display='none';
+    if(cnpjBtn) cnpjBtn.style.display='block';
+    if(nascRow) nascRow.style.display='none';
     if(rgRow) rgRow.style.display='none';
   }
 }
