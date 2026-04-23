@@ -1260,13 +1260,17 @@ function ctcRenderLista(){
     const iniciais = (c.nome||'?').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
     const sub = [c.tel, c.email].filter(Boolean).join(' · ') || c.tipo || '—';
     const sel = String(c.id)===String(_ctcSel);
+    const semProc = !_ctcTemProcesso(c);
+    const semProcBadge = semProc
+      ? '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:600;margin-left:4px" title="Sem processo vinculado">Sem Proc.</span>'
+      : '';
     return `<div class="ctc-sb-item${sel?' on':''}" onclick="ctcAbrirFicha('${c.id}')">
       <div class="ctc-avatar-big" style="width:34px;height:34px;font-size:13px">${iniciais}</div>
       <div style="min-width:0">
         <div class="ctc-sb-nome">${c.nome}</div>
         <div class="ctc-sb-sub">${sub}</div>
       </div>
-      <span class="ctc-sb-tipo">${c.tipo||'Contato'}</span>
+      <span class="ctc-sb-tipo">${c.tipo||'Contato'}${semProcBadge}</span>
     </div>`;
   }).join('');
 }
@@ -1340,11 +1344,12 @@ function ctcAbrirFicha(id){
     </div>` : '';
 
   var _cNomeEsc = c.nome.replace(/'/g,"\\'");
+  var _semProc = !_ctcTemProcesso(c);
   main.innerHTML = `
     <div class="ctc-ficha-header">
       <div class="ctc-avatar-big">${iniciais}</div>
       <div style="flex:1">
-        <div class="ctc-ficha-nome">${c.nome}</div>
+        <div class="ctc-ficha-nome">${c.nome}${_semProc?' <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:700;vertical-align:middle;margin-left:6px" title="Sem processo vinculado">Sem Processo</span>':''}</div>
         <div class="ctc-ficha-sub">${c.tipo||'Contato'} · Cadastrado em ${c.criado||'—'}</div>
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           ${c.tel?`<span style="font-size:12px;color:var(--tx)">📞 ${c.tel}</span>`:''}
@@ -8548,8 +8553,9 @@ function _poloAdverso(polo){
   return mapa[polo]||'R\u00e9u';
 }
 
-function novoProcesso(){
-  document.getElementById('novo-menu').style.display='none';
+function novoProcesso(prefill){
+  var menu = document.getElementById('novo-menu');
+  if(menu) menu.style.display='none';
   abrirModal('\u2696 Novo Processo',
     '<div style="margin-bottom:14px;background:var(--sf3);border-radius:8px;padding:12px 14px">'
       +'<div style="font-size:11px;color:var(--mu);margin-bottom:8px">Digite o n\u00famero e o nome. O sistema busca os dados no tribunal automaticamente.</div>'
@@ -8626,6 +8632,15 @@ function novoProcesso(){
     doSearch();
     showToast('Processo cadastrado ✓');
   }, '\u2696 Cadastrar processo');
+  // Pr\u00e9-preenche a partir de um contato rec\u00e9m-criado (fluxo p\u00f3s-cadastro)
+  if(prefill){
+    setTimeout(function(){
+      var s = function(id, val){ var e=document.getElementById('np-'+id); if(e && val) e.value=val; };
+      s('nome', prefill.nome);
+      s('cpf',  prefill.cpf || prefill.doc);
+      s('obs',  prefill.obs);
+    }, 50);
+  }
 }
 
 // Buscar dados do tribunal ao cadastrar processo
@@ -9735,8 +9750,9 @@ function getCadValues(pfx){
 // ══════════════════════════════════════════════════
 // ── CONSULTAS / STATUS PENDENTE ──
 // ══════════════════════════════════════════════════
-function novoAtendimento(){
-  document.getElementById('novo-menu').style.display='none';
+function novoAtendimento(prefill){
+  var menu = document.getElementById('novo-menu');
+  if(menu) menu.style.display='none';
   abrirModal('💬 Novo Atendimento', `
     <!-- BUSCA / SELEÇÃO DE CLIENTE -->
     <div class="at-section">
@@ -9888,6 +9904,20 @@ function novoAtendimento(){
       <input class="fm-inp" id="ns-hon" type="text" placeholder="R$ 0,00">
     </div>
   `, salvarAtendimento, 'Salvar atendimento');
+  // Pré-preenche a partir de um contato recém-criado: abre a mini-form de
+  // "novo cliente" já preenchida. Assim o atendimento fica vinculado ao
+  // contato sem precisar buscar/criar de novo.
+  if(prefill){
+    setTimeout(function(){
+      var wrap = document.getElementById('at-novo-cliente-wrap');
+      if(wrap) wrap.style.display = 'block';
+      var s = function(id, val){ var e=document.getElementById('atnc-'+id); if(e && val) e.value=val; };
+      s('nome',  prefill.nome);
+      s('tel',   prefill.tel);
+      s('email', prefill.email);
+      s('obs',   prefill.obs);
+    }, 50);
+  }
 }
 function toggleAtAssuntoCustom(){
   const v = document.getElementById('ns-assunto')?.value;
@@ -11742,6 +11772,15 @@ function cmCliChange(){
 }
 
 
+// Contato tem pelo menos um processo vinculado? Usado para o badge "Sem Processo".
+function _ctcTemProcesso(c){
+  if(!c) return false;
+  return (CLIENTS||[]).some(function(cl){
+    return (cl.partes||[]).some(function(p){ return p.nome===c.nome; })
+      || String(cl.id)===String(c.id_processo);
+  });
+}
+
 // Dropdown de origem do contato \u2014 reuso entre novoContato e cadHtml.
 var _ORIGEM_OPTS = ['Instagram','Direct/WhatsApp','Indica\u00e7\u00e3o de cliente','Google','An\u00fancio','Site','LinkedIn','Outro'];
 function _origemOptionsHtml(selecionado){
@@ -11856,8 +11895,53 @@ function novoContato(){
     marcarAlterado(); fecharModal();
     ctcRender();
     showToast('Contato adicionado \u2713');
+    // Fluxo passo-a-passo: pergunta o que fazer com o contato rec\u00e9m-criado.
+    setTimeout(function(){ _promptPosCadastroContato(novoCtc); }, 250);
   }, 'Salvar');
 }
+
+// Modal que aparece ap\u00f3s salvar um novo contato.
+// Oferece 3 caminhos naturais: vira processo, vira atendimento, ou fica parado.
+function _promptPosCadastroContato(ctc){
+  if(!ctc) return;
+  var btnStyle = 'width:100%;padding:14px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;text-align:left;margin-bottom:8px;transition:transform .1s';
+  abrirModal('\ud83c\udfaf Pr\u00f3ximo passo',
+    '<div style="margin-bottom:14px;font-size:13px;color:var(--tx);line-height:1.5">'
+      +'<strong>'+escapeHtml(ctc.nome||'Contato')+'</strong> foi cadastrado com sucesso. O que voc\u00ea quer fazer agora?'
+    +'</div>'
+    +'<button onclick="_posCadProcesso()" style="'+btnStyle+';background:rgba(81,15,16,.25);border:1px solid var(--vinho);color:var(--tx)">'
+      +'\u2696\ufe0f Criar processo vinculado'
+      +'<div style="font-size:10px;opacity:.7;font-weight:400;margin-top:4px">J\u00e1 tem o contrato assinado? Cria a pasta do processo com o nome e CPF j\u00e1 preenchidos.</div>'
+    +'</button>'
+    +'<button onclick="_posCadAtendimento()" style="'+btnStyle+';background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.4);color:var(--tx)">'
+      +'\ud83d\udcac Criar atendimento (CRM)'
+      +'<div style="font-size:10px;opacity:.7;font-weight:400;margin-top:4px">Ainda em an\u00e1lise? Registra no pipeline (an\u00e1lise \u2192 proposta \u2192 contratou).</div>'
+    +'</button>'
+    +'<button onclick="fecharModal()" style="'+btnStyle+';background:var(--sf3);border:1px solid var(--bd);color:var(--mu)">'
+      +'\ud83d\uddc2 S\u00f3 salvar o contato por enquanto'
+      +'<div style="font-size:10px;opacity:.7;font-weight:400;margin-top:4px">Fica na lista com a tag "Sem Processo" at\u00e9 virar algo.</div>'
+    +'</button>',
+    null, null);
+  window._pendingCtc = ctc;
+}
+
+function _posCadProcesso(){
+  var c = window._pendingCtc || {};
+  fecharModal();
+  novoProcesso({ nome: c.nome, cpf: c.doc || c.cpf, obs: c.obs });
+  window._pendingCtc = null;
+}
+
+function _posCadAtendimento(){
+  var c = window._pendingCtc || {};
+  fecharModal();
+  novoAtendimento({ nome: c.nome, tel: c.tel, email: c.email, obs: c.obs });
+  window._pendingCtc = null;
+}
+
+window._promptPosCadastroContato = _promptPosCadastroContato;
+window._posCadProcesso = _posCadProcesso;
+window._posCadAtendimento = _posCadAtendimento;
 function fmtDocContato(){
   const inp = document.getElementById('nc-doc'); if(!inp) return;
   const tipo = document.getElementById('ctc-pj-btn')?.classList.contains('on') ? 'pj' : 'pf';
