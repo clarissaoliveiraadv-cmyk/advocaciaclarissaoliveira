@@ -1375,6 +1375,41 @@ function ctcAbrirFicha(id){
     ${secProf}
     ${secPriv}
     ${(()=>{
+      const fin = _ctcResumoFinanceiro(c);
+      if(!fin) return '';
+      const fV = function(v){ return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+      const kpi = function(lbl, val, cor){
+        return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px">'
+          +'<div style="font-size:18px;font-weight:800;color:'+cor+'">'+val+'</div>'
+          +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-top:2px;letter-spacing:.05em">'+lbl+'</div>'
+        +'</div>';
+      };
+      const hojeStr = new Date().toISOString().slice(0,10);
+      const prox = fin.proxVencimentos.slice(0,3).map(function(p){
+        const dias = Math.ceil((new Date(p.venc)-new Date(hojeStr))/(1000*60*60*24));
+        const cor = dias<0?'#f87171':dias<=3?'#fb923c':dias<=7?'#d4af37':'var(--mu)';
+        const lblDias = dias<0?'atrasado':dias===0?'hoje':dias+'d';
+        return '<div onclick="openC('+p.cid+')" style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--sf3);border:1px solid var(--bd);border-radius:6px;cursor:pointer;margin-bottom:4px">'
+          +'<div style="min-width:0;flex:1">'
+            +'<div style="font-size:12px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(p.desc)+'</div>'
+            +'<div style="font-size:10px;color:var(--mu);margin-top:1px">'+escapeHtml(p.cliente)+' · vence '+fDt(p.venc)+'</div>'
+          +'</div>'
+          +'<div style="text-align:right">'
+            +'<div style="font-size:12px;font-weight:700;color:var(--tx)">'+fV(p.valor)+'</div>'
+            +'<div style="font-size:10px;font-weight:700;color:'+cor+'">'+lblDias+'</div>'
+          +'</div>'
+        +'</div>';
+      }).join('');
+      const saldoCor = fin.aReceber>0 ? '#f59e0b' : '#4ade80';
+      return '<div class="ctc-sec">💰 Financeiro do cliente</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">'
+          +kpi('Recebido', fV(fin.recebido), '#4ade80')
+          +kpi('A receber', fV(fin.aReceber), saldoCor)
+          +kpi('Custas pagas', fV(fin.despesasPagas), 'var(--tx)')
+        +'</div>'
+        +(prox ? '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin:12px 0 6px;letter-spacing:.05em">Próximos vencimentos</div>'+prox : '');
+    })()}
+    ${(()=>{
       const procs = CLIENTS.filter(cl=>
         (cl.partes||[]).some(p=>p.nome===c.nome) ||
         String(cl.id)===String(c.id_processo)
@@ -11779,6 +11814,48 @@ function _ctcTemProcesso(c){
     return (cl.partes||[]).some(function(p){ return p.nome===c.nome; })
       || String(cl.id)===String(c.id_processo);
   });
+}
+
+// Resumo financeiro do contato — agrega localLanc de todos os processos
+// vinculados a ele (via partes ou id_processo). Retorna {aReceber, recebido,
+// despesasPagas, proxVencimentos:[{desc,valor,venc,cliente,cid}]}.
+function _ctcResumoFinanceiro(contato){
+  if(!contato) return null;
+  var linked = (CLIENTS||[]).filter(function(cl){
+    return (cl.partes||[]).some(function(p){ return p.nome===contato.nome; })
+      || String(cl.id)===String(contato.id_processo);
+  });
+  if(!linked.length) return null;
+  var out = {aReceber:0, recebido:0, despesasPagas:0, proxVencimentos:[], nProcs:linked.length};
+  linked.forEach(function(cl){
+    var locais = _finGetLocais(cl.id);
+    (locais||[]).forEach(function(l){
+      var v = parseFloat(l.valor||0);
+      if(!v) return;
+      var pago = isRec(l);
+      var isDesp = l.tipo==='despesa' || l.tipo==='despint' || l.tipo==='despesa_reimb';
+      var isRep  = l.tipo==='repasse' || l._repasse_alvara || l._repasse_acordo;
+      if(isRep) return;  // repasse é OUT, não entra no balanço do cliente
+      if(isDesp){
+        if(pago) out.despesasPagas += v;
+        return;
+      }
+      // Honorários/acordo/sucumbência/outros = entradas do cliente
+      if(pago){
+        out.recebido += v;
+      } else {
+        out.aReceber += v;
+        if(l.venc){
+          out.proxVencimentos.push({
+            desc: l.desc||'—', valor: v, venc: l.venc,
+            cliente: cl.cliente, cid: cl.id
+          });
+        }
+      }
+    });
+  });
+  out.proxVencimentos.sort(function(a,b){ return (a.venc||'').localeCompare(b.venc||''); });
+  return out;
 }
 
 // Dropdown de origem do contato \u2014 reuso entre novoContato e cadHtml.
