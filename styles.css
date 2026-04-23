@@ -1027,7 +1027,7 @@ body.light .parc-tipo-badge.parceiro { background:#dbeafe;color:#1d4ed8; }
 .ctc-ficha-sub   { font-size:11px;color:var(--mu);margin-top:2px; }
 
 .ctc-sec         { font-size:10px;font-weight:700;color:var(--ouro);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd); }
-.ctc-grid        { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px; }
+.ctc-grid        { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px; }
 .ctc-field       { background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:8px 10px; }
 .ctc-field-lbl   { font-size:9px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px; }
 .ctc-field-val   { font-size:13px;color:var(--of);word-break:break-word; }
