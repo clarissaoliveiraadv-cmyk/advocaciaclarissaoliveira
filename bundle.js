@@ -1891,17 +1891,7 @@ function renderChecklist(){
   const renderItem = t => {
     const done = t.status==='concluido'||t.status==='done';
     const atrasada = t.prazo && t.prazo < hoje && !done;
-    // Prazos fatais moram dentro de pastas de processo \u2014 click segue pro Kanban.
-    // Tarefas edit\u00e1veis (Kanban ou legado tarefasDia) \u2014 click abre modal de edi\u00e7\u00e3o.
-    var clickHandler;
-    if(t._isFatal){
-      clickHandler = "goView('vk',document.getElementById('nav-tasks'));vkRender()";
-    } else {
-      var isLegado = t._tdIdx !== undefined;
-      var dia = t._diaOrig || hoje;
-      clickHandler = "hcEditar('"+String(t.id).replace(/'/g,"\\'")+"','"+(isLegado?'checklist':'kanban')+"',"+(isLegado?t._tdIdx:-1)+",'"+dia+"')";
-    }
-    return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="${clickHandler}" style="cursor:pointer">
+    return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" style="cursor:pointer">
       <div class="hc-item-corpo">
         <div class="hc-item-txt${done?' done':''}">${t.titulo||t.text||t.desc||'\u2014'}</div>
         <div class="hc-item-meta">
@@ -1993,45 +1983,6 @@ function hcEnviarKanban(id, titulo, cliente, hoje){
   showToast('Tarefa enviada ao Kanban ✓');
 }
 
-// Editar tarefa direto do checklist — despacha pro modal apropriado.
-// Kanban: reusa vkEditar. Legado (tarefasDia): modal simples texto + cliente.
-function hcEditar(id, origem, tdIdx, dia){
-  if(origem === 'kanban'){
-    vkEditar(id);
-    return;
-  }
-  // Legado
-  var lista = tarefasDia[dia] || [];
-  var t = lista[tdIdx];
-  if(!t){ showToast('Tarefa não encontrada'); return; }
-  var _seen = {};
-  var cliOpts = CLIENTS.filter(function(c){
-    var n = (c.cliente||'').toLowerCase();
-    if(_seen[n]) return false; _seen[n]=true; return true;
-  }).sort(function(a,b){ return (a.cliente||'').localeCompare(b.cliente||''); })
-    .map(function(c){ return '<option value="'+escapeHtml(c.cliente)+'">'+escapeHtml(c.cliente)+'</option>'; }).join('');
-  abrirModal('✏️ Editar Tarefa', `
-    <div>
-      <label class="fm-lbl">Descrição <span class="req">*</span></label>
-      <input class="fm-inp" id="hced-txt" value="${escapeHtml(t.texto||'')}">
-    </div>
-    <div style="margin-top:8px">
-      <label class="fm-lbl">Vincular a cliente</label>
-      <input class="fm-inp" id="hced-cli" list="hced-clientes" value="${escapeHtml(t.cliente||'')}" placeholder="opcional">
-      <datalist id="hced-clientes">${cliOpts}</datalist>
-    </div>
-  `, function(){
-    var novoTexto = ((document.getElementById('hced-txt')||{}).value||'').trim();
-    if(!novoTexto){ showToast('Descreva a tarefa'); return; }
-    t.texto = novoTexto;
-    t.cliente = ((document.getElementById('hced-cli')||{}).value||'').trim();
-    sbSet('co_td', tarefasDia);
-    marcarAlterado();
-    fecharModal();
-    renderChecklist();
-    showToast('Tarefa atualizada ✓');
-  }, '💾 Salvar');
-}
 
 // novoTarefaDia — cria direto no vkTasks com prazo=hoje
 function novoTarefaDia(){
@@ -8974,9 +8925,33 @@ function gerarResumoWpp(){
   if(cobrar.length){txt+='📣 *Cobrar (vencem em 2 dias)*'+NL;cobrar.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
   if(!fatais.length&&!tarefasHj.length&&!compHj.length&&!recebHoje.length&&!pagHoje.length&&!cobrar.length){txt+='✅ _Nenhuma pendência para hoje._'+NL;}
   txt+=NL+'_CO Advocacia App_';
-  if(navigator&&navigator.clipboard){
-    navigator.clipboard.writeText(txt).then(function(){showToast('✓ Resumo copiado! Cole no WhatsApp.');}).catch(function(){mostrarTxtModal(txt);});
-  } else { mostrarTxtModal(txt); }
+  // Abrir modal editável — usuário pode apagar linhas, digitar, reorganizar antes de copiar.
+  abrirModal('📲 Resumo do Dia — WhatsApp',
+    '<div style="font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5">Edite livremente antes de copiar: remova linhas, adicione notas ou reorganize. Mantém a formatação do WhatsApp (*negrito*, _itálico_).</div>'+
+    '<textarea id="wpp-resumo-txt" style="width:100%;box-sizing:border-box;min-height:360px;background:var(--sf3);border:1px solid var(--bd);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;line-height:1.6;color:var(--tx);resize:vertical;white-space:pre">'+escapeHtml(txt)+'</textarea>',
+    function(){
+      var finalTxt = (document.getElementById('wpp-resumo-txt')||{}).value || '';
+      function _fallbackCopy(){
+        var ta = document.getElementById('wpp-resumo-txt');
+        if(ta){ ta.focus(); ta.select(); try{ document.execCommand('copy'); }catch(e){} }
+      }
+      if(navigator && navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(finalTxt).then(function(){
+          showToast('✓ Copiado! Cole no WhatsApp.');
+          fecharModal();
+        }).catch(function(){
+          _fallbackCopy();
+          showToast('✓ Copiado (fallback)! Cole no WhatsApp.');
+          fecharModal();
+        });
+      } else {
+        _fallbackCopy();
+        showToast('✓ Copiado! Cole no WhatsApp.');
+        fecharModal();
+      }
+    },
+    '📋 Copiar para WhatsApp'
+  );
 }
 function mostrarTxtModal(txt){
   abrirModal('Resumo do Dia',
