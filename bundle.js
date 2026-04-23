@@ -1554,57 +1554,51 @@ function ctcVincularTarefa(ctcId, ctcNome){
 }
 
 function ctcVincularProcesso(ctcId, ctcNome){
-  // Selecionar qual processo e qual papel do contato
-  const opts = CLIENTS.filter(c=>!isEncerrado(c.id))
-    .map(c=>`<option value="${c.id}">Pasta ${c.pasta} · ${c.cliente}</option>`).join('');
-
-  abrirModal('⚖️ Vincular ao Processo — '+ctcNome,`
-    <div style="background:var(--sf3);border-radius:8px;padding:8px 12px;margin-bottom:12px;
-      font-size:12px;color:var(--mu)">
-      👤 <strong style="color:var(--tx)">${ctcNome}</strong> será adicionado como parte ao processo selecionado
-    </div>
-    <div class="fm-row">
-      <div style="flex:2"><label class="fm-lbl">Processo *</label>
-        <select class="fm-inp" id="cvp-proc">
-          <option value="">Selecione...</option>
-          ${opts}
-        </select>
-      </div>
-    </div>
-    <div class="fm-row" style="margin-top:8px">
-      <div><label class="fm-lbl">Papel / Condição *</label>
-        <select class="fm-inp" id="cvp-cond">
-          <option>Testemunha</option>
-          <option>Perito</option>
-          <option>Advogado adverso</option>
-          <option>Réu</option>
-          <option>Autor</option>
-          <option>Preposto</option>
-          <option>Representante Legal</option>
-          <option>Outro</option>
-        </select>
-      </div>
-    </div>`,
-  ()=>{
-    const procId = document.getElementById('cvp-proc')?.value;
-    const cond   = document.getElementById('cvp-cond')?.value||'Outro';
-    if(!procId){ showToast('Selecione o processo'); return; }
-    const proc = CLIENTS.find(x=>String(x.id)===String(procId));
+  abrirModal('⚖️ Vincular ao Processo — '+ctcNome,
+    '<div style="background:var(--sf3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--mu)">'
+      +'👤 <strong style="color:var(--tx)">'+escapeHtml(ctcNome)+'</strong> será adicionado como parte ao processo selecionado'
+    +'</div>'
+    +'<div>'
+      +'<label class="fm-lbl">Processo <span class="req">*</span></label>'
+      +_procPickerHtml('cvp', {placeholder:'Digite o nome do cliente, pasta ou número... (sem acento)'})
+    +'</div>'
+    +'<div style="margin-top:8px">'
+      +'<label class="fm-lbl">Papel / Condição <span class="req">*</span></label>'
+      +'<select class="fm-inp" id="cvp-cond">'
+        +'<option>Testemunha</option>'
+        +'<option>Perito</option>'
+        +'<option>Advogado adverso</option>'
+        +'<option>Réu</option>'
+        +'<option>Autor</option>'
+        +'<option>Preposto</option>'
+        +'<option>Representante Legal</option>'
+        +'<option>Outro</option>'
+      +'</select>'
+    +'</div>',
+  function(){
+    var procId = document.getElementById('cvp-id')?.value;
+    var cond = document.getElementById('cvp-cond')?.value||'Outro';
+    if(!procId){ showToast('Selecione um processo da lista (clique no resultado)'); return; }
+    var proc = CLIENTS.find(function(x){ return String(x.id)===String(procId); });
     if(!proc){ showToast('Processo não encontrado'); return; }
     if(!proc.partes) proc.partes = [];
     // Evitar duplicata
-    if(!proc.partes.some(p=>p.nome===ctcNome&&p.condicao===cond)){
+    if(!proc.partes.some(function(p){ return p.nome===ctcNome && p.condicao===cond; })){
       proc.partes.push({ nome:ctcNome, condicao:cond, cliente:'Não', contato_id:ctcId });
+      proc.updated_at = new Date().toISOString();  // força merge correto entre PCs
     }
-       // Atualizar contato com referência ao processo
-    const ctc = localContatos.find(x=>String(x.id)===String(ctcId));
-    if(ctc) ctc.processo = `${proc.cliente} (Pasta ${proc.pasta})`;
+    var ctc = localContatos.find(function(x){ return String(x.id)===String(ctcId); });
+    if(ctc){
+      ctc.processo = proc.cliente + ' (Pasta '+proc.pasta+')';
+      ctc.id_processo = proc.id;
+      ctc.updated_at = new Date().toISOString();
+    }
     sbSalvarClientesDebounced();
     sbSet('co_ctc', localContatos);
     invalidarCtcCache();
     marcarAlterado();
     fecharModal();
-    ctcAbrirFicha(ctcId); // recarregar ficha do contato
+    ctcAbrirFicha(ctcId);
     showToast('✓ '+ctcNome+' vinculado como '+cond);
     audit('criacao','Contato vinculado ao processo: '+proc.cliente,'processo');
   }, '⚖️ Vincular');
@@ -1943,6 +1937,144 @@ function findClientByName(nome){
   _clientByNameCache[n] = c;
   return c;
 }
+
+// Normaliza string para comparação fuzzy: minúscula, sem acento, sem espaços extras.
+// Usado pelo autocomplete de processos/contatos — evita que "Soráia" vs "soraia"
+// vs " Soraia" deixem de casar.
+function _fuzzyNorm(s){
+  if(s==null) return '';
+  return String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+}
+
+// Retorna true se TODAS as palavras da query aparecem (em qualquer ordem) no haystack.
+// "Soraia Silva" casa com "Silva Soraia" e com "Soraia M. da Silva".
+function _fuzzyMatch(haystack, query){
+  var h = _fuzzyNorm(haystack);
+  var q = _fuzzyNorm(query);
+  if(!q) return true;
+  if(!h) return false;
+  var palavras = q.split(' ');
+  for(var i=0;i<palavras.length;i++){
+    if(palavras[i] && h.indexOf(palavras[i]) === -1) return false;
+  }
+  return true;
+}
+
+// Busca CLIENTS por fuzzy (nome + pasta + número). Retorna array ordenado por
+// priority: match exato de nome → match no início do nome → match geral.
+function _fuzzySearchClients(query, maxResults){
+  maxResults = maxResults || 20;
+  var q = _fuzzyNorm(query);
+  if(!q) return (CLIENTS||[]).slice(0, maxResults);
+  var exact = [], starts = [], contains = [];
+  (CLIENTS||[]).forEach(function(c){
+    if(isEncerrado && isEncerrado(c.id)) return;
+    var nome = _fuzzyNorm(c.cliente||'');
+    var pasta = _fuzzyNorm(c.pasta||'');
+    var num = _fuzzyNorm(c.numero||'');
+    if(nome === q) { exact.push(c); return; }
+    if(nome.indexOf(q) === 0) { starts.push(c); return; }
+    if(_fuzzyMatch(nome+' '+pasta+' '+num, query)) contains.push(c);
+  });
+  return exact.concat(starts).concat(contains).slice(0, maxResults);
+}
+
+window._fuzzyNorm = _fuzzyNorm;
+window._fuzzyMatch = _fuzzyMatch;
+window._fuzzySearchClients = _fuzzySearchClients;
+
+// ═══════════════════════════════════════════════════════
+// ══ _procPicker — autocomplete reusável de processo ══
+// ═══════════════════════════════════════════════════════
+// Resolve o "select com N pastas" que a usuária reclamou.
+// Uso: _procPickerHtml('meuPfx', {placeholder, allowCreate:true})
+// Resultado salvo em #{pfx}-id (id do cliente) e #{pfx}-inp (nome visível).
+// allowCreate: mostra "+ Criar nova pasta" quando não há match exato.
+function _procPickerHtml(prefix, opts){
+  opts = opts || {};
+  var placeholder = opts.placeholder || 'Buscar pasta ou cliente...';
+  var allowCreate = opts.allowCreate !== false;
+  window['_procPicker_' + prefix] = {allowCreate: allowCreate, onPick: opts.onPick};
+  return ''
+    +'<div style="position:relative">'
+      +'<input class="fm-inp" id="'+prefix+'-inp" placeholder="'+escapeHtml(placeholder)+'" autocomplete="off"'
+        +' oninput="_procPickerFilter(\''+prefix+'\')"'
+        +' onfocus="_procPickerFilter(\''+prefix+'\')"'
+        +' onblur="setTimeout(function(){_procPickerHide(\''+prefix+'\');},200)">'
+      +'<input type="hidden" id="'+prefix+'-id" value="">'
+      +'<div id="'+prefix+'-list" style="position:absolute;top:100%;left:0;right:0;z-index:9999;max-height:260px;overflow-y:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;margin-top:2px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>'
+    +'</div>';
+}
+
+function _procPickerFilter(prefix){
+  var inp  = document.getElementById(prefix+'-inp');
+  var list = document.getElementById(prefix+'-list');
+  var idEl = document.getElementById(prefix+'-id');
+  if(!inp || !list) return;
+  // Se o usuário digitou, descarta a seleção anterior
+  if(idEl && idEl.value){
+    var selCli = findClientById(parseInt(idEl.value));
+    if(selCli && _fuzzyNorm(inp.value) !== _fuzzyNorm(selCli.cliente)) idEl.value = '';
+  }
+  var q = inp.value.trim();
+  var results = _fuzzySearchClients(q, 15);
+  var items = results.map(function(c){
+    var cli = escapeHtml(c.cliente||'—');
+    var metaParts = [];
+    if(c.pasta) metaParts.push('Pasta '+c.pasta);
+    if(c.natureza) metaParts.push(c.natureza);
+    if(c.numero) metaParts.push(c.numero.slice(0,25));
+    var sub = escapeHtml(metaParts.join(' · '));
+    return '<div onmousedown="_procPickerPick(\''+prefix+'\','+c.id+')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--bd);transition:background .1s" onmouseover="this.style.background=\'var(--sf3)\'" onmouseout="this.style.background=\'\'">'
+      +'<div style="font-size:13px;color:var(--tx);font-weight:600">'+cli+'</div>'
+      +(sub?'<div style="font-size:10px;color:var(--mu);margin-top:1px">'+sub+'</div>':'')
+    +'</div>';
+  }).join('');
+  var cfg = window['_procPicker_' + prefix] || {};
+  var hasExact = results.some(function(c){ return _fuzzyNorm(c.cliente) === _fuzzyNorm(q); });
+  var createBtn = '';
+  if(cfg.allowCreate && q && !hasExact){
+    createBtn = '<div onmousedown="_procPickerCreate(\''+prefix+'\')" style="padding:10px 12px;cursor:pointer;background:rgba(212,175,55,.12);border-top:1px solid var(--bd);color:var(--ouro);font-weight:600;font-size:12px;text-align:center">+ Criar nova pasta para "'+escapeHtml(q)+'"</div>';
+  }
+  if(!items && !createBtn){
+    list.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--mu);text-align:center">Nenhum resultado. Digite algumas letras do nome ou da pasta.</div>';
+  } else {
+    list.innerHTML = items + createBtn;
+  }
+  list.style.display = 'block';
+}
+
+function _procPickerPick(prefix, cid){
+  var c = findClientById(cid);
+  if(!c) return;
+  var inp = document.getElementById(prefix+'-inp');
+  var idEl = document.getElementById(prefix+'-id');
+  var list = document.getElementById(prefix+'-list');
+  if(inp) inp.value = c.cliente || '';
+  if(idEl) idEl.value = String(c.id);
+  if(list) list.style.display = 'none';
+  var cfg = window['_procPicker_' + prefix] || {};
+  if(typeof cfg.onPick === 'function'){ try{ cfg.onPick(c); }catch(e){} }
+}
+
+function _procPickerHide(prefix){
+  var list = document.getElementById(prefix+'-list');
+  if(list) list.style.display = 'none';
+}
+
+function _procPickerCreate(prefix){
+  var inp = document.getElementById(prefix+'-inp');
+  var nomeInicial = inp ? inp.value.trim() : '';
+  fecharModal();  // fecha o modal atual
+  novoProcesso({ nome: nomeInicial });
+  showToast('💡 Ao salvar o processo, volte aqui para vincular.');
+}
+
+window._procPickerHtml = _procPickerHtml;
+window._procPickerFilter = _procPickerFilter;
+window._procPickerPick = _procPickerPick;
+window._procPickerHide = _procPickerHide;
+window._procPickerCreate = _procPickerCreate;
 
 // ── Helper unificado: lançamento está recebido/pago? ──
 function isRec(l){ return !!(l.recebido || l.pago || l.status==='pago'); }
@@ -2912,15 +3044,7 @@ function vkRenderResponsavel(tasks){
 function vkNovaTask(tipoDefault='tarefa'){
   // Deduplicar clientes por nome (evita repetições)
   var seen = {};
-  var procOpts = CLIENTS.filter(function(c){
-    if(isEncerrado(c.id)) return false;
-    var nome = (c.cliente||'').toLowerCase().trim();
-    if(seen[nome]) return false;
-    seen[nome] = true;
-    return true;
-  })
-  .sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');})
-  .map(function(c){return '<option value="'+c.id+'" data-cli="'+escapeHtml(c.cliente||'')+'">'+escapeHtml(c.cliente||'\u2014')+' \u2014 Pasta '+(c.pasta||'\u2014')+'</option>';}).join('');
+  // Processo selector agora usa _procPicker (autocomplete fuzzy), n\u00e3o mais dropdown com N options.
   abrirModal('\u2705 Nova Tarefa',
     '<div class="fm-row">'
       +'<div style="flex:2"><label class="fm-lbl">T\u00edtulo <span class="req">*</span></label>'
@@ -2933,7 +3057,7 @@ function vkNovaTask(tipoDefault='tarefa'){
         +'<button type="button" class="fm-chip-btn on" id="vknt-vinc-pasta" onclick="document.getElementById(\'vknt-vinc-pasta\').classList.add(\'on\');document.getElementById(\'vknt-vinc-esc\').classList.remove(\'on\');document.getElementById(\'vknt-proc-wrap\').style.display=\'block\'">\ud83d\udcc1 Pasta do cliente</button>'
         +'<button type="button" class="fm-chip-btn" id="vknt-vinc-esc" onclick="document.getElementById(\'vknt-vinc-esc\').classList.add(\'on\');document.getElementById(\'vknt-vinc-pasta\').classList.remove(\'on\');document.getElementById(\'vknt-proc-wrap\').style.display=\'none\'">\ud83c\udfe2 Escrit\u00f3rio (interno)</button>'
       +'</div>'
-      +'<div id="vknt-proc-wrap"><select class="fm-inp" id="vknt-proc" onchange="var s=this.options[this.selectedIndex];document.getElementById(\'vknt-cli\').value=s.dataset.cli||\'\'"><option value="" data-cli="">\u2014 Selecione a pasta \u2014</option>'+procOpts+'</select></div>'
+      +'<div id="vknt-proc-wrap">'+_procPickerHtml('vknt-proc', {placeholder:'Digite nome do cliente, pasta ou n\u00famero...', allowCreate:false})+'</div>'
       +'<input type="hidden" id="vknt-cli" value="">'
     +'</div>'
     +'<div class="fm-row" style="margin-top:8px">'
@@ -2955,8 +3079,9 @@ function vkNovaTask(tipoDefault='tarefa'){
     if(!titulo||!titulo.trim()){ showToast('Informe o título'); return; }
     titulo = titulo.trim();
     var isPasta = document.getElementById('vknt-vinc-pasta') && document.getElementById('vknt-vinc-pasta').classList.contains('on');
-    var _procId = parseInt((document.getElementById('vknt-proc')||{}).value)||0;
-    var _cliNome = (document.getElementById('vknt-cli')||{}).value||'';
+    var _procId = parseInt((document.getElementById('vknt-proc-id')||{}).value)||0;
+    var _selCli = _procId ? findClientById(_procId) : null;
+    var _cliNome = _selCli ? (_selCli.cliente||'') : '';
     if(isPasta && !_procId){ showToast('Selecione a pasta do cliente'); return; }
     if(!isPasta){ _procId = 0; _cliNome = 'Escrit\u00f3rio'; }
     vkTasks.push({
@@ -8699,11 +8824,33 @@ function novoProcesso(prefill){
         {nome:g('nome'), condicao:g('polo'), cliente:'Sim'},
         {nome:g('adv'), condicao:_poloAdverso(g('polo')), cliente:'N\u00e3o'}
       ],
-      movimentacoes:[], agenda:[]
+      movimentacoes:[], agenda:[],
+      updated_at: new Date().toISOString()
     };
 
     tasks[id] = { extra:{ cpf:g('cpf') }};
     if(g('obs')) notes[id] = g('obs');
+
+    // Cascade: se não há contato com este nome (fuzzy), cria um vinculado
+    // usando o mesmo updated_at do cliente. Evita "cliente fantasma".
+    var temContato = (localContatos||[]).some(function(c){
+      return _fuzzyNorm(c.nome) === _fuzzyNorm(g('nome'));
+    });
+    if(!temContato && g('nome')){
+      var novoCtc = {
+        id: 'ctc'+genId(),
+        nome: g('nome'),
+        tipo: 'pf',
+        doc: g('cpf'), cpf: g('cpf'),
+        processo: g('nome')+' (Pasta —)',
+        id_processo: id,
+        criado: new Date().toISOString().slice(0,10),
+        updated_at: novoCliente.updated_at
+      };
+      localContatos.push(novoCtc);
+      if(typeof invalidarCtcCache==='function') invalidarCtcCache();
+      sbSet('co_ctc', localContatos);
+    }
 
        CLIENTS.push(novoCliente);
     sbSet('co_tasks', tasks);
