@@ -1891,7 +1891,17 @@ function renderChecklist(){
   const renderItem = t => {
     const done = t.status==='concluido'||t.status==='done';
     const atrasada = t.prazo && t.prazo < hoje && !done;
-    return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" style="cursor:pointer">
+    // Prazos fatais moram dentro de pastas de processo \u2014 click segue pro Kanban.
+    // Tarefas edit\u00e1veis (Kanban ou legado tarefasDia) \u2014 click abre modal de edi\u00e7\u00e3o.
+    var clickHandler;
+    if(t._isFatal){
+      clickHandler = "goView('vk',document.getElementById('nav-tasks'));vkRender()";
+    } else {
+      var isLegado = t._tdIdx !== undefined;
+      var dia = t._diaOrig || hoje;
+      clickHandler = "hcEditar('"+String(t.id).replace(/'/g,"\\'")+"','"+(isLegado?'checklist':'kanban')+"',"+(isLegado?t._tdIdx:-1)+",'"+dia+"')";
+    }
+    return `<div class="hc-item${done?' hc-item-done':''}" id="hci-${t.id}" onclick="${clickHandler}" style="cursor:pointer">
       <div class="hc-item-corpo">
         <div class="hc-item-txt${done?' done':''}">${t.titulo||t.text||t.desc||'\u2014'}</div>
         <div class="hc-item-meta">
@@ -1981,6 +1991,46 @@ function hcEnviarKanban(id, titulo, cliente, hoje){
   marcarAlterado();
   renderChecklist();
   showToast('Tarefa enviada ao Kanban ✓');
+}
+
+// Editar tarefa direto do checklist — despacha pro modal apropriado.
+// Kanban: reusa vkEditar. Legado (tarefasDia): modal simples texto + cliente.
+function hcEditar(id, origem, tdIdx, dia){
+  if(origem === 'kanban'){
+    vkEditar(id);
+    return;
+  }
+  // Legado
+  var lista = tarefasDia[dia] || [];
+  var t = lista[tdIdx];
+  if(!t){ showToast('Tarefa não encontrada'); return; }
+  var _seen = {};
+  var cliOpts = CLIENTS.filter(function(c){
+    var n = (c.cliente||'').toLowerCase();
+    if(_seen[n]) return false; _seen[n]=true; return true;
+  }).sort(function(a,b){ return (a.cliente||'').localeCompare(b.cliente||''); })
+    .map(function(c){ return '<option value="'+escapeHtml(c.cliente)+'">'+escapeHtml(c.cliente)+'</option>'; }).join('');
+  abrirModal('✏️ Editar Tarefa', `
+    <div>
+      <label class="fm-lbl">Descrição <span class="req">*</span></label>
+      <input class="fm-inp" id="hced-txt" value="${escapeHtml(t.texto||'')}">
+    </div>
+    <div style="margin-top:8px">
+      <label class="fm-lbl">Vincular a cliente</label>
+      <input class="fm-inp" id="hced-cli" list="hced-clientes" value="${escapeHtml(t.cliente||'')}" placeholder="opcional">
+      <datalist id="hced-clientes">${cliOpts}</datalist>
+    </div>
+  `, function(){
+    var novoTexto = ((document.getElementById('hced-txt')||{}).value||'').trim();
+    if(!novoTexto){ showToast('Descreva a tarefa'); return; }
+    t.texto = novoTexto;
+    t.cliente = ((document.getElementById('hced-cli')||{}).value||'').trim();
+    sbSet('co_td', tarefasDia);
+    marcarAlterado();
+    fecharModal();
+    renderChecklist();
+    showToast('Tarefa atualizada ✓');
+  }, '💾 Salvar');
 }
 
 // novoTarefaDia — cria direto no vkTasks com prazo=hoje
@@ -2667,6 +2717,7 @@ function vkEditar(id){
     vkSalvar();
     fecharModal();
     vkRender();
+    renderChecklist();
     showToast('Tarefa atualizada ✓');
   },'💾 Salvar');
 }
