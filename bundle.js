@@ -395,7 +395,52 @@ function _sbMergeArrays(local, remote, chave){
       if(localTs >= remoteTs) map.set(k, item);
     }
   });
-  return Array.from(map.values());
+  var result = Array.from(map.values());
+  // Passe secundário: dedup por conteúdo para co_localLanc e co_fin.
+  // Dois PCs criando o mesmo lançamento offline produzem IDs diferentes
+  // (genId = Date.now) — o merge por ID acima preserva ambos. Aqui
+  // colapsamos itens com mesma "identidade de negócio". Ganhador: pago>pendente,
+  // depois updated_at mais recente, depois ID menor (mais antigo = mais estável).
+  if((chave==='co_localLanc'||chave==='co_fin') && typeof _lancKey==='function'){
+    var byKey = new Map();
+    var losers = [];
+    result.forEach(function(item){
+      var ck = _lancKey(item, chave);
+      if(!ck) return; // sem identidade — preservar como-está
+      var cur = byKey.get(ck);
+      if(!cur){ byKey.set(ck, item); return; }
+      // Critério de vitória
+      var curPago = (cur.pago===true||cur.status==='pago');
+      var newPago = (item.pago===true||item.status==='pago');
+      var winner, loser;
+      if(newPago && !curPago){ winner=item; loser=cur; }
+      else if(curPago && !newPago){ winner=cur; loser=item; }
+      else {
+        var cTs=_ts(cur), nTs=_ts(item);
+        if(nTs>cTs){ winner=item; loser=cur; }
+        else if(cTs>nTs){ winner=cur; loser=item; }
+        else {
+          // Empate de ts — menor id vence (criado primeiro, mais estável)
+          var cId=Number(cur.id)||0, nId=Number(item.id)||0;
+          if(cId && nId && nId<cId){ winner=item; loser=cur; } else { winner=cur; loser=item; }
+        }
+      }
+      byKey.set(ck, winner);
+      losers.push(loser);
+    });
+    // Tombstonear perdedores para impedir ressurreição em próximos merges
+    if(losers.length && typeof _tombstoneAdd==='function'){
+      losers.forEach(function(l){ if(l && l.id!=null) _tombstoneAdd(chave, l.id); });
+    }
+    // Reconstruir preservando itens sem chave de conteúdo
+    var kept = new Set(Array.from(byKey.values()));
+    result = result.filter(function(item){
+      var ck = _lancKey(item, chave);
+      if(!ck) return true;
+      return kept.has(item);
+    });
+  }
+  return result;
 }
 
 // Merge profundo para objetos cujo valor é um array (ex: co_localMov = {cid: [movs]})
@@ -1130,6 +1175,142 @@ window.coReativarTodos = function(){
   if(typeof doSearch==='function') doSearch();
   if(typeof atualizarStats==='function') atualizarStats();
   return count+' processos reativados ✓';
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ══ DEDUP DE LANÇAMENTOS ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// Dois dispositivos criando o mesmo lançamento offline produzem IDs
+// diferentes (genId = Date.now). O merge-por-ID preserva ambos →
+// duplicatas no dashboard. _lancKey() é a "identidade de negócio":
+// mesmos (cliente, processo, descrição, valor em centavos, data, tipo)
+// são o mesmo lançamento conceitual.
+function _lancKey(l, arrName){
+  if(!l) return '';
+  // Pular "sombras" (marcadores de baixa) e migrações — têm ref própria
+  if(l.proj_ref||l.origem_proj||l._projuris_id||l._migrado_projuris) return '';
+  var norm = function(s){ return String(s==null?'':s).trim().toLowerCase(); };
+  var valor = Math.round((parseFloat(l.valor)||0)*100);
+  if(!valor) return ''; // sem valor, não considerar
+  var data = l.data||l.venc||'';
+  if(!data) return '';
+  return (arrName||'co')
+    +'|'+norm(l.cliente)
+    +'|'+(l.id_processo||'')
+    +'|'+norm(l.desc)
+    +'|'+valor
+    +'|'+data
+    +'|'+norm(l.tipo||l.cat)
+    +'|'+norm(l.direcao);
+}
+
+// Diagnóstico: detecta duplicatas em localLanc + finLancs sem alterar nada.
+// Uso no console: coDupFind()
+window.coDupFind = function(){
+  console.log('%c=== DETECÇÃO DE DUPLICATAS ===','font-weight:bold;color:#f59e0b');
+  function scan(arr, arrName){
+    var grupos = {};
+    (arr||[]).forEach(function(l){
+      var k = _lancKey(l, arrName);
+      if(!k) return;
+      if(!grupos[k]) grupos[k]=[];
+      grupos[k].push(l);
+    });
+    var dupes = Object.entries(grupos).filter(function(p){ return p[1].length>1; });
+    var extras = dupes.reduce(function(s,p){ return s+p[1].length-1; }, 0);
+    console.log('%c'+arrName+':','font-weight:bold;color:#60a5fa',
+      (arr||[]).length+' itens | '+dupes.length+' grupos duplicados | '+extras+' extras (a remover)');
+    dupes.sort(function(a,b){ return b[1].length-a[1].length; }).slice(0,10).forEach(function(p){
+      console.log('  '+p[1].length+'x '+p[0]);
+      p[1].slice(0,3).forEach(function(l){
+        console.log('    id:'+l.id+' | venc:'+(l.venc||'-')+' | pago:'+(l.pago||l.status||'?')+' | upd:'+(l.updated_at||'-'));
+      });
+    });
+    return { total:(arr||[]).length, grupos:dupes.length, extras:extras, dupes:dupes };
+  }
+  var loc = scan(localLanc, 'co_localLanc');
+  var glob = scan(finLancs, 'co_fin');
+  console.log('---');
+  console.log('Total de extras a remover:', loc.extras+glob.extras);
+  console.log('Para limpar (dry-run): coDedupLanc()');
+  console.log('Para limpar de verdade: coDedupLanc({apply:true})');
+  return { localLanc:loc, finLancs:glob };
+};
+
+// Limpeza: colapsa duplicatas e tombstoneia os perdedores.
+// Default é dry-run — passe {apply:true} para aplicar.
+// Critério de vitória: pago > pendente; updated_at mais recente;
+// id menor (criado primeiro) como desempate.
+window.coDedupLanc = function(opts){
+  opts = opts||{};
+  var apply = !!opts.apply;
+  console.log('%c=== DEDUP DE LANÇAMENTOS '+(apply?'(APLICANDO)':'(DRY-RUN)')+' ===',
+    'font-weight:bold;color:'+(apply?'#c9484a':'#f59e0b'));
+  function ts(l){ return l.updated_at||l._updated_at||l.dt_baixa||l.data||''; }
+  function colapsar(arr, chave){
+    var grupos = {};
+    (arr||[]).forEach(function(l){
+      var k = _lancKey(l, chave);
+      if(!k) return;
+      if(!grupos[k]) grupos[k]=[];
+      grupos[k].push(l);
+    });
+    var removidos = 0;
+    var toRemove = new Set();
+    Object.entries(grupos).forEach(function(p){
+      if(p[1].length<2) return;
+      var lista = p[1].slice();
+      lista.sort(function(a,b){
+        var aPago = (a.pago===true||a.status==='pago')?1:0;
+        var bPago = (b.pago===true||b.status==='pago')?1:0;
+        if(aPago!==bPago) return bPago-aPago; // pago primeiro
+        var aTs=ts(a), bTs=ts(b);
+        if(aTs!==bTs) return bTs.localeCompare(aTs); // ts mais recente primeiro
+        return (Number(a.id)||0)-(Number(b.id)||0); // id menor (mais antigo) primeiro
+      });
+      // lista[0] vence — o resto é descartado
+      for(var i=1;i<lista.length;i++){
+        toRemove.add(lista[i].id);
+        removidos++;
+      }
+    });
+    if(!removidos){ console.log(chave+': sem duplicatas ✓'); return 0; }
+    console.log(chave+': '+removidos+' item(s) a remover');
+    if(!apply){
+      Array.from(toRemove).slice(0,20).forEach(function(id){ console.log('  would-tombstone id:'+id); });
+      if(toRemove.size>20) console.log('  … e mais '+(toRemove.size-20));
+      return removidos;
+    }
+    // Aplicar: tombstonear + filtrar array + persistir
+    toRemove.forEach(function(id){ _tombstoneAdd(chave, id); });
+    var filtered = (arr||[]).filter(function(x){ return !toRemove.has(x.id); });
+    if(chave==='co_localLanc'){
+      localLanc.length = 0;
+      filtered.forEach(function(x){ localLanc.push(x); });
+      try{ lsSet('co_localLanc', JSON.stringify(localLanc)); }catch{}
+      sbSet('co_localLanc', localLanc);
+    } else if(chave==='co_fin'){
+      finLancs.length = 0;
+      filtered.forEach(function(x){ finLancs.push(x); });
+      try{ lsSet('co_fin', JSON.stringify(finLancs)); }catch{}
+      sbSet('co_fin', finLancs);
+    }
+    return removidos;
+  }
+  var rLoc = colapsar(localLanc, 'co_localLanc');
+  var rGlob = colapsar(finLancs, 'co_fin');
+  if(apply && (rLoc||rGlob)){
+    // Invalidar caches e re-renderizar
+    try{ _vfTodosInvalido = true; }catch{}
+    if(typeof renderHomeAlerts==='function') renderHomeAlerts();
+    if(typeof renderFinDash==='function') renderFinDash();
+    if(typeof vfRender==='function') vfRender();
+    if(typeof atualizarStats==='function') atualizarStats();
+    showToast && showToast('✓ '+(rLoc+rGlob)+' duplicatas removidas');
+  }
+  console.log('---');
+  console.log('Total removidos: '+(rLoc+rGlob));
+  return { localLanc:rLoc, finLancs:rGlob };
 };
 
 async function sbInit(){
