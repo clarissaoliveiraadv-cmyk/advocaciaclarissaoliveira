@@ -9547,13 +9547,25 @@ function gerarResumoWpp(){
   var dObj=new Date(HOJE);
   var dataFmt=dObj.getDate()+' de '+MA[dObj.getMonth()]+' de '+dObj.getFullYear();
 
+  // Force re-fetch: lê localStorage fresco + invalida caches de agenda/financeiro.
+  // Garante que tarefa criada segundos atrás (em qualquer aba) apareça aqui,
+  // mesmo se Realtime ainda não propagou pra memória desta aba.
+  try {
+    var vkFresh = JSON.parse(lsGet('co_vktasks')||'[]');
+    if(Array.isArray(vkFresh)){
+      vkTasks = vkFresh.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+    }
+  } catch(e){}
+  try { if(typeof invalidarAllPend==='function') invalidarAllPend(); } catch(e){}
+  try { if(typeof invalidarCacheVfTodos==='function') invalidarCacheVfTodos(); } catch(e){}
+
   // 1. FATAIS — prazos fatais de hoje + vencidos não cumpridos
   var fatais=[];
   if(typeof prazos!=='undefined'&&prazos){
     Object.entries(prazos).forEach(function(e){
       var cid=e[0], lista=e[1]||[];
       lista.forEach(function(p){
-        if(p.cumprido) return;
+        if(p.cumprido||p.deleted) return;
         if(p.data<=hoje){
           var c=(CLIENTS||[]).find(function(x){return String(x.id)===String(cid);});
           var nome=c?c.cliente:'';
@@ -9564,11 +9576,18 @@ function gerarResumoWpp(){
     });
   }
 
-  // 2. TAREFAS — kanban para hoje + atrasadas pendentes
+  // 2. TAREFAS — Kanban filtro ampliado:
+  //    - para hoje / prazo hoje (padrão)
+  //    - atrasadas pendentes (padrão)
+  //    - recém-criadas ou alteradas hoje (status_since==hoje) — NOVO
+  //    - sem prazo definido (tarefa "aberta") — NOVO
+  //    Se ficar grande, usuária edita no modal antes de copiar.
   var tarefasHj=vkTasks.filter(function(t){
     if(t.status==='done'||t.status==='concluido') return false;
     if(t.prazo===hoje||t.paraHoje===hoje) return true;
     if(t.prazo&&t.prazo<hoje) return true;
+    if(t.status_since===hoje) return true;
+    if(!t.prazo && !t.paraHoje) return true;
     return false;
   }).map(function(t){
     var cli=t.cliente&&t.cliente!=='-'?t.cliente+' - ':'';
