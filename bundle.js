@@ -1180,6 +1180,7 @@ async function sbInit(){
     // Re-renderizar tudo
     atualizarStats(); renderHomeAlerts(); renderFinDash();
     renderChecklist(); renderHomeWeek(); doSearch();
+    if(typeof dshRenderMin==='function') try{ dshRenderMin(); }catch(e){}
     // Re-renderizar view financeiro se estiver ativa
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
     sbRealtime();
@@ -2228,11 +2229,19 @@ window._fuzzySearchContatos = _fuzzySearchContatos;
 // e views abertas sem F5. Outros PCs/abas via Realtime já chegam no sbAplicar.
 window.addEventListener('co:reloadState', function(ev){
   try { if(typeof invalidarCtcCache==='function') invalidarCtcCache(); }catch(e){}
+  try { if(typeof invalidarAllPend==='function') invalidarAllPend(); }catch(e){}
+  try { if(typeof invalidarCacheVfTodos==='function') invalidarCacheVfTodos(); }catch(e){}
   try { if(typeof renderCtcEmpty==='function' && document.getElementById('vct')?.classList.contains('on')) renderCtcEmpty(); }catch(e){}
   try { if(typeof ctcRenderLista==='function' && document.getElementById('vct')?.classList.contains('on')) ctcRenderLista(); }catch(e){}
   try { if(typeof atualizarStats==='function') atualizarStats(); }catch(e){}
   try { if(typeof montarClientesAgrupados==='function') montarClientesAgrupados(); }catch(e){}
   try { if(typeof doSearch==='function') doSearch(); }catch(e){}
+  // Reatividade do dashboard minimalista — re-renderiza só se a view 'vc' está ativa
+  try {
+    if(typeof dshRenderMin==='function' && document.getElementById('vc')?.classList.contains('on')){
+      dshRenderMin();
+    }
+  } catch(e){}
 });
 
 // ── Helper unificado: lançamento está recebido/pago? ──
@@ -9397,16 +9406,383 @@ document.addEventListener('click',function(e){
   }
 });
 
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// \u2550\u2550 DASHBOARD MINIMALISTA \u2014 renders \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Selectors otimizados sobre estado j\u00e1 em mem\u00f3ria (sem hit no KV/Supabase).
+// allPendCached() / vfTodos() / ctcTodos() s\u00e3o memoizados; tombstones
+// universais filtram itens deletados (deleted:true ou em _arrayTombstones).
+
+function _dshClienteIdDeEvt(p){
+  if(p.id_processo) return p.id_processo;
+  if(p.cliente && typeof findClientByName==='function'){
+    var m = findClientByName(p.cliente);
+    if(m) return m.id;
+  }
+  return 0;
+}
+
+// Coluna 1 \u2014 Timeline vertical: Hoje \u00b7 Amanh\u00e3 \u00b7 pr\u00f3ximo grande marco.
+// Pontos: audi\u00eancia (lil\u00e1s), prazo (vermelho, pulsante se atrasado).
+function dshRenderTimeline(){
+  var el = document.getElementById('dsh-timeline');
+  if(!el) return;
+  var hoje = getTodayKey();
+  var amanhaD = new Date(HOJE); amanhaD.setDate(amanhaD.getDate()+1);
+  var amanhaStr = amanhaD.toISOString().slice(0,10);
+
+  var todos = allPendCached().filter(function(p){
+    if(p.realizado || p.deleted) return false;
+    return true;
+  });
+
+  function rowsFor(dt){
+    return todos.filter(function(p){ return eventoNoDia(p, dt); })
+      .sort(function(a,b){ return (a.inicio||a.dt_raw||'').localeCompare(b.inicio||b.dt_raw||''); });
+  }
+
+  // Vencidos n\u00e3o cumpridos \u2014 entram no bloco "Hoje" para n\u00e3o sumir
+  var vencidos = todos.filter(function(p){
+    var dt = (p.dt_fim||p.dt_raw||'');
+    return dt && dt < hoje;
+  }).sort(function(a,b){ return (a.dt_raw||'').localeCompare(b.dt_raw||''); });
+
+  var hojeEvts = vencidos.concat(rowsFor(hoje));
+  var amanhaEvts = rowsFor(amanhaStr);
+
+  // Pr\u00f3ximo grande marco (prazo ou audi\u00eancia) entre +2 e +30 dias
+  var proxMarco = null;
+  for(var i=2; i<=30 && !proxMarco; i++){
+    var d = new Date(HOJE); d.setDate(d.getDate()+i);
+    var ds = d.toISOString().slice(0,10);
+    var hits = todos.filter(function(p){
+      var tp = agTipo(p);
+      return (tp==='prazo'||tp==='audiencia') && eventoNoDia(p, ds);
+    }).sort(function(a,b){ return (a.dt_raw||'').localeCompare(b.dt_raw||''); });
+    if(hits.length) proxMarco = hits[0];
+  }
+
+  function dotClass(p){
+    var tp = agTipo(p);
+    if(tp==='audiencia') return 'audiencia';
+    if(tp==='prazo'){
+      var venc = (p.dt_fim||p.dt_raw||'') < hoje;
+      return 'prazo' + (venc ? ' atrasado' : '');
+    }
+    return '';
+  }
+  function row(p){
+    var hr = (p.inicio && p.inicio.includes('T')) ? p.inicio.slice(11,16) : '\u2014';
+    var cid = _dshClienteIdDeEvt(p);
+    var click = cid ? 'openC('+cid+')' : "calEvtClick('"+(p.id||p.id_agenda||'')+"')";
+    var titulo = p.titulo||p.tipo_compromisso||'Compromisso';
+    var dtMeta = (p.dt_raw||'') < hoje ? ' \u00b7 venceu '+fDt(p.dt_raw) : '';
+    return '<div class="dsh-tl-item" onclick="'+click+'">'
+      + '<span class="dsh-tl-dot '+dotClass(p)+'"></span>'
+      + '<span class="dsh-tl-hora">'+hr+'</span>'
+      + '<div class="dsh-tl-body">'
+        + '<div class="dsh-tl-titulo">'+escapeHtml(titulo)+'</div>'
+        + (p.cliente||dtMeta?'<div class="dsh-tl-meta">'+escapeHtml(p.cliente||'')+dtMeta+'</div>':'')
+      + '</div>'
+    + '</div>';
+  }
+  function group(lbl, evts, cls){
+    var inner = evts.length
+      ? evts.map(row).join('')
+      : '<div class="dsh-tl-empty">Nada agendado</div>';
+    return '<div class="dsh-tl-group">'
+      + '<div class="dsh-tl-grouplbl '+(cls||'')+'">'+lbl+'</div>' + inner
+    + '</div>';
+  }
+
+  var html = group('Hoje', hojeEvts, 'hoje')
+           + group('Amanh\u00e3', amanhaEvts);
+  if(proxMarco){
+    html += group('Pr\u00f3ximo marco \u00b7 '+fDt(proxMarco.dt_raw), [proxMarco]);
+  }
+  el.innerHTML = html;
+}
+
+// Coluna 2 \u2014 Top 3 urg\u00eancias do Kanban.
+// Crit\u00e9rios: atrasada > prazo mais pr\u00f3ximo > sem prazo (cai no fim).
+// Desempate: updatedAt mais recente primeiro.
+function dshRenderTop3(){
+  var el = document.getElementById('dsh-top3');
+  if(!el) return;
+  var hoje = getTodayKey();
+
+  var pend = (vkTasks||[]).filter(function(t){
+    if(t.deleted) return false;
+    if(typeof _tombstoneHas==='function' && _tombstoneHas('co_vktasks', t.id)) return false;
+    var done = t.status==='done' || t.status==='concluido';
+    return !done;
+  });
+
+  pend.sort(function(a,b){
+    var ap = a.prazo||a.paraHoje||''; var bp = b.prazo||b.paraHoje||'';
+    var aAtr = ap && ap < hoje, bAtr = bp && bp < hoje;
+    if(aAtr !== bAtr) return aAtr ? -1 : 1;
+    if(ap && bp && ap !== bp) return ap.localeCompare(bp);
+    if(ap && !bp) return -1;
+    if(!ap && bp) return 1;
+    var au = a.updated_at||a.status_since||a.criado_em||'';
+    var bu = b.updated_at||b.status_since||b.criado_em||'';
+    return bu.localeCompare(au);
+  });
+
+  var top = pend.slice(0,3);
+  if(!top.length){
+    el.innerHTML = '<div class="dsh-top3-empty">Nenhuma urg\u00eancia. Respire.</div>';
+    return;
+  }
+
+  var amanhaStr = new Date(new Date(HOJE).getTime()+86400000).toISOString().slice(0,10);
+  el.innerHTML = top.map(function(t){
+    var prazo = t.prazo || t.paraHoje || '';
+    var atr = prazo && prazo < hoje;
+    var isHoje = prazo === hoje;
+    var isAmanha = prazo === amanhaStr;
+    var prazoCls = atr ? 'atrasado' : isHoje ? 'hoje' : isAmanha ? 'amanha' : '';
+    var prazoLbl = !prazo ? 'Sem prazo'
+                 : atr ? 'Atrasada \u00b7 '+fDt(prazo)
+                 : isHoje ? 'Hoje'
+                 : isAmanha ? 'Amanh\u00e3'
+                 : fDt(prazo);
+    var cli = t.cliente && t.cliente!=='-' ? t.cliente : '';
+    var match = cli && typeof findClientByName==='function' ? findClientByName(cli) : null;
+    var click = match ? 'openC('+match.id+')'
+                      : "goView('vk',document.getElementById('nav-tasks'));vkRender()";
+    return '<div class="dsh-top3-card '+(atr?'atrasado':'')+'" onclick="'+click+'">'
+      + '<div class="dsh-top3-titulo">'+escapeHtml(t.titulo||'(sem t\u00edtulo)')+'</div>'
+      + '<div class="dsh-top3-meta">'
+        + '<span class="dsh-top3-prazo '+prazoCls+'">'+prazoLbl+'</span>'
+        + (cli?'<span>\u00b7 '+escapeHtml(cli)+'</span>':'')
+      + '</div>'
+    + '</div>';
+  }).join('');
+}
+
+// Coluna 3 \u2014 Saldo Livre (saldo escrit\u00f3rio - cust\u00f3dia de clientes)
+function dshRenderSaldoLivre(){
+  var el = document.getElementById('dsh-saldo-livre');
+  if(!el) return;
+  var saldo = 0, custodia = 0;
+  try { saldo = (_vfConsolidar(null)||{}).saldo || 0; } catch(e){}
+  try {
+    custodia = (localLanc||[]).filter(function(l){
+      if(typeof _tombstoneHas==='function' && _tombstoneHas('co_localLanc', l.id)) return false;
+      return (l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo) && !l.pago && l.status!=='pago';
+    }).reduce(function(s,l){return s+(l.valor||0);},0);
+  } catch(e){}
+  var livre = saldo - custodia;
+  var cls = livre >= 0 ? 'green' : '';
+  el.innerHTML = '<div class="dsh-cx-lbl">Saldo Livre</div>'
+    + '<div class="dsh-cx-val '+cls+'">'+fBRL(livre)+'</div>'
+    + '<div class="dsh-cx-sub">Caixa do escrit\u00f3rio, descontada a cust\u00f3dia de clientes</div>';
+  el.style.cursor = 'pointer';
+  el.onclick = function(){
+    goView('vf', document.getElementById('nav-fin'));
+    if(typeof vfRender==='function') vfRender();
+  };
+}
+
+// Coluna 3 \u2014 Pr\u00f3ximo Alvar\u00e1 aguardando (com bot\u00e3o Confirmar Chegada)
+function dshRenderProxAlvara(){
+  var el = document.getElementById('dsh-prox-alvara');
+  if(!el) return;
+  var aguard = (localLanc||[]).filter(function(l){
+    if(l.deleted) return false;
+    if(typeof _tombstoneHas==='function' && _tombstoneHas('co_localLanc', l.id)) return false;
+    return l.tipo==='alvara' && !l.pago && l.status!=='pago';
+  }).sort(function(a,b){
+    var av = a.venc||a.data||'9999', bv = b.venc||b.data||'9999';
+    return av.localeCompare(bv);
+  });
+
+  if(!aguard.length){
+    el.innerHTML = '<div class="dsh-cx-lbl">Pr\u00f3ximo Alvar\u00e1</div>'
+      + '<div class="dsh-cx-val" style="font-size:13px;color:var(--dsh-min-mu);font-weight:400">Nenhum aguardando</div>';
+    el.onclick = null; el.style.cursor = '';
+    return;
+  }
+  var l = aguard[0];
+  var cid = l.id_processo || 0;
+  var dataLbl = (l.venc||l.data) ? fDt(l.venc||l.data) : '\u2014';
+  el.innerHTML = '<div class="dsh-cx-lbl">Pr\u00f3ximo Alvar\u00e1</div>'
+    + '<div class="dsh-cx-val ouro">'+fBRL(l.valor||0)+'</div>'
+    + '<div class="dsh-cx-sub">'+escapeHtml(l.cliente||'\u2014')+' \u00b7 prev. '+dataLbl
+    + (aguard.length>1?' \u00b7 +'+(aguard.length-1)+' aguardando':'')+'</div>'
+    + '<button class="dsh-cx-action primary" onclick="event.stopPropagation();abrirFluxoAlvara('+cid+','+l.id+')">\ud83d\udcb0 Confirmar chegada</button>';
+  el.onclick = function(){ if(cid) openC(cid); };
+  el.style.cursor = cid ? 'pointer' : '';
+}
+
+// Coluna 3 \u2014 Repasses Pendentes (com bot\u00e3o pagar por linha)
+function dshRenderRepassesPend(){
+  var el = document.getElementById('dsh-repasses-pend');
+  if(!el) return;
+  var rep = (localLanc||[]).filter(function(l){
+    if(l.deleted) return false;
+    if(typeof _tombstoneHas==='function' && _tombstoneHas('co_localLanc', l.id)) return false;
+    return (l.tipo==='repasse'||l._repasse_alvara||l._repasse_acordo) && !l.pago && l.status!=='pago';
+  }).sort(function(a,b){
+    var av = a.venc||a.data||'9999', bv = b.venc||b.data||'9999';
+    return av.localeCompare(bv);
+  });
+  var total = rep.reduce(function(s,l){return s+(l.valor||0);},0);
+
+  if(!rep.length){
+    el.innerHTML = '<div class="dsh-cx-lbl">Repasses Pendentes</div>'
+      + '<div class="dsh-cx-val" style="font-size:13px;color:var(--dsh-min-mu);font-weight:400">Nenhum aberto</div>';
+    el.onclick = null;
+    return;
+  }
+  var topRep = rep.slice(0,3);
+  var rows = topRep.map(function(l){
+    return '<div class="dsh-cx-row" onclick="event.stopPropagation();vfBaixar(\'l'+l.id+'\')" title="Pagar este repasse">'
+      + '<span class="dsh-cx-row-nome">'+escapeHtml(l.cliente||'\u2014')+'</span>'
+      + '<span class="dsh-cx-row-val">'+fBRL(l.valor||0)+'</span>'
+    + '</div>';
+  }).join('');
+  el.innerHTML = '<div class="dsh-cx-lbl">Repasses Pendentes \u00b7 '+rep.length+'</div>'
+    + '<div class="dsh-cx-val ouro">'+fBRL(total)+'</div>'
+    + '<div style="margin-top:10px">'+rows+'</div>'
+    + (rep.length>3?'<div style="font-size:10px;color:var(--dsh-min-mu);margin-top:6px">+'+(rep.length-3)+' adicionais</div>':'')
+    + '<button class="dsh-cx-action" style="margin-top:10px" onclick="goView(\'vf\',document.getElementById(\'nav-fin\'));setTimeout(function(){vfSetTab(\'repasses\',null);},80)">Ver todos \u2192</button>';
+  el.onclick = null;
+}
+
+// CRM \u2014 Contatos sem resposta (atendimentos no pipeline parados h\u00e1 4+ dias)
+function dshRenderContatosSemResposta(){
+  var el = document.getElementById('dsh-contatos-sr');
+  if(!el) return;
+  var hojeMs = new Date(HOJE).getTime();
+  var pend = (typeof localAtend!=='undefined' ? localAtend : [] ).filter(function(a){
+    if(!a) return false;
+    if(a.deleted) return false;
+    if(typeof _tombstoneHas==='function' && _tombstoneHas('co_atend', a.id)) return false;
+    var st = a.status || 'inicial';
+    if(st !== 'inicial' && st !== 'proposta') return false;
+    var ref = a.criado_em || a.data || '';
+    if(!ref) return true;
+    var dias = (hojeMs - new Date(ref).getTime()) / 86400000;
+    return dias >= 4;
+  }).sort(function(a,b){ return (a.criado_em||'').localeCompare(b.criado_em||''); });
+
+  if(!pend.length){
+    el.innerHTML = '<div class="dsh-cx-lbl">Contatos sem Resposta</div>'
+      + '<div class="dsh-cx-val" style="font-size:13px;color:var(--dsh-min-mu);font-weight:400">Tudo respondido.</div>';
+    return;
+  }
+  var top = pend.slice(0,4);
+  var rows = top.map(function(a){
+    var dias = a.criado_em
+      ? Math.max(0, Math.round((hojeMs - new Date(a.criado_em).getTime())/86400000))
+      : '?';
+    var click = (typeof atVerDetalhes==='function')
+      ? "atVerDetalhes('"+a.id+"')"
+      : "goView('vct',document.getElementById('nav-contatos'));ctcRender()";
+    return '<div class="dsh-cx-row" onclick="event.stopPropagation();'+click+'">'
+      + '<span class="dsh-cx-row-nome">'+escapeHtml(a.cliente||'\u2014')+'</span>'
+      + '<span class="dsh-cx-row-val">'+dias+'d</span>'
+    + '</div>';
+  }).join('');
+  el.innerHTML = '<div class="dsh-cx-lbl">Contatos sem Resposta \u00b7 '+pend.length+'</div>'
+    + '<div style="margin-top:6px">'+rows+'</div>'
+    + (pend.length>4?'<div style="font-size:10px;color:var(--dsh-min-mu);margin-top:6px">+'+(pend.length-4)+' aguardando retorno</div>':'');
+}
+
+// Busca universal \u2014 preview ao digitar (clientes + contatos)
+function dshSearchPreview(){
+  var inp = document.getElementById('dsh-search');
+  var prev = document.getElementById('dsh-search-preview');
+  if(!inp || !prev) return;
+  var q = (inp.value||'').toLowerCase().trim();
+  if(q.length < 2){ prev.innerHTML=''; return; }
+  var hits = [];
+  (CLIENTS||[]).slice().sort(function(a,b){return (a.cliente||'').localeCompare(b.cliente||'');}).forEach(function(c){
+    if(hits.length>=8) return;
+    var nome = (c.cliente||'').toLowerCase();
+    var num = (c.numero||'').toLowerCase();
+    if(nome.includes(q) || (num && num.includes(q))){
+      hits.push({label: c.cliente + (c.pasta?' \u00b7 Pasta '+c.pasta:''), click:'openC('+c.id+')', tipo:'\u2696\ufe0f'});
+    }
+  });
+  var ctcs = (typeof ctcTodos==='function') ? ctcTodos() : [];
+  ctcs.forEach(function(c){
+    if(hits.length>=12) return;
+    var nome = (c.nome||'').toLowerCase();
+    if(nome && nome.includes(q)){
+      hits.push({label:c.nome, click:"goView('vct',document.getElementById('nav-contatos'));ctcRender();ctcAbrirFicha('"+c.id+"')", tipo:'\ud83d\udc64'});
+    }
+  });
+  if(!hits.length){
+    prev.innerHTML = '<div class="dsh-search-row" style="cursor:default;color:var(--dsh-min-mu)">Nada encontrado para "'+escapeHtml(q)+'"</div>';
+    return;
+  }
+  prev.innerHTML = hits.map(function(h){
+    return '<div class="dsh-search-row" onclick="document.getElementById(\'dsh-search-preview\').innerHTML=\'\';'+h.click+'">'
+      + h.tipo + ' ' + escapeHtml(h.label)
+    + '</div>';
+  }).join('');
+}
+
+// Submit (Enter) \u2014 leva para a view de Clientes com a query
+function dshSearchSubmit(){
+  var inp = document.getElementById('dsh-search');
+  var prev = document.getElementById('dsh-search-preview');
+  if(!inp) return;
+  var q = (inp.value||'').trim();
+  if(prev) prev.innerHTML='';
+  if(!q) return;
+  goView('vcl', document.getElementById('nav-clientes'));
+  var s = document.getElementById('srch');
+  if(s){ s.value = q; if(typeof doSearch==='function') doSearch(); }
+}
+
+// Esconder preview ao clicar fora
+document.addEventListener('click', function(e){
+  var prev = document.getElementById('dsh-search-preview');
+  var inp = document.getElementById('dsh-search');
+  if(!prev || !inp) return;
+  if(e.target===inp || prev.contains(e.target)) return;
+  prev.innerHTML = '';
+});
+
+// Render unificado do dashboard minimalista \u2014 barato, opera s\u00f3 sobre cache em mem\u00f3ria
+function dshRenderMin(){
+  if(!document.getElementById('dsh-timeline')) return;
+  try { dshRenderTimeline(); }            catch(e){ console.warn('[dsh] timeline', e); }
+  try { dshRenderTop3(); }                catch(e){ console.warn('[dsh] top3', e); }
+  try { dshRenderSaldoLivre(); }          catch(e){ console.warn('[dsh] saldo', e); }
+  try { dshRenderProxAlvara(); }          catch(e){ console.warn('[dsh] alvara', e); }
+  try { dshRenderRepassesPend(); }        catch(e){ console.warn('[dsh] repasses', e); }
+  try { dshRenderContatosSemResposta(); } catch(e){ console.warn('[dsh] crm', e); }
+  if(typeof _dshUpdateTimestamp==='function') _dshUpdateTimestamp();
+}
+
 function _dshRefresh(){
   invalidarAllPend();
   _finLocaisCache = {};
   _clientByIdCache = {};
-  renderHomeAlerts();
-  renderChecklist();
-  renderHomeWeek();
-  if(typeof renderFinDash==='function') renderFinDash();
-  if(typeof renderHomeIniciais==='function') renderHomeIniciais();
-  if(typeof atualizarStats==='function') atualizarStats();
+  if(typeof invalidarCacheVfTodos==='function') invalidarCacheVfTodos();
+  if(typeof invalidarCtcCache==='function') invalidarCtcCache();
+  // Re-fetch fresco do localStorage para vkTasks (tarefas rec\u00e9m-criadas em outra aba)
+  try {
+    var vkFresh = JSON.parse(lsGet('co_vktasks')||'[]');
+    if(Array.isArray(vkFresh)){
+      vkTasks = vkFresh.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+    }
+  } catch(e){}
+  // Renders legados (mantidos caso outros containers ainda existam)
+  if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
+  if(typeof renderChecklist==='function')  try{ renderChecklist(); }catch(e){}
+  if(typeof renderHomeWeek==='function')   try{ renderHomeWeek(); }catch(e){}
+  if(typeof renderFinDash==='function')    try{ renderFinDash(); }catch(e){}
+  if(typeof renderHomeIniciais==='function') try{ renderHomeIniciais(); }catch(e){}
+  if(typeof atualizarStats==='function')   try{ atualizarStats(); }catch(e){}
+  // Render minimalista
+  dshRenderMin();
   showToast('\u2713 Dashboard atualizado');
 }
 // Atualizar timestamp a cada 60s para mostrar "há X min"
@@ -11913,6 +12289,10 @@ function marcarAlterado(){
   vfInvalidarCache();      // Phase 3: invalidar cache de abas pesadas
   const btn = document.getElementById('btn-salvar');
   if(btn && btn.textContent === '💾 Salvar') btn.textContent = '💾 Salvar *';
+  // Reatividade — re-render do dashboard minimalista quando algo muda e ele está visível
+  if(typeof dshRenderMin==='function' && document.getElementById('vc')?.classList.contains('on')){
+    try { dshRenderMin(); } catch(e){}
+  }
 }
 
 // PERF: debounce — evita rerender a cada tecla em inputs de busca
@@ -14194,7 +14574,14 @@ function goView(v,btn){
     'vk':'nav-tasks','vct':'nav-contatos','vcalc':'nav-calc','vaudit':'nav-audit'};
   var navId=navMap[v];
   if(navId){ var nb=document.getElementById(navId); if(nb) nb.classList.add('on'); }
-  if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); renderHomeIniciais(); }
+  if(v==='vc'){
+    if(typeof renderHomeAlerts==='function')   try{ renderHomeAlerts(); }catch(e){}
+    if(typeof renderChecklist==='function')    try{ renderChecklist(); }catch(e){}
+    if(typeof renderHomeWeek==='function')     try{ renderHomeWeek(); }catch(e){}
+    if(typeof renderFinDash==='function')      try{ renderFinDash(); }catch(e){}
+    if(typeof renderHomeIniciais==='function') try{ renderHomeIniciais(); }catch(e){}
+    if(typeof dshRenderMin==='function')       try{ dshRenderMin(); }catch(e){}
+  }
   if(v==='vcl'){
     // Restaurar sidebar de clientes se estava escondida
     var vclWrap=document.querySelector('.vcl-wrap');

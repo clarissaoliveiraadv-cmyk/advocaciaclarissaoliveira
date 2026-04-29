@@ -12,128 +12,241 @@
 <meta name="description" content="Sistema de gestão para escritório de advocacia">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23510f10' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' fill='%23D4AF37' text-anchor='middle' font-family='serif'>CO</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=61">
+<link rel="stylesheet" href="styles.css?v=62">
 <style>
-/* ── KPI Row B — cards com borda lateral ── */
-.dsh-kpi-b-row {
+/* ── DASHBOARD MINIMALISTA — paleta preta · dourada · cinza ── */
+:root {
+  --dsh-min-bg: transparent;
+  --dsh-min-card-bg: #1a1818;
+  --dsh-min-card-bd: #242424;
+  --dsh-min-tx: #E0E0E0;
+  --dsh-min-mu: #8a8a8a;
+  --dsh-min-ouro: #D4AF37;
+  --dsh-min-vinho: #6b1416;
+  --dsh-min-red: #c9484a;
+  --dsh-min-amber: #f59e0b;
+}
+body.light {
+  --dsh-min-card-bg: #fff;
+  --dsh-min-card-bd: #E5E7EB;
+  --dsh-min-tx: #1C1C1E;
+  --dsh-min-mu: #7A7F8F;
+}
+
+.dsh-min-scroll { padding: 0; overflow-y: auto; }
+
+.dsh-min-topbar {
+  display: flex; justify-content: flex-end;
+  padding: 10px 24px 0;
+  font-size: 10px; color: var(--dsh-min-mu);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.dsh-min-topbar span:hover { color: var(--dsh-min-ouro); }
+
+.dsh-min-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0,1fr));
-  gap: 0;
-  margin: 0 16px 12px;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  overflow: visible;
-  position: relative;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.3fr) minmax(260px, 1fr);
+  gap: 28px;
+  padding: 18px 28px 28px;
+  max-width: 1360px;
+  margin: 0 auto;
 }
-body.light .dsh-kpi-b-row { border-color: #DDE1E7; }
-
-.dsh-kpi-b-card {
-  padding: 14px 16px;
-  border-right: 1px solid #2a2a2a;
-  border-left: 3px solid transparent;
-  background: #1a1818;
-  transition: background .15s;
+@media(max-width:1024px){
+  .dsh-min-grid { grid-template-columns: 1fr; gap: 20px; padding: 16px; }
 }
-body.light .dsh-kpi-b-card { background: #fff; border-right-color: #DDE1E7; }
-.dsh-kpi-b-card:last-child { border-right: none; }
-.dsh-kpi-b-card[style*="cursor:pointer"]:hover { background: #222020; }
-body.light .dsh-kpi-b-card[style*="cursor:pointer"]:hover { background: #F5F6F8; }
 
-.dsh-kpi-b-neutral  { border-left-color: #3a3a3a; }
-.dsh-kpi-b-danger   { border-left-color: #A32D2D; }
-.dsh-kpi-b-warn     { border-left-color: #854F0B; }
-.dsh-kpi-b-ok       { border-left-color: #3B6D11; }
-body.light .dsh-kpi-b-neutral { border-left-color: #c0c0c0; }
-body.light .dsh-kpi-b-danger  { border-left-color: #E24B4A; }
-body.light .dsh-kpi-b-warn    { border-left-color: #BA7517; }
-body.light .dsh-kpi-b-ok      { border-left-color: #639922; }
-
-.dsh-kpi-b-val {
-  font-size: 22px;
-  font-weight: 600;
+.dsh-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dsh-col-center { gap: 18px; }
+.dsh-col-title {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .14em;
+  color: var(--dsh-min-mu); margin: 4px 0 2px;
   font-family: 'DM Sans', sans-serif;
-  color: #E0E0E0;
-  line-height: 1;
-  margin-bottom: 5px;
 }
-body.light .dsh-kpi-b-val { color: #1C1C1E; }
 
-.dsh-kpi-b-danger-txt { color: #f09595 !important; }
-.dsh-kpi-b-warn-txt   { color: #EF9F27 !important; }
-.dsh-kpi-b-ok-txt     { color: #97C459 !important; }
-body.light .dsh-kpi-b-danger-txt { color: #A32D2D !important; }
-body.light .dsh-kpi-b-warn-txt   { color: #854F0B !important; }
-body.light .dsh-kpi-b-ok-txt     { color: #3B6D11 !important; }
+/* ── Timeline vertical ── */
+.dsh-timeline { position: relative; padding-left: 22px; }
+.dsh-timeline::before {
+  content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px;
+  width: 1px; background: linear-gradient(to bottom, transparent, #2a2a2a 12%, #2a2a2a 88%, transparent);
+}
+.dsh-tl-group {
+  position: relative; margin-bottom: 14px;
+}
+.dsh-tl-grouplbl {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--dsh-min-mu); margin-bottom: 6px; padding-left: 0;
+}
+.dsh-tl-grouplbl.hoje { color: var(--dsh-min-ouro); }
+.dsh-tl-item {
+  position: relative; padding: 6px 0 6px 4px; cursor: pointer;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.dsh-tl-item:hover .dsh-tl-titulo { color: var(--dsh-min-ouro); }
+.dsh-tl-dot {
+  position: absolute; left: -22px; top: 11px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--dsh-min-card-bg); border: 2px solid #555;
+  box-sizing: border-box; flex-shrink: 0;
+}
+.dsh-tl-dot.audiencia { border-color: #a78bfa; background: #a78bfa; }
+.dsh-tl-dot.prazo {
+  border-color: var(--dsh-min-red); background: var(--dsh-min-red);
+}
+.dsh-tl-dot.prazo.atrasado { animation: dshPulseRed 1.4s ease-in-out infinite; }
+@keyframes dshPulseRed {
+  0%,100% { box-shadow: 0 0 0 0 rgba(201,72,74,.55); }
+  50%     { box-shadow: 0 0 0 6px rgba(201,72,74,0); }
+}
+.dsh-tl-hora {
+  font-size: 10px; color: var(--dsh-min-mu); width: 36px; flex-shrink: 0;
+  font-family: 'DM Sans', sans-serif; padding-top: 1px;
+}
+.dsh-tl-body { flex: 1; min-width: 0; }
+.dsh-tl-titulo {
+  font-size: 12px; font-weight: 600; color: var(--dsh-min-tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color .12s;
+}
+.dsh-tl-meta {
+  font-size: 10px; color: var(--dsh-min-mu); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dsh-tl-empty {
+  font-size: 11px; color: var(--dsh-min-mu); font-style: italic;
+  padding: 4px 0;
+}
 
-.dsh-kpi-b-lbl {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: #6b6b6b;
+/* ── Busca universal ── */
+.dsh-search-wrap { position: relative; }
+.dsh-search {
+  width: 100%; box-sizing: border-box;
+  padding: 14px 18px;
+  background: var(--dsh-min-card-bg);
+  border: 1px solid var(--dsh-min-card-bd);
+  border-radius: 10px;
+  color: var(--dsh-min-tx);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  transition: border-color .15s, box-shadow .15s;
 }
-body.light .dsh-kpi-b-lbl { color: #8A8FA3; }
+.dsh-search:focus {
+  outline: none;
+  border-color: var(--dsh-min-ouro);
+  box-shadow: 0 0 0 3px rgba(212,175,55,.12);
+}
+.dsh-search::placeholder { color: var(--dsh-min-mu); }
+.dsh-search-preview {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--dsh-min-card-bg); border: 1px solid var(--dsh-min-card-bd);
+  border-radius: 8px; box-shadow: 0 12px 36px rgba(0,0,0,.4);
+  z-index: 50; max-height: 280px; overflow-y: auto;
+}
+.dsh-search-preview:empty { display: none; }
+.dsh-search-row {
+  padding: 8px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--dsh-min-card-bd);
+  font-size: 12px; color: var(--dsh-min-tx);
+}
+.dsh-search-row:hover { background: rgba(212,175,55,.06); color: var(--dsh-min-ouro); }
+.dsh-search-row:last-child { border-bottom: none; }
 
-.dsh-kpi-b-row2 {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  margin-bottom: 5px;
+/* ── Top 3 Urgências ── */
+.dsh-top3 { display: flex; flex-direction: column; gap: 8px; }
+.dsh-top3-card {
+  padding: 12px 14px;
+  background: var(--dsh-min-card-bg);
+  border: 1px solid var(--dsh-min-card-bd);
+  border-radius: 10px; cursor: pointer;
+  transition: border-color .12s, transform .12s;
 }
-.dsh-kpi-b-sep {
-  width: 1px;
-  height: 22px;
-  background: #2a2a2a;
-  flex-shrink: 0;
+.dsh-top3-card:hover { border-color: var(--dsh-min-ouro); transform: translateX(2px); }
+.dsh-top3-card.atrasado { border-left: 3px solid var(--dsh-min-red); animation: dshPulseBd 1.6s ease-in-out infinite; }
+@keyframes dshPulseBd {
+  0%,100% { box-shadow: inset 0 0 0 0 rgba(201,72,74,0); }
+  50%     { box-shadow: inset 4px 0 0 0 rgba(201,72,74,.45); }
 }
-body.light .dsh-kpi-b-sep { background: #DDE1E7; }
-.dsh-kpi-b-sublbl {
-  font-size: 9px;
-  color: #6b6b6b;
-  margin-top: 2px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
+.dsh-top3-titulo {
+  font-size: 13px; font-weight: 600; color: var(--dsh-min-tx);
+  line-height: 1.35;
 }
-body.light .dsh-kpi-b-sublbl { color: #8A8FA3; }
+.dsh-top3-meta {
+  display: flex; gap: 10px; align-items: center;
+  font-size: 10px; color: var(--dsh-min-mu);
+  margin-top: 6px; text-transform: uppercase; letter-spacing: .04em;
+}
+.dsh-top3-prazo { font-weight: 700; }
+.dsh-top3-prazo.atrasado { color: var(--dsh-min-red); }
+.dsh-top3-prazo.hoje { color: var(--dsh-min-ouro); }
+.dsh-top3-prazo.amanha { color: var(--dsh-min-amber); }
+.dsh-top3-empty {
+  padding: 18px 14px; text-align: center; font-size: 11px;
+  color: var(--dsh-min-mu); font-style: italic;
+}
 
-.dsh-kpi-b-meta {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
+/* ── Botão WhatsApp principal ── */
+.dsh-wpp-btn {
+  width: 100%; padding: 13px 16px;
+  background: var(--dsh-min-vinho);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #f4f4f6; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: .03em;
+  transition: background .15s, transform .12s;
+  margin-top: auto;
 }
-.dsh-kpi-b-meta-inner { flex: 1; display: flex; align-items: center; }
-.dsh-kpi-b-meta-txt {
-  font-size: 11px;
-  color: #6b6b6b;
-  line-height: 1.4;
-}
-body.light .dsh-kpi-b-meta-txt { color: #8A8FA3; }
-.dsh-kpi-b-meta-txt:hover { color: #D4AF37 !important; }
+.dsh-wpp-btn:hover { background: #851a1c; transform: translateY(-1px); }
+.dsh-wpp-btn:active { transform: translateY(0); }
 
-.dsh-kpi-b-novo-btn {
-  background: #6b1416;
-  border: none;
-  border-radius: 6px;
-  color: #f4f4f6;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  width: 100%;
+/* ── Caixa cards ── */
+.dsh-cx-card {
+  padding: 12px 14px;
+  background: var(--dsh-min-card-bg);
+  border: 1px solid var(--dsh-min-card-bd);
+  border-radius: 10px;
 }
-.dsh-kpi-b-novo-btn:hover { background: #851a1c; }
-body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
-
-@media(max-width:768px){
-  .dsh-kpi-b-row {
-    grid-template-columns: 1fr 1fr;
-    margin: 0 10px 10px;
-  }
-  .dsh-kpi-b-card:nth-child(2n) { border-right: none; }
-  .dsh-kpi-b-card { border-bottom: 1px solid #2a2a2a; }
-  body.light .dsh-kpi-b-card { border-bottom-color: #DDE1E7; }
+.dsh-cx-lbl {
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--dsh-min-mu); margin-bottom: 4px;
 }
+.dsh-cx-val {
+  font-size: 22px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--dsh-min-tx); line-height: 1.1;
+}
+.dsh-cx-val.ouro { color: var(--dsh-min-ouro); }
+.dsh-cx-val.green { color: #4ade80; }
+.dsh-cx-sub { font-size: 10px; color: var(--dsh-min-mu); margin-top: 6px; }
+.dsh-cx-action {
+  display: inline-block; margin-top: 10px;
+  padding: 6px 12px; font-size: 11px; font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--dsh-min-card-bd);
+  border-radius: 6px; color: var(--dsh-min-tx);
+  cursor: pointer; font-family: inherit;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.dsh-cx-action:hover { border-color: var(--dsh-min-ouro); color: var(--dsh-min-ouro); }
+.dsh-cx-action.primary {
+  background: var(--dsh-min-ouro); border-color: var(--dsh-min-ouro); color: #111;
+}
+.dsh-cx-action.primary:hover { background: #c9a634; }
+.dsh-cx-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--dsh-min-card-bd);
+  font-size: 11px; gap: 8px; cursor: pointer;
+}
+.dsh-cx-row:last-child { border-bottom: none; }
+.dsh-cx-row:hover .dsh-cx-row-nome { color: var(--dsh-min-ouro); }
+.dsh-cx-row-nome {
+  flex: 1; min-width: 0; color: var(--dsh-min-tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color .12s;
+}
+.dsh-cx-row-val { color: var(--dsh-min-mu); font-weight: 600; flex-shrink: 0; }
 
 /* Status dropdown no card do Kanban (mobile-friendly) */
 .vk-card-status-sel {
@@ -261,124 +374,64 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 <div style="margin-left:56px">
 
-<!-- VIEW HOME — DASHBOARD -->
+<!-- VIEW HOME — DASHBOARD MINIMALISTA -->
 <div class="view on" id="vc" style="flex-direction:column">
-  <div class="dsh-scroll">
+  <div class="dsh-scroll dsh-min-scroll">
 
-<!-- KPIs — Opção B: cards com borda lateral colorida -->
-    <div class="dsh-kpi-b-row">
+    <div class="dsh-min-topbar">
+      <span id="dsc-lastupd" onclick="_dshRefresh()" title="Atualizar">— · Atualizar</span>
+    </div>
 
-      <div class="dsh-kpi-b-card dsh-kpi-b-neutral" onclick="goView('vcl',document.getElementById('nav-clientes'));doSearch()" style="cursor:pointer">
-        <div class="dsh-kpi-b-val" id="dsc-ativos">—</div>
-        <div class="dsh-kpi-b-lbl">Clientes ativos</div>
-      </div>
+    <div class="dsh-min-grid">
 
-      <div class="dsh-kpi-b-card dsh-kpi-b-danger" onclick="goView('va',document.getElementById('nav-agenda'))" style="cursor:pointer">
-        <div class="dsh-kpi-b-val dsh-kpi-b-danger-txt" id="dsc-vencidos">—</div>
-        <div class="dsh-kpi-b-lbl">Prazos vencidos</div>
-      </div>
+      <!-- ═══ COLUNA ESQUERDA · O AGORA ═══ -->
+      <section class="dsh-col">
+        <h3 class="dsh-col-title">O Agora</h3>
+        <div id="dsh-timeline" class="dsh-timeline"></div>
+      </section>
 
-      <div class="dsh-kpi-b-card dsh-kpi-b-warn">
-        <div class="dsh-kpi-b-row2">
-          <div>
-            <div class="dsh-kpi-b-val dsh-kpi-b-warn-txt" id="dsc-prazos7">—</div>
-            <div class="dsh-kpi-b-sublbl">prazos</div>
-          </div>
-          <div class="dsh-kpi-b-sep"></div>
-          <div>
-            <div class="dsh-kpi-b-val dsh-kpi-b-warn-txt" id="dsc-aud7">—</div>
-            <div class="dsh-kpi-b-sublbl">audiências</div>
-          </div>
+      <!-- ═══ COLUNA CENTRAL · A MENTE ═══ -->
+      <section class="dsh-col dsh-col-center">
+        <div class="dsh-search-wrap">
+          <input id="dsh-search" class="dsh-search" type="text" autocomplete="off"
+            placeholder="Buscar cliente, processo, contato…"
+            oninput="_db(function(){dshSearchPreview()},180,'dshs')"
+            onkeydown="if(event.key==='Enter')dshSearchSubmit()">
+          <div id="dsh-search-preview" class="dsh-search-preview"></div>
         </div>
-        <div class="dsh-kpi-b-lbl">Próximos 7 dias</div>
-      </div>
-
-      <div class="dsh-kpi-b-card dsh-kpi-b-ok" onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" style="cursor:pointer">
-        <div class="dsh-kpi-b-val dsh-kpi-b-ok-txt" id="dsc-saldo">—</div>
-        <div class="dsh-kpi-b-lbl">Saldo escritório</div>
-      </div>
-
-      <div class="dsh-kpi-b-card dsh-kpi-b-neutral dsh-kpi-b-meta" style="overflow:visible">
-        <div class="dsh-kpi-b-meta-inner">
-          <span class="dsh-kpi-b-meta-txt" id="dsc-lastupd" onclick="_dshRefresh()" style="cursor:pointer" title="Atualizar">— · Atualizar</span>
+        <div>
+          <h3 class="dsh-col-title">Top 3 Urgências</h3>
+          <div id="dsh-top3" class="dsh-top3"></div>
         </div>
-        <div style="position:relative">
-          <button class="dsh-kpi-b-novo-btn" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'">+ Novo</button>
-          <div id="dsh-novo-dd" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--sf);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:500;min-width:200px;overflow:hidden">
-            <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
-            <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
-            <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
-            <div class="dsh-dd-item" onclick="novoAtendimento();document.getElementById('dsh-novo-dd').style.display='none'">💬 Atendimento</div>
-            <div class="dsh-dd-item" onclick="novoContato();document.getElementById('dsh-novo-dd').style.display='none'">👤 Contato</div>
-            <div class="dsh-dd-item" onclick="abrirColarPublicacao();document.getElementById('dsh-novo-dd').style.display='none'">📰 Publicação</div>
-            <div class="dsh-dd-item" onclick="goView('vini');iniRender();document.getElementById('dsh-novo-dd').style.display='none'">📝 Inicial</div>
-          </div>
-        </div>
-      </div>
+        <button class="dsh-wpp-btn" onclick="gerarResumoWpp()" title="Re-busca dados antes de abrir o resumo">📲 Gerar Resumo para WhatsApp</button>
+      </section>
+
+      <!-- ═══ COLUNA DIREITA · O CAIXA ═══ -->
+      <section class="dsh-col">
+        <h3 class="dsh-col-title">O Caixa</h3>
+        <div id="dsh-saldo-livre"  class="dsh-cx-card"></div>
+        <div id="dsh-prox-alvara"  class="dsh-cx-card"></div>
+        <div id="dsh-repasses-pend" class="dsh-cx-card"></div>
+        <h3 class="dsh-col-title" style="margin-top:14px">CRM</h3>
+        <div id="dsh-contatos-sr" class="dsh-cx-card"></div>
+      </section>
 
     </div>
 
-    <!-- ALERTAS -->
-    <div id="home-alerts" class="dsh-alerts-compact" style="padding:0 16px"></div>
-
-    <!-- GRID 3 COLUNAS -->
-    <div class="dsh-grid3">
-      <!-- COL 1: Tarefas -->
-      <div class="dsh-panel">
-        <div class="dsh-panel-head">
-          <span class="dsh-panel-title">Tarefas do Dia</span>
-          <div class="dsh-tabs-mini">
-            <button onclick="hcSetTab('tarefas',this)" id="hctab-tarefas" class="dsh-tab-btn on">Tarefas <span id="hctab-tarefas-n"></span></button>
-            <button onclick="hcSetTab('sistema',this)" id="hctab-sistema" class="dsh-tab-btn">Admin</button>
-          </div>
-          <div class="dsh-panel-actions">
-            <button onclick="novoTarefaDia()" class="dsh-btn">+ Nova</button>
-            <button onclick="gerarResumoWpp()" class="dsh-btn dsh-btn-wpp">📲 WPP</button>
-            <button onclick="goView('vk',document.getElementById('nav-tasks'));vkRender()" class="dsh-btn dsh-btn-ghost">Kanban →</button>
-          </div>
-        </div>
-        <div class="dsh-panel-body" style="max-height:320px;overflow-y:auto">
-          <div id="hc-list"></div>
-          <div id="hc-empty" class="hc-empty" style="display:none;padding:16px;text-align:center;font-size:12px;color:var(--mu)">Nenhuma tarefa para hoje</div>
-        </div>
-      </div>
-
-      <!-- COL 2: Compromissos + Calendário -->
-      <div class="dsh-panel">
-        <div class="dsh-panel-head">
-          <span class="dsh-panel-title">Compromissos</span>
-          <button onclick="goView('va',document.getElementById('nav-agenda'))" class="dsh-btn dsh-btn-ghost">Agenda →</button>
-        </div>
-        <div class="dsh-panel-body" style="max-height:200px;overflow-y:auto">
-          <div id="home-proximos"></div>
-        </div>
-        <div class="dsh-panel-divider"></div>
-        <div class="dsh-panel-body"><div id="home-week"></div></div>
-      </div>
-
-      <!-- COL 3: Financeiro -->
-      <div class="dsh-panel">
-        <div class="dsh-panel-head">
-          <span id="fin-mes-lbl" class="dsh-panel-title">Financeiro</span>
-          <button onclick="goView('vf',document.getElementById('nav-fin'));vfRender()" class="dsh-btn dsh-btn-ghost">Ver tudo →</button>
-        </div>
-        <div class="dsh-panel-body"><div id="home-fin-dash"></div></div>
-      </div>
+    <!-- Containers ocultos — preservados para compatibilidade com renders legados -->
+    <div style="display:none">
+      <div id="home-alerts"></div>
+      <div id="hc-list"></div>
+      <div id="hc-empty"></div>
+      <div id="home-proximos"></div>
+      <div id="home-week"></div>
+      <div id="home-fin-dash"></div>
+      <div id="home-iniciais"></div>
+      <span id="fin-mes-lbl"></span>
     </div>
 
-    <!-- LINHA 2: Iniciais -->
-    <div style="padding:0 16px 16px">
-      <div class="dsh-panel">
-        <div class="dsh-panel-head">
-          <span class="dsh-panel-title">Iniciais Pendentes</span>
-          <button onclick="goView('vini');iniRender()" class="dsh-btn dsh-btn-ghost">Ver →</button>
-        </div>
-        <div class="dsh-panel-body" style="max-height:160px;overflow-y:auto"><div id="home-iniciais"></div></div>
-      </div>
-    </div>
-
-    </div>
   </div>
+</div>
 </div>
 
 <!-- VIEW CLIENTES -->
@@ -588,7 +641,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=99"></script>
+<script src="bundle.js?v=100"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
