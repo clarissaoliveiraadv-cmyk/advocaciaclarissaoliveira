@@ -318,8 +318,9 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 
     </div>
 
-    <!-- ALERTAS -->
-    <div id="home-alerts" class="dsh-alerts-compact" style="padding:0 16px"></div>
+    <!-- Container de alertas mantido oculto — renderHomeAlerts() ainda usa
+         para atualizar KPIs do topo, mas não exibe mais os banners. -->
+    <div id="home-alerts" class="dsh-alerts-compact" style="display:none"></div>
 
     <!-- GRID 3 COLUNAS -->
     <div class="dsh-grid3">
@@ -588,7 +589,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=99"></script>
+<script src="bundle.js?v=101"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
