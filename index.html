@@ -48,6 +48,20 @@ body.light .dsh-kpi-b-danger  { border-left-color: #E24B4A; }
 body.light .dsh-kpi-b-warn    { border-left-color: #BA7517; }
 body.light .dsh-kpi-b-ok      { border-left-color: #639922; }
 
+/* Hierarquia: o card "Prazos vencidos" ganha destaque quando há vencidos.
+   A classe .has-vencidos é adicionada via JS em atualizarStats. */
+.dsh-kpi-b-card.dsh-kpi-b-danger.has-vencidos {
+  background: linear-gradient(135deg, rgba(163,45,45,.12), rgba(163,45,45,.04));
+  border-left-width: 5px;
+}
+.dsh-kpi-b-card.dsh-kpi-b-danger.has-vencidos .dsh-kpi-b-val {
+  font-size: 30px;
+  font-weight: 700;
+}
+body.light .dsh-kpi-b-card.dsh-kpi-b-danger.has-vencidos {
+  background: linear-gradient(135deg, rgba(226,75,74,.10), rgba(226,75,74,.02));
+}
+
 .dsh-kpi-b-val {
   font-size: 22px;
   font-weight: 600;
@@ -55,6 +69,7 @@ body.light .dsh-kpi-b-ok      { border-left-color: #639922; }
   color: #E0E0E0;
   line-height: 1;
   margin-bottom: 5px;
+  transition: font-size .2s ease, font-weight .2s ease;
 }
 body.light .dsh-kpi-b-val { color: #1C1C1E; }
 
@@ -298,22 +313,9 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
         <div class="dsh-kpi-b-lbl">Saldo escritório</div>
       </div>
 
-      <div class="dsh-kpi-b-card dsh-kpi-b-neutral dsh-kpi-b-meta" style="overflow:visible">
-        <div class="dsh-kpi-b-meta-inner">
-          <span class="dsh-kpi-b-meta-txt" id="dsc-lastupd" onclick="_dshRefresh()" style="cursor:pointer" title="Atualizar">— · Atualizar</span>
-        </div>
-        <div style="position:relative">
-          <button class="dsh-kpi-b-novo-btn" onclick="document.getElementById('dsh-novo-dd').style.display=document.getElementById('dsh-novo-dd').style.display==='block'?'none':'block'">+ Novo</button>
-          <div id="dsh-novo-dd" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--sf);border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.4);z-index:500;min-width:200px;overflow:hidden">
-            <div class="dsh-dd-item" onclick="novoProcesso();document.getElementById('dsh-novo-dd').style.display='none'">⚖️ Processo</div>
-            <div class="dsh-dd-item" onclick="novoTarefaDia();document.getElementById('dsh-novo-dd').style.display='none'">📋 Tarefa</div>
-            <div class="dsh-dd-item" onclick="novoCompromisso();document.getElementById('dsh-novo-dd').style.display='none'">📅 Compromisso</div>
-            <div class="dsh-dd-item" onclick="novoAtendimento();document.getElementById('dsh-novo-dd').style.display='none'">💬 Atendimento</div>
-            <div class="dsh-dd-item" onclick="novoContato();document.getElementById('dsh-novo-dd').style.display='none'">👤 Contato</div>
-            <div class="dsh-dd-item" onclick="abrirColarPublicacao();document.getElementById('dsh-novo-dd').style.display='none'">📰 Publicação</div>
-            <div class="dsh-dd-item" onclick="goView('vini');iniRender();document.getElementById('dsh-novo-dd').style.display='none'">📝 Inicial</div>
-          </div>
-        </div>
+      <div class="dsh-kpi-b-card dsh-kpi-b-neutral" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;text-align:center">
+        <span class="dsh-kpi-b-meta-txt" id="dsc-lastupd" onclick="_dshRefresh()" style="cursor:pointer;font-size:11px" title="Clique para atualizar">— · Atualizar</span>
+        <span class="dsh-kpi-b-lbl" style="font-size:9px">Última sincronização</span>
       </div>
 
     </div>
@@ -589,7 +591,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=101"></script>
+<script src="bundle.js?v=102"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
