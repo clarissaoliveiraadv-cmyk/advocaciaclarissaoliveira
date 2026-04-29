@@ -9528,14 +9528,15 @@ function renderProximosCompromissos(allEvts, hoje){
     var diasLbl = isHoje?'HOJE':diasAte===1?'Amanhã':diasAte+'d';
     var corDias = isHoje?'#f87676':diasAte<=3?'#f59e0b':'var(--mu)';
 
+    // Bolinha colorida no lugar do badge berrante \u2014 o \u00edcone (\u26a0/\ud83c\udfdb/\ud83d\udcc5) j\u00e1 indica o tipo.
     html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">'
+      +'<span style="width:6px;height:6px;border-radius:50%;background:'+corTp+';flex-shrink:0"></span>'
       +'<div style="min-width:36px;text-align:center"><span style="font-size:10px;font-weight:800;color:'+corDias+'">'+diasLbl+'</span></div>'
       +'<span style="font-size:12px">'+icoTp+'</span>'
       +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(p.titulo||p.tipo_compromisso||'\u2014')+'</div>'
         +'<div style="font-size:9px;color:var(--mu)">'+escapeHtml(p.cliente||'')+' \u00b7 '+fDt(p.dt_raw)+'</div>'
       +'</div>'
-      +'<span style="font-size:9px;font-weight:700;color:'+corTp+';text-transform:uppercase">'+tp+'</span>'
     +'</div>';
   });
   el.innerHTML = html;
@@ -12756,7 +12757,13 @@ function atualizarStats(){
   // KPIs dashboard (layout B)
   var bfutEl=document.getElementById('bfut'); if(bfutEl) bfutEl.textContent=fut.length;
   var dscAt=document.getElementById('dsc-ativos'); if(dscAt) dscAt.textContent=ativosCount;
-  var dscV=document.getElementById('dsc-vencidos'); if(dscV) dscV.textContent=pass.length;
+  var dscV=document.getElementById('dsc-vencidos');
+  if(dscV){
+    dscV.textContent=pass.length;
+    // Hierarquia: card de "Prazos vencidos" ganha destaque visual quando >0
+    var dscVCard = dscV.closest('.dsh-kpi-b-card');
+    if(dscVCard) dscVCard.classList.toggle('has-vencidos', pass.length > 0);
+  }
 
   // Atualizar KPI financeiro no dashboard
   try {
