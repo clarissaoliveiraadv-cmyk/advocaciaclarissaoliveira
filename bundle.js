@@ -9483,10 +9483,10 @@ function renderHomeAlerts(){
   // Notificação financeira no título da aba
   if(typeof atualizarStats==='function') atualizarStats();
 
-  // Alertas em grid compacto (2 colunas)
-  el.innerHTML = alertasHtml
-    ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px;margin-bottom:8px">'+alertasHtml+'</div>'
-    : '';
+  // Fileira de banners de alerta removida — informação já presente nos KPIs do topo.
+  // Mantém o cálculo acima (prazos/audiencias/totalRepasse) porque é usado para
+  // os contadores de KPI logo abaixo.
+  el.innerHTML = '';
 
   // Atualizar KPIs novos
   var e5=document.getElementById('dsc-prazos7'); if(e5) e5.textContent=prazos.length;
