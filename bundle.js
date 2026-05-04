@@ -9434,7 +9434,7 @@ function renderHomeAlerts(){
   const _ap = allPendCached();
   var prazos=[], audiencias=[];
   _ap.forEach(function(p){
-    if(p.realizado) return;
+    if(_isEventoConcluido(p)) return;
     var emRange = (p.dt_raw>=hoje&&p.dt_raw<=em7str)||eventoNoDia(p,hoje);
     if(!emRange) return;
     var tp = agTipo(p);
@@ -9510,7 +9510,7 @@ function renderProximosCompromissos(allEvts, hoje){
   var em14str = em14.toISOString().slice(0,10);
 
   var prox = allEvts.filter(function(p){
-    return !p.realizado && p.dt_raw >= hoje && p.dt_raw <= em14str;
+    return !_isEventoConcluido(p) && p.dt_raw >= hoje && p.dt_raw <= em14str;
   }).sort(function(a,b){ return (a.dt_raw||'').localeCompare(b.dt_raw||''); }).slice(0,8);
 
   if(!prox.length){
@@ -12484,7 +12484,7 @@ function renderHomeWeek(){
   for(var d=1;d<=ultDia;d++){
     const isHoje = d===diaHoje;
     const ds2 = ano+'-'+String(mes+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const temEvt = allPendCached().some(function(p){return eventoNoDia(p,ds2)&&!p.realizado;});
+    const temEvt = allPendCached().some(function(p){return eventoNoDia(p,ds2)&&!_isEventoConcluido(p);});
     calHtml+='<div style="font-size:10px;padding:4px 2px;border-radius:4px;cursor:default;'
       +(isHoje?'background:#D4AF37;color:#111;font-weight:700;'
                :(temEvt?'color:#E0E0E0;font-weight:600;':'color:#9E9E9E;'))
@@ -12495,7 +12495,7 @@ function renderHomeWeek(){
   // Events for today
   const TIPO_DOT = {audiencia:'#f87676',prazo:'#c9484a',compromisso:'#c9484a',tarefa:'#D4AF37',reuniao:'#60a5fa'};
   const evts = allPendCached()
-    .filter(function(p){return !p.realizado && eventoNoDia(p, HS);})
+    .filter(function(p){return !_isEventoConcluido(p) && eventoNoDia(p, HS);})
     .sort(function(a,b){return (a.inicio||a.dt_raw||'').localeCompare(b.inicio||b.dt_raw||'');});
 
   const BD = 'border-bottom:1px solid #202020;';
@@ -12737,7 +12737,7 @@ function atualizarStats(){
   // Single-pass: classificar futuros, semana, passados
   var fut=[], sem=[], pass=[], hojeCount=0;
   _allP.forEach(function(p){
-    if(p.realizado||p.cumprido==='Sim') return;
+    if(_isEventoConcluido(p)) return;
     var dt = p.dt_fim||p.dt_raw||'';
     if(dt>=hoje){ fut.push(p); if(p.dt_raw<=semFimStr) sem.push(p); }
     else pass.push(p);
@@ -12786,7 +12786,7 @@ function atualizarStats(){
   // Notificacao no titulo da aba (reusar hojeCount já calculado)
   var vencidos2 = pass.length;
   var dt3 = new Date(new Date(HOJE).getTime()+3*86400000).toISOString().slice(0,10);
-  var venc3dias2 = _allP.filter(function(p){return p.dt_raw>=hoje&&p.dt_raw<=dt3&&p.cumprido!=='Sim'&&!p.realizado;}).length;
+  var venc3dias2 = _allP.filter(function(p){return p.dt_raw>=hoje&&p.dt_raw<=dt3&&!_isEventoConcluido(p);}).length;
   if(vencidos2>0){
     document.title = '\u26a0\ufe0f '+vencidos2+' vencido'+(vencidos2>1?'s':'')+' \u2014 CO Advocacia';
   } else if(hojeCount>0){
@@ -12936,6 +12936,8 @@ function togglePrazo(cid, pid){
     p.cumprido_em = new Date().toISOString().slice(0,10);
   }
   prazosSalvar();
+  // Propaga para localAg para o dashboard refletir imediatamente
+  _syncPrazoToAg(cid, p);
   marcarAlterado();
   if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
   showToast(p.cumprido ? 'Prazo concluído ✓' : 'Prazo reaberto');
@@ -12972,6 +12974,8 @@ function prazosConcluirComDesfecho(cid, pid){
     p.obs_conclusao = obs;
     p.protocolo = prot;
     prazosSalvar();
+    // Propaga para localAg — sem isso o dashboard segue mostrando vencido
+    _syncPrazoToAg(cid, p);
     marcarAlterado();
     fecharModal();
     if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
@@ -13135,15 +13139,37 @@ function _cpCalcReverso(){
 }
 
 // ── Migrar prazos legados (prazos[cid]) para localAg ──
+// Bug fix: a versão antiga só inseria entradas novas. Quando o usuário marcava
+// o prazo como cumprido (togglePrazo / prazosConcluirComDesfecho), a cópia
+// migrada em localAg ficava com realizado:false e o dashboard seguia mostrando
+// o item como "vencido". Agora também re-sincroniza estado em entradas existentes.
 function _migrarPrazosParaAg(){
   if(!prazos||typeof prazos!=='object') return;
-  var migrados = 0;
-  var existentes = new Set((localAg||[]).map(function(p){ return String(p._prazo_legado_id||''); }));
+  var migrados = 0, ressincados = 0;
+  // Index por _prazo_legado_id para lookup O(1)
+  var existentesIdx = new Map();
+  (localAg||[]).forEach(function(p, idx){
+    if(p._prazo_legado_id) existentesIdx.set(String(p._prazo_legado_id), idx);
+  });
   Object.keys(prazos).forEach(function(cid){
     var lista = prazos[cid]||[];
     var c = findClientById(Number(cid))||findClientById(cid);
     lista.forEach(function(p){
-      if(existentes.has(String(p.id))) return; // já migrado
+      var key = String(p.id);
+      if(existentesIdx.has(key)){
+        // Já migrado — re-sincroniza estado de conclusão (cura dados travados).
+        var ag = localAg[existentesIdx.get(key)];
+        var realDes = !!p.cumprido;
+        var cumpDes = p.cumprido ? 'Sim' : '';
+        var dtCon   = p.cumprido_em || '';
+        if(ag.realizado!==realDes || ag.cumprido!==cumpDes || ag.dt_conclusao!==dtCon){
+          ag.realizado    = realDes;
+          ag.cumprido     = cumpDes;
+          ag.dt_conclusao = dtCon;
+          ressincados++;
+        }
+        return;
+      }
       localAg.push({
         id: 'mig_'+p.id, titulo: p.titulo||'Prazo', tipo_compromisso: p.tipo||'Outro',
         cliente: c?c.cliente:'', id_processo: Number(cid)||cid,
@@ -13155,11 +13181,48 @@ function _migrarPrazosParaAg(){
       migrados++;
     });
   });
-  if(migrados>0){
+  if(migrados>0 || ressincados>0){
     sbSet('co_ag', localAg); invalidarAllPend();
   }
 }
 try { _migrarPrazosParaAg(); } catch(e){}
+
+// Sincroniza um prazo individual prazos[cid][i] → entrada migrada em localAg.
+// Chamar sempre que prazo.cumprido for alterado para evitar cópia stale.
+function _syncPrazoToAg(cid, p){
+  if(!p) return;
+  if(!localAg) localAg = [];
+  var key = String(p.id);
+  var idx = localAg.findIndex(function(a){ return String(a._prazo_legado_id||'')===key; });
+  if(idx<0){
+    // Não estava migrado ainda — _migrarPrazosParaAg cuida de inserir.
+    try { _migrarPrazosParaAg(); } catch(e){}
+    return;
+  }
+  var ag = localAg[idx];
+  ag.realizado    = !!p.cumprido;
+  ag.cumprido     = p.cumprido ? 'Sim' : '';
+  ag.dt_conclusao = p.cumprido_em || '';
+  sbSet('co_ag', localAg);
+  invalidarAllPend();
+}
+
+// Helper unificado: detecta se um item de agenda/prazo está concluído.
+// Cobre as variantes históricas (string 'Sim', boolean true, datas de
+// conclusão presentes) para que filtros de "vencido" não escapem.
+function _isEventoConcluido(p){
+  if(!p) return false;
+  if(p.realizado===true) return true;
+  if(typeof p.cumprido==='string'){
+    var c = p.cumprido.trim().toLowerCase();
+    if(c==='sim' || c==='cumprido' || c==='concluido' || c==='concluído' || c==='true') return true;
+  } else if(p.cumprido===true){
+    return true;
+  }
+  if(p.dt_conclusao) return true;
+  if(p.cumprido_em)  return true;
+  return false;
+}
 
 function renderPrazos(cid){
   // Filtra tombstones inline (prazos excluídos não devem reaparecer via sync)
