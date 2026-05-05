@@ -13390,11 +13390,67 @@ function _dedupCompromissoFatal(){
 }
 try { _dedupCompromissoFatal(); } catch(e){}
 
+// v3: limpa as cópias órfãs em localAg que ficaram da migração antiga
+// (_migrarPrazosParaAg copiava prazos[cid] → localAg preservando a obs
+// "Criado junto com compromisso"). Estas cópias são as que aparecem como
+// duplicadas na agenda lista, no banner e na pasta. v2 limpava só
+// prazos[cid] — não tocava em localAg. Roda uma vez por usuário.
+function _dedupLocalAgFatalV3(){
+  try {
+    if(lsGet('co_dedup_fatal_v3')==='1') return;
+    if(!Array.isArray(localAg)) return;
+    var antes = localAg.length;
+    var removidos = [];
+    var keep = [];
+    localAg.forEach(function(ev){
+      if(!ev) return;
+      var obsLower = (ev.obs||'').toLowerCase();
+      var ehDuplicata = obsLower.indexOf('criado junto com compromisso') >= 0;
+      // Também varre cópias migradas órfãs — _prazo_legado_id apontando para
+      // prazo que já foi removido em prazos[cid]
+      var ehMigradoOrfao = ev._prazo===true && ev._prazo_legado_id && (function(){
+        if(typeof prazos!=='object' || !prazos) return false;
+        var todos = Object.values(prazos).flat();
+        return !todos.some(function(p){ return String(p.id)===String(ev._prazo_legado_id); });
+      })();
+      if(ehDuplicata || ehMigradoOrfao){
+        removidos.push(ev);
+        return; // descarta
+      }
+      keep.push(ev);
+    });
+    var n = removidos.length;
+    if(n>0){
+      // Tombstone cada um para não voltar via Realtime
+      removidos.forEach(function(ev){
+        var idStr = String(ev.id||ev.id_agenda||'');
+        if(idStr && typeof _tombstoneAdd==='function'){
+          _tombstoneAdd('co_ag', idStr);
+          if(ev.id_agenda && String(ev.id_agenda)!==idStr) _tombstoneAdd('co_ag', String(ev.id_agenda));
+        }
+      });
+      localAg = keep;
+      try { sbSet('co_ag', localAg); }catch(e){}
+      try { invalidarAllPend(); }catch(e){}
+      try { if(typeof atualizarStats==='function') atualizarStats(); }catch(e){}
+      try { if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner(); }catch(e){}
+      try { if(typeof renderHomeAlerts==='function') renderHomeAlerts(); }catch(e){}
+      try { if(typeof renderProximosCompromissos==='function') renderProximosCompromissos(allPendCached(), getTodayKey()); }catch(e){}
+      console.log('[dedup-fatal v3] localAg limpo:', n, '· antes:', antes, '· depois:', localAg.length);
+      try { if(typeof showToast==='function') showToast('🧹 '+n+' duplicado'+(n>1?'s':'')+' apagado'+(n>1?'s':'')+' (v3)'); } catch(e){}
+    }
+    lsSet('co_dedup_fatal_v3', '1');
+  } catch(e){ console.warn('[dedup-fatal v3] erro', e); }
+}
+try { _dedupLocalAgFatalV3(); } catch(e){}
+
 // Trigger manual via console (suporte): _rodarDedupFatal()
 window._rodarDedupFatal = function(){
-  try { lsSet('co_dedup_fatal_v2', ''); }catch(e){}
   try { lsSet('co_dedup_fatal_v1', ''); }catch(e){}
+  try { lsSet('co_dedup_fatal_v2', ''); }catch(e){}
+  try { lsSet('co_dedup_fatal_v3', ''); }catch(e){}
   _dedupCompromissoFatal();
+  _dedupLocalAgFatalV3();
 };
 
 // Sincroniza um prazo individual prazos[cid][i] → entrada migrada em localAg.
