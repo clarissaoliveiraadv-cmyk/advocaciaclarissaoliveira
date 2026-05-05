@@ -14287,9 +14287,16 @@ function renderAgLista(){
     const cor = COR[t]||COR.outro;
     const venc= !p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje;
     const urg = venc && _ehPrazoFatal(p); // só fatais ganham destaque vermelho
+    // Chip FATAL — espelha padrão de renderAgendaProc, sem CSS novo
+    const showFatal = !p.realizado && _ehPrazoFatal(p);
+    const dtFatal = showFatal ? (p.dt_fim||p.dt_raw||'').slice(0,10) : '';
+    const fatalCor = dtFatal && dtFatal < hoje ? '#c9484a' : '#f87676';
+    const fatalChip = showFatal
+      ? ` <span style="font-size:8px;padding:1px 6px;border-radius:3px;background:rgba(201,72,74,.18);color:${fatalCor};font-weight:800;letter-spacing:.05em;vertical-align:middle">FATAL${dtFatal?' '+fDt(dtFatal):''}</span>`
+      : '';
     return `<div class="ag2-list-row${urg?' ag2-urg':''}" onclick="calEvtClick('${p.id||p.id_agenda||''}')">
       <div class="ag2-list-data">${fmtDt(p)}</div>
-      <div class="ag2-list-titulo">${p.tipo_compromisso||p.titulo||'Compromisso'}</div>
+      <div class="ag2-list-titulo">${p.tipo_compromisso||p.titulo||'Compromisso'}${fatalChip}</div>
       <div class="ag2-list-cli">${p.cliente||'—'}</div>
       <div><span class="ag2-list-badge" style="background:color-mix(in srgb,${cor} 15%,transparent);color:${cor}">${t}</span></div>
       <div class="ag2-list-dias">${p.realizado?'<span style="color:#4ade80">✓ Realizado</span>':diasL(p.dt_fim||p.dt_raw)}</div>
