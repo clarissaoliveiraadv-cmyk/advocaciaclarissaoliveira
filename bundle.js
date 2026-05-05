@@ -2874,12 +2874,24 @@ function _renderTarefasPasta(cid){
   function row(t){
     var _done = isDone(t);
     var vencido = !_done && t.prazo && t.prazo < hoje;
+    // Chip da fase atual com data — sem date para 'todo', desde X para 'andamento',
+    // em X para 'done'. Cor segue VK_ETAPA_COR para consistência com o Kanban.
+    var fase = VK_ETAPA_LABEL[t.status] || 'A Fazer';
+    var faseCor = VK_ETAPA_COR[t.status] || 'var(--mu)';
+    var faseDt = '';
+    if(_done && t.concluido_em)            faseDt = ' · em '+fDt(t.concluido_em);
+    else if(t.status==='andamento' && t.status_since) faseDt = ' · desde '+fDt(t.status_since);
+    var chip = '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;'
+      +'background:color-mix(in srgb,'+faseCor+' 14%,transparent);color:'+faseCor+';'
+      +'font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">'
+      +fase+faseDt+'</span>';
+
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd)'+(_done?';opacity:.6':'')+'">'
       +'<input type="checkbox" '+(_done?'checked':'')+' onchange="vkTogglePasta(\''+t.id+'\','+cid+')" style="width:16px;height:16px;cursor:pointer">'
       +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:12px;font-weight:600;color:var(--tx)'+(_done?';text-decoration:line-through;color:var(--mu)':'')+'">'+escapeHtml(t.titulo)+'</div>'
-        +'<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">'
-          +'<span style="font-size:9px;font-weight:700;color:'+(VK_ETAPA_COR[t.status]||'var(--mu)')+'">'+( VK_ETAPA_LABEL[t.status]||'A Fazer')+'</span>'
+        +'<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">'
+          +chip
           +(t.prazo?'<span style="font-size:9px;color:'+(vencido?'#f87676':'var(--mu)')+'">📅 '+fDt(t.prazo)+(vencido?' (atrasado)':'')+'</span>':'')
           +(t.responsavel?'<span style="font-size:9px;color:var(--mu)">👤 '+t.responsavel+'</span>':'')
         +'</div>'
