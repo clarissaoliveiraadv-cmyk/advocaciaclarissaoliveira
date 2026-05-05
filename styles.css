@@ -1137,6 +1137,9 @@ body.light .ctc-field    { background:#fff; }
 .ag2-tag-outro   { background:var(--sf3);color:var(--mu);border-left-color:var(--mu); }
 .ag2-tag-pend    { border-left-color:#ef4444 !important;color:#ef4444 !important; }
 .ag2-tag-done    { opacity:.35 !important; }
+/* PR-E: dia intermediário de evento multi-dia — visual discreto */
+.ag2-tag-curso     { opacity:.5; font-weight:500; }
+.ag2-sem-evt-curso { opacity:.6; border-left-color:var(--mu) !important; background:var(--sf2); }
 .ag2-cel-mais    { font-size:9px;color:var(--mu);padding:1px 3px;opacity:.6; }
 
 /* SEMANA */

@@ -14105,10 +14105,12 @@ function renderCal(){
   const primeiroDia = new Date(ano,mes,1).getDay();
   const diasNoMes   = new Date(ano,mes+1,0).getDate();
 
-  const _tagCls = (p) => {
+  const _tagCls = (p, dt) => {
     const t = agTipo(p);
     if(p.realizado) return 'ag2-tag ag2-tag-'+t+' ag2-tag-done';
-    if(!p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje) return 'ag2-tag ag2-tag-'+t+' ag2-tag-pend';
+    const fim = (p.dt_fim||p.dt_raw||'').slice(0,10);
+    if(fim<hoje) return 'ag2-tag ag2-tag-'+t+' ag2-tag-pend';
+    if(fim && fim>dt) return 'ag2-tag ag2-tag-'+t+' ag2-tag-curso'; // dia anterior ao dt_fim
     return 'ag2-tag ag2-tag-'+t;
   };
 
@@ -14121,7 +14123,7 @@ function renderCal(){
     const fds   = [0,6].includes(new Date(dt+'T12:00').getDay());
     out += `<div class="ag2-cel${hoje_?' ag2-hoje':''}${fds?' ag2-fds':''}">
       <div class="ag2-dia-num">${d}</div>
-      ${evts.slice(0,3).map(e=>`<span class="${_tagCls(e)}"
+      ${evts.slice(0,3).map(e=>`<span class="${_tagCls(e, dt)}"
         title="${e.cliente?e.cliente+' — ':''} ${e.tipo_compromisso||e.titulo||''}"
         onclick="calEvtClick('${e.id||e.id_agenda||''}')"
       >${(e.tipo_compromisso||e.titulo||'Compromisso').slice(0,20)}</span>`).join('')}
@@ -14144,7 +14146,7 @@ function renderSem(){
     const fds  = [0,6].includes(d.getDay());
     out += `<div class="ag2-sem-col${dt===hoje?' ag2-hoje':''}${fds?' ag2-fds':''}">
       <div class="ag2-sem-header">${d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</div>
-      ${evts.map(e=>{const _d=eventoDuracao(e),_dx=_d>1?eventoDiaX(e,dt):null;return`<div class="ag2-sem-evt${_d>1?' ag2-sem-range':''}" onclick="calEvtClick('${e.id||e.id_agenda||''}')">
+      ${evts.map(e=>{const _d=eventoDuracao(e),_dx=_d>1?eventoDiaX(e,dt):null,_fim=(e.dt_fim||e.dt_raw||'').slice(0,10),_curso=!e.realizado&&_fim&&_fim>dt;return`<div class="ag2-sem-evt${_d>1?' ag2-sem-range':''}${_curso?' ag2-sem-evt-curso':''}" onclick="calEvtClick('${e.id||e.id_agenda||''}')">
         <div class="ag2-sem-titulo">${e.tipo_compromisso||e.titulo||'Compromisso'}${_dx?` <span style="font-size:9px;opacity:.7">(${_dx.x}/${_dx.total})</span>`:''}</div>
         ${e.cliente?`<div class="ag2-sem-cli">${e.cliente}</div>`:''}
       </div>`}).join('')}
