@@ -14286,7 +14286,7 @@ function renderAgLista(){
       <div class="ag2-list-titulo">${p.tipo_compromisso||p.titulo||'Compromisso'}</div>
       <div class="ag2-list-cli">${p.cliente||'—'}</div>
       <div><span class="ag2-list-badge" style="background:color-mix(in srgb,${cor} 15%,transparent);color:${cor}">${t}</span></div>
-      <div class="ag2-list-dias">${p.realizado?'<span style="color:#4ade80">✓ Realizado</span>':diasL(p.dt_raw)}</div>
+      <div class="ag2-list-dias">${p.realizado?'<span style="color:#4ade80">✓ Realizado</span>':diasL(p.dt_fim||p.dt_raw)}</div>
     </div>`;
   };
 
