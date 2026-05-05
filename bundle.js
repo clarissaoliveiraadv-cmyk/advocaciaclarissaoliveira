@@ -9534,7 +9534,65 @@ function _dshRefresh(){
   if(typeof renderHomeIniciais==='function') renderHomeIniciais();
   if(typeof atualizarStats==='function') atualizarStats();
   if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner();
+  if(typeof renderCardHoje==='function') renderCardHoje();
   showToast('\u2713 Dashboard atualizado');
+}
+
+// Card "HOJE" no topo do dashboard \u2014 resumo compacto do gerarPlanoDoDia.
+// 4 m\u00e9tricas, sem listar itens. Reusa _ehPrazoFatal/eventoNoDia/agTipo.
+// Click no card chama gerarPlanoDoDia() (atalho pra ver o plano completo).
+function renderCardHoje(){
+  var fEl = document.getElementById('dsc-hoje-fatais');
+  var pEl = document.getElementById('dsc-hoje-prox');
+  var eEl = document.getElementById('dsc-hoje-exec');
+  var rEl = document.getElementById('dsc-hoje-risco');
+  if(!fEl && !pEl && !eEl && !rEl) return; // markup ausente
+  var hoje = getTodayKey();
+  var amanha = new Date(new Date(HOJE).getTime()+1*86400000).toISOString().slice(0,10);
+  var em3d   = new Date(new Date(HOJE).getTime()+3*86400000).toISOString().slice(0,10);
+  var _ap = allPendCached()||[];
+
+  var qFatais = _ap.filter(function(p){
+    return !p.realizado && _ehPrazoFatal(p) && (p.dt_fim||p.dt_raw||'').slice(0,10) === hoje;
+  }).length;
+
+  var prox = _ap.filter(function(p){
+    if(p.realizado) return false;
+    if(!eventoNoDia(p,hoje)) return false;
+    var t = agTipo(p);
+    return t==='audiencia' || t==='pericia' || t==='reuniao';
+  }).map(function(p){
+    var hr=(p.inicio||'').slice(11,16);
+    return {hr: hr==='00:00'?'':hr, titulo: p.tipo_compromisso||p.titulo||'Compromisso'};
+  }).filter(function(e){ return e.hr; }).sort(function(a,b){ return a.hr.localeCompare(b.hr); });
+  var proxStr = prox.length ? prox[0].hr+' '+prox[0].titulo : '\u2014';
+  if(proxStr.length > 26) proxStr = proxStr.slice(0,26)+'\u2026';
+
+  var RX = /protocol|a\u00e7\u00e3o|acao|inss|recurso|peti[c\u00e7][a\u00e3]o|contesta[c\u00e7][a\u00e3]o|embargo|contrarraz[o\u00f5]e|r[e\u00e9]plica|impugna[c\u00e7][a\u00e3]o|alega[c\u00e7][o\u00f5]es|memoria(l|is)|guia|RPV|alvar[a\u00e1]|levantamento|manifesta[c\u00e7][a\u00e3]o|juntada|certid[a\u00e3]o/i;
+  var qExec = (vkTasks||[]).filter(function(t){
+    if(t.status==='done'||t.status==='concluido') return false;
+    var ehHoje = (t.prazo===hoje||t.paraHoje===hoje) || (t.prazo&&t.prazo<hoje) || (t.status_since===hoje) || (!t.prazo&&!t.paraHoje);
+    return ehHoje && RX.test(t.titulo||'');
+  }).length;
+
+  var qRisco = _ap.filter(function(p){
+    if(p.realizado || !_ehPrazoFatal(p)) return false;
+    var d = (p.dt_fim||p.dt_raw||'').slice(0,10);
+    return d>=amanha && d<=em3d;
+  }).length;
+
+  if(fEl){
+    fEl.textContent = '\ud83d\udea8 ' + qFatais + ' fatal' + (qFatais!==1?'s':'') + ' hoje';
+    fEl.style.color = qFatais>0 ? 'var(--red)' : 'var(--mu)';
+    fEl.style.fontWeight = qFatais>0 ? '700' : '400';
+  }
+  if(pEl){ pEl.textContent = '\u23f1 ' + proxStr; pEl.style.color = prox.length ? 'var(--tx)' : 'var(--mu)'; }
+  if(eEl){ eEl.textContent = '\ud83d\udd25 ' + qExec + ' execu\u00e7\u00e3o jur.'; eEl.style.color = qExec>0 ? 'var(--tx)' : 'var(--mu)'; }
+  if(rEl){
+    rEl.textContent = '\u2696 ' + qRisco + ' em risco (3d)';
+    rEl.style.color = qRisco>0 ? '#f59e0b' : 'var(--mu)';
+    rEl.style.fontWeight = qRisco>0 ? '700' : '400';
+  }
 }
 // Atualizar timestamp a cada 60s para mostrar "há X min"
 setInterval(function(){
@@ -13101,6 +13159,7 @@ function atualizarStats(){
   } else {
     document.title = 'CO Advocacia \u2014 Escrit\u00f3rio Digital';
   }
+  try { if(typeof renderCardHoje==='function') renderCardHoje(); } catch(e){}
 }
 
 
