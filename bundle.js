@@ -2630,6 +2630,15 @@ function vkMudarStatus(id, novoStatus, opts){
   vkSalvar();
   vkRender();
   if(typeof renderChecklist==='function') renderChecklist();
+  // Se a tarefa está vinculada a uma pasta aberta, re-renderiza a aba
+  // "Tarefas vinculadas" da pasta. Sem isso, o checkbox volta visualmente
+  // ao estado antigo até o usuário trocar de aba.
+  if(t.processo){
+    var elTp = document.getElementById('tp7-list-'+t.processo);
+    if(elTp && typeof _renderTarefasPasta==='function'){
+      elTp.innerHTML = _renderTarefasPasta(t.processo);
+    }
+  }
   var lbl = VK_COLUNAS.find(function(c){ return c.id===novoStatus; });
   showToast('Movido para "'+(lbl?lbl.label:novoStatus)+'"');
 }
@@ -2949,9 +2958,16 @@ function vkTogglePasta(id, cid){
   var t = vkTasks.find(function(x){return String(x.id)===String(id);});
   if(!t) return;
   var wasDone = isDone(t);
-  t.status = wasDone ? 'todo' : 'done';
-  if(!wasDone) t.concluido_em = new Date(HOJE).toISOString().slice(0,10);
-  else delete t.concluido_em;
+  if(!wasDone){
+    // Concluindo: rotear via vkMudarStatus para herdar a lógica completa —
+    // dispara modal de protocolo se tipo='prazo' e gera auto-histórico na
+    // pasta. O re-render do tp7-list é feito dentro de vkMudarStatus.
+    vkMudarStatus(id, 'done');
+    return;
+  }
+  // Reabrindo: toggle simples (não precisa de protocolo)
+  t.status = 'todo';
+  delete t.concluido_em;
   vkSalvar(); marcarAlterado();
   var el = document.getElementById('tp7-list-'+cid);
   if(el) el.innerHTML = _renderTarefasPasta(cid);
@@ -14064,18 +14080,108 @@ function calEvtClick(id){
   setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b) b.style.display='none'; const bc=document.querySelector('.mbtn-cancel'); if(bc) bc.textContent='Fechar'; }, 30);
 }
 
-function calEvtConcluir(id){
+function calEvtConcluir(id, opts){
+  opts = opts || {};
   const raw = String(id);
   const idx = (localAg||[]).findIndex(a=>String(a.id||a.id_agenda)===raw);
+  const ev  = idx>=0 ? localAg[idx] : (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
+
+  // Gate: prazos exigem protocolo/ID do documento como prova de cumprimento
+  // (consistente com togglePrazo na pasta e com vkMudarStatus no Kanban).
+  if(!opts.skipPrazoCheck && ev){
+    var ehPrazo = ev._prazo===true || ev.tipo==='prazo' || (typeof agTipo==='function' && agTipo(ev)==='prazo');
+    if(ehPrazo){
+      _calEvtConcluirComProtocolo(raw, ev);
+      return;
+    }
+  }
+
   if(idx>=0){
     localAg[idx].realizado=true; localAg[idx].cumprido='Sim';
-  } else {
-    const orig = (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
-    if(orig){ if(!localAg) localAg=[]; localAg.push({...orig,id:raw,id_agenda:raw,realizado:true,cumprido:'Sim',_origem_pend:raw}); }
+  } else if(ev){
+    if(!localAg) localAg=[];
+    localAg.push({...ev,id:raw,id_agenda:raw,realizado:true,cumprido:'Sim',_origem_pend:raw});
   }
   sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado();
   _render_agenda_all(); atualizarStats();
   showToast('Compromisso marcado como realizado ✓');
+}
+
+// Modal de confirmação para prazo via agenda (atalho do dashboard).
+// Exige protocolo igual ao fluxo da pasta (prazosConcluirComDesfecho).
+function _calEvtConcluirComProtocolo(raw, ev){
+  fecharModal();
+  setTimeout(function(){
+    abrirModal('⚖️ Cumprimento de Prazo — '+(ev.titulo||ev.tipo_compromisso||''),
+      '<div style="font-size:12px;color:var(--mu);margin-bottom:10px;line-height:1.5">'
+        +'Para marcar este <strong style="color:var(--ouro)">prazo judicial</strong> como cumprido, '
+        +'informe a <strong>prova do cumprimento</strong>. Fica registrado no histórico da pasta.'
+      +'</div>'
+      +'<div>'
+        +'<label class="fm-lbl">Link do protocolo ou ID do documento <span class="req">*</span></label>'
+        +'<input class="fm-inp" id="cep-protocolo" placeholder="Ex: PRJ-12345 · 0012345-67.2026.5.03.0001 · https://...">'
+      +'</div>'
+      +'<div style="margin-top:8px">'
+        +'<label class="fm-lbl">Observações (opcional)</label>'
+        +'<textarea class="fm-inp" id="cep-obs" rows="2" placeholder="Detalhes do cumprimento (peça protocolada, etc.)"></textarea>'
+      +'</div>',
+    function(){
+      var prot = ((document.getElementById('cep-protocolo')||{}).value||'').trim();
+      if(!prot){ showToast('Informe o link ou ID do protocolo'); return; }
+      var obs = ((document.getElementById('cep-obs')||{}).value||'').trim();
+
+      // Se vier de um prazo migrado da pasta, atualiza prazos[cid][i] também
+      // — assim o reflexo na aba "Prazos" da pasta fica consistente.
+      if(ev._prazo_legado_id && ev.id_processo!=null){
+        var cid = ev.id_processo;
+        var pz = (prazos[cid]||[]).find(function(x){
+          return String(x.id)===String(ev._prazo_legado_id);
+        });
+        if(pz){
+          pz.cumprido = true;
+          pz.cumprido_em = new Date().toISOString().slice(0,10);
+          pz.protocolo = prot;
+          if(obs) pz.obs_conclusao = obs;
+          if(typeof prazosSalvar==='function') prazosSalvar();
+        }
+      }
+
+      // Registra protocolo na entrada de localAg
+      if(!localAg) localAg=[];
+      var idx = localAg.findIndex(function(a){ return String(a.id||a.id_agenda)===raw; });
+      var patch = { realizado:true, cumprido:'Sim', protocolo:prot,
+                    obs_conclusao:obs, dt_conclusao:new Date().toISOString().slice(0,10) };
+      if(idx>=0){
+        Object.assign(localAg[idx], patch);
+      } else {
+        localAg.push(Object.assign({}, ev, {id:raw,id_agenda:raw,_origem_pend:raw}, patch));
+      }
+      sbSet('co_ag', localAg); invalidarAllPend(); marcarAlterado();
+
+      // Auto-histórico na pasta
+      if(ev.id_processo!=null){
+        var cidH = ev.id_processo;
+        if(!localMov[cidH]) localMov[cidH]=[];
+        var msg = 'Prazo "'+(ev.titulo||ev.tipo_compromisso||'')+'" cumprido — protocolo: '+prot;
+        if(obs) msg += ' · '+obs;
+        localMov[cidH].unshift({
+          data: new Date().toISOString().slice(0,10),
+          movimentacao: msg,
+          tipo_movimentacao: 'Judicial',
+          origem: 'agenda_cumprimento_prazo'
+        });
+        sbSet('co_localMov', localMov);
+      }
+
+      fecharModal();
+      _render_agenda_all(); atualizarStats();
+      if(AC && _grupoAtual && String(AC.id)===String(ev.id_processo)){
+        try { renderFicha(AC, _grupoAtual); } catch(e){}
+      }
+      showToast('Prazo cumprido ✓');
+    },
+    '✅ Confirmar Cumprimento');
+  }, 30);
 }
 
 function calEvtExcluir(id, cid){
