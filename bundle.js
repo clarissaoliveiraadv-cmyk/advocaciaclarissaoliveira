@@ -13317,10 +13317,16 @@ try { _migrarPrazosParaAg(); } catch(e){}
 // obs "Criado junto com compromisso") gerados pela versão antiga do
 // salvarCompromisso. Roda uma vez no boot — marca o compromisso com is_fatal
 // e remove a entrada de prazos[cid] com tombstone.
+//
+// v2: também varre prazos órfãos (sem par em localAg) que tenham a obs ou
+// titulo='fatal' — eram duplicatas mesmo sem o pareamento. Re-roda em
+// usuários que já viram a v1 (chave nova co_dedup_fatal_v2). Após limpar,
+// chama atualizarStats e dshRenderFatalBanner para os contadores caírem
+// imediatamente sem precisar de F5 adicional.
 function _dedupCompromissoFatal(){
   try {
     if(typeof prazos !== 'object' || !prazos) return;
-    if(lsGet('co_dedup_fatal_v1')==='1') return;
+    if(lsGet('co_dedup_fatal_v2')==='1') return;
     var fatorAg = new Map();  // chave: cid|dt_fim → ev em localAg
     (localAg||[]).forEach(function(ev){
       if(!ev || !ev.id_processo) return;
@@ -13328,13 +13334,21 @@ function _dedupCompromissoFatal(){
       if(!dtFim) return;
       fatorAg.set(String(ev.id_processo)+'|'+dtFim, ev);
     });
-    var prazosRemovidos = 0, fataisFlagged = 0;
+    var prazosRemovidos = 0, fataisFlagged = 0, orfaosRemovidos = 0;
     Object.keys(prazos).forEach(function(cid){
       var lista = prazos[cid]||[];
       var keep = [];
       lista.forEach(function(p){
-        var ehDuplicata = (p.obs||'').toLowerCase().indexOf('criado junto com compromisso') >= 0;
-        if(!ehDuplicata){ keep.push(p); return; }
+        var obsLower = (p.obs||'').toLowerCase();
+        var titLower = (p.titulo||'').toLowerCase().trim();
+        var ehDuplicata = obsLower.indexOf('criado junto com compromisso') >= 0;
+        // Tambem trata prazos com titulo literal "fatal" (artefato de versão
+        // anterior da migração) — esses foram criados pelo bug e nunca tiveram
+        // semantica útil sozinhos.
+        var ehFatalSoltо = !ehDuplicata && titLower === 'fatal';
+
+        if(!ehDuplicata && !ehFatalSoltо){ keep.push(p); return; }
+
         var key = String(cid)+'|'+(p.data||'').slice(0,10);
         var ev = fatorAg.get(key);
         if(ev){
@@ -13344,24 +13358,44 @@ function _dedupCompromissoFatal(){
             ev.dt_fatal = (p.data||ev.dt_fim||ev.dt_raw||'').slice(0,10);
             fataisFlagged++;
           }
-          // Tombstone p.id em co_prazos para não ressuscitar via Realtime
           if(typeof _tombstoneAdd==='function') _tombstoneAdd('co_prazos', p.id);
           prazosRemovidos++;
-          return; // não preserva
+          return;
         }
-        keep.push(p);
+        // Sem par — ainda assim remove (era spurious do bug antigo). Tombstone
+        // garante que não ressuscita via Realtime de outro PC.
+        if(typeof _tombstoneAdd==='function') _tombstoneAdd('co_prazos', p.id);
+        orfaosRemovidos++;
       });
       prazos[cid] = keep;
     });
-    if(prazosRemovidos>0 || fataisFlagged>0){
+    var totalRemovidos = prazosRemovidos + orfaosRemovidos;
+    if(totalRemovidos>0 || fataisFlagged>0){
       try { if(typeof prazosSalvar==='function') prazosSalvar(); } catch(e){}
       try { sbSet('co_ag', localAg); invalidarAllPend(); } catch(e){}
-      console.log('[dedup-fatal] removidos:', prazosRemovidos, '· flagged:', fataisFlagged);
+      // Atualiza contadores e banner imediatamente — não espera o próximo F5
+      try { if(typeof atualizarStats==='function') atualizarStats(); } catch(e){}
+      try { if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner(); } catch(e){}
+      try { if(typeof renderHomeAlerts==='function') renderHomeAlerts(); } catch(e){}
+      console.log('[dedup-fatal v2] pareados:', prazosRemovidos,
+                  '· órfãos:', orfaosRemovidos, '· flagged:', fataisFlagged);
+      try { if(typeof showToast==='function') {
+        showToast('🧹 '+totalRemovidos+' prazo'+(totalRemovidos>1?'s':'')+' duplicado'+(totalRemovidos>1?'s':'')+' removido'+(totalRemovidos>1?'s':''));
+      }} catch(e){}
     }
+    lsSet('co_dedup_fatal_v2', '1');
+    // Mantém v1 marcada para idempotência se algum código antigo verificar
     lsSet('co_dedup_fatal_v1', '1');
-  } catch(e){ console.warn('[dedup-fatal] erro', e); }
+  } catch(e){ console.warn('[dedup-fatal v2] erro', e); }
 }
 try { _dedupCompromissoFatal(); } catch(e){}
+
+// Trigger manual via console (suporte): _rodarDedupFatal()
+window._rodarDedupFatal = function(){
+  try { lsSet('co_dedup_fatal_v2', ''); }catch(e){}
+  try { lsSet('co_dedup_fatal_v1', ''); }catch(e){}
+  _dedupCompromissoFatal();
+};
 
 // Sincroniza um prazo individual prazos[cid][i] → entrada migrada em localAg.
 // Chamar sempre que prazo.cumprido for alterado para evitar cópia stale.
