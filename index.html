@@ -361,6 +361,14 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
         <span class="dsh-kpi-b-lbl" style="font-size:9px">Última sincronização</span>
       </div>
 
+      <div class="dsh-kpi-b-card dsh-kpi-b-neutral" onclick="gerarPlanoDoDia()" title="Abrir Plano do Dia" style="cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 10px">
+        <div class="dsh-kpi-b-lbl" style="text-align:center;margin-bottom:3px">HOJE</div>
+        <div id="dsc-hoje-fatais" style="font-size:11px;line-height:1.4">🚨 — fatais hoje</div>
+        <div id="dsc-hoje-prox" style="font-size:11px;line-height:1.4">⏱ —</div>
+        <div id="dsc-hoje-exec" style="font-size:11px;line-height:1.4">🔥 — execução jur.</div>
+        <div id="dsc-hoje-risco" style="font-size:11px;line-height:1.4">⚖ — em risco (3d)</div>
+      </div>
+
     </div>
 
     <!-- Container de alertas mantido oculto — renderHomeAlerts() ainda usa
@@ -635,7 +643,7 @@ body.light .dsh-kpi-b-novo-btn { background: #6b1416; color: #fff; }
 </div>
 
 <!-- Phase 4: JS extraído para arquivo separado -->
-<script src="bundle.js?v=120"></script>
+<script src="bundle.js?v=121"></script>
 <script>
 /* JS principal movido para app.js */
 </script>
