@@ -9435,10 +9435,11 @@ function dshRenderFatalBanner(){
   var hoje = getTodayKey();
   var itens = [];
 
-  // (1) Compromissos com flag is_fatal
+  // (1) Compromissos com flag fatal — reconhece tipoItem='prazo_fatal',
+  // criticidade='fatal' e is_fatal=true (cobre dados novos e legados).
   (allPendCached()||[]).forEach(function(p){
     if(_isEventoConcluido(p)) return;
-    if(!p.is_fatal) return;
+    if(!_ehPrazoFatal(p)) return;
     var dt = (p.dt_fatal||p.dt_fim||p.dt_raw||'').slice(0,10);
     if(!dt || dt > hoje) return;
     itens.push({
@@ -12244,7 +12245,9 @@ function _abrirModalCompromisso(cid_fixo){
         // dt_fim é a data fatal. Renderização e gates de protocolo
         // detectam essa flag para exigir cumprimento.
         is_fatal: !!ehPrazo,
-        dt_fatal: ehPrazo ? d.fim : ''
+        dt_fatal: ehPrazo ? d.fim : '',
+        tipoItem: ehPrazo ? 'prazo_fatal' : 'compromisso',
+        criticidade: ehPrazo ? 'fatal' : 'media'
       };
       localAg.push(ev); invalidarAllPend();
       // Andamento na pasta
@@ -12866,7 +12869,7 @@ function atualizarStats(){
     if(_isEventoConcluido(p)) return;
     var dt = p.dt_fim||p.dt_raw||'';
     if(dt>=hoje){ fut.push(p); if(p.dt_raw<=semFimStr) sem.push(p); }
-    else pass.push(p);
+    else if(_ehPrazoFatal(p)) pass.push(p); // só prazos fatais entram no card "Prazos vencidos"
     if(p.dt_raw===hoje) hojeCount++;
   });
   var encIds2 = getEncIds();
@@ -13458,6 +13461,17 @@ function _syncPrazoToAg(cid, p){
   ag.dt_conclusao = p.cumprido_em || '';
   sbSet('co_ag', localAg);
   invalidarAllPend();
+}
+
+// Helper: classifica se um item de agenda é prazo fatal (perda de direito /
+// preclusão). Cobre 3 fontes em ordem: campo novo `tipoItem`, campo novo
+// `criticidade`, e a flag legada `is_fatal`. Itens antigos sem os campos
+// novos continuam sendo reconhecidos via `is_fatal`. Função pura.
+function _ehPrazoFatal(ev){
+  if(!ev) return false;
+  if(ev.tipoItem === 'prazo_fatal') return true;
+  if(ev.criticidade === 'fatal') return true;
+  return ev.is_fatal === true;
 }
 
 // Helper unificado: detecta se um item de agenda/prazo está concluído.
