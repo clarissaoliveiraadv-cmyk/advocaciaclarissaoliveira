@@ -14261,6 +14261,8 @@ function renderAgLista(){
   const passados  = todos.filter(p=>!p.realizado
     && (p.dt_fim||p.dt_raw||'')<hoje
   ).sort((a,b)=>b.dt_raw.localeCompare(a.dt_raw));
+  const vencidosFatais = passados.filter(_ehPrazoFatal);
+  const vencidosOutros = passados.filter(p => !_ehPrazoFatal(p));
   const futuros   = todos.filter(p=>!p.realizado&&(p.dt_raw||'')>=hoje).sort((a,b)=>a.dt_raw.localeCompare(b.dt_raw));
   const realizados= todos.filter(p=>p.realizado).sort((a,b)=>b.dt_raw.localeCompare(a.dt_raw)).slice(0,40);
 
@@ -14284,7 +14286,8 @@ function renderAgLista(){
     const t   = agTipo(p);
     const cor = COR[t]||COR.outro;
     const venc= !p.realizado&&(p.dt_fim||p.dt_raw||'')<hoje;
-    return `<div class="ag2-list-row${venc?' ag2-urg':''}" onclick="calEvtClick('${p.id||p.id_agenda||''}')">
+    const urg = venc && _ehPrazoFatal(p); // só fatais ganham destaque vermelho
+    return `<div class="ag2-list-row${urg?' ag2-urg':''}" onclick="calEvtClick('${p.id||p.id_agenda||''}')">
       <div class="ag2-list-data">${fmtDt(p)}</div>
       <div class="ag2-list-titulo">${p.tipo_compromisso||p.titulo||'Compromisso'}</div>
       <div class="ag2-list-cli">${p.cliente||'—'}</div>
@@ -14296,8 +14299,10 @@ function renderAgLista(){
   let out = '';
   if(emAndamento.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;border-left:3px solid var(--ouro)">
     <div class="ag2-list-head" style="color:var(--ouro)">⏳ Em andamento (${emAndamento.length})</div>${head}${emAndamento.map(row).join('')}</div>`;
-  if(passados.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;margin-top:12px">
-    <div class="ag2-list-head" style="color:var(--red)">⚠ Vencidos (${passados.length})</div>${head}${passados.map(row).join('')}</div>`;
+  if(vencidosFatais.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;margin-top:12px">
+    <div class="ag2-list-head" style="color:var(--red)">🔴 Prazos fatais vencidos (${vencidosFatais.length})</div>${head}${vencidosFatais.map(row).join('')}</div>`;
+  if(vencidosOutros.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;margin-top:12px">
+    <div class="ag2-list-head" style="color:var(--ouro)">⚠ Outros vencidos (${vencidosOutros.length})</div>${head}${vencidosOutros.map(row).join('')}</div>`;
   if(futuros.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;margin-top:12px">
     <div class="ag2-list-head">Próximos (${futuros.length})</div>${head}${futuros.map(row).join('')}</div>`;
   if(realizados.length) out+=`<div class="ag2-list-section fin-card" style="padding:0 12px 8px;margin-top:12px;opacity:.7">
