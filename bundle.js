@@ -13315,18 +13315,14 @@ try { _migrarPrazosParaAg(); } catch(e){}
 
 // Dedup: pares duplicados (compromisso em localAg + prazo em prazos[cid] com
 // obs "Criado junto com compromisso") gerados pela versão antiga do
-// salvarCompromisso. Roda uma vez no boot — marca o compromisso com is_fatal
-// e remove a entrada de prazos[cid] com tombstone.
-//
-// v2: também varre prazos órfãos (sem par em localAg) que tenham a obs ou
-// titulo='fatal' — eram duplicatas mesmo sem o pareamento. Re-roda em
-// usuários que já viram a v1 (chave nova co_dedup_fatal_v2). Após limpar,
-// chama atualizarStats e dshRenderFatalBanner para os contadores caírem
-// imediatamente sem precisar de F5 adicional.
+// salvarCompromisso. Marca o compromisso com is_fatal e remove a entrada de
+// prazos[cid] com tombstone. Também varre prazos órfãos (sem par em localAg)
+// com a obs ou titulo='fatal'. Idempotente — invocado por init() após
+// carregarDados e novamente após sbInit (sem isso rodaria sobre arrays vazios
+// do `let localAg=[]` no module-load).
 function _dedupCompromissoFatal(){
   try {
     if(typeof prazos !== 'object' || !prazos) return;
-    if(lsGet('co_dedup_fatal_v2')==='1') return;
     var fatorAg = new Map();  // chave: cid|dt_fim → ev em localAg
     (localAg||[]).forEach(function(ev){
       if(!ev || !ev.id_processo) return;
@@ -13383,21 +13379,17 @@ function _dedupCompromissoFatal(){
         showToast('🧹 '+totalRemovidos+' prazo'+(totalRemovidos>1?'s':'')+' duplicado'+(totalRemovidos>1?'s':'')+' removido'+(totalRemovidos>1?'s':''));
       }} catch(e){}
     }
-    lsSet('co_dedup_fatal_v2', '1');
-    // Mantém v1 marcada para idempotência se algum código antigo verificar
-    lsSet('co_dedup_fatal_v1', '1');
-  } catch(e){ console.warn('[dedup-fatal v2] erro', e); }
+  } catch(e){ console.warn('[dedup-fatal] erro', e); }
 }
-try { _dedupCompromissoFatal(); } catch(e){}
 
 // v3: limpa as cópias órfãs em localAg que ficaram da migração antiga
 // (_migrarPrazosParaAg copiava prazos[cid] → localAg preservando a obs
 // "Criado junto com compromisso"). Estas cópias são as que aparecem como
-// duplicadas na agenda lista, no banner e na pasta. v2 limpava só
-// prazos[cid] — não tocava em localAg. Roda uma vez por usuário.
+// duplicadas na agenda lista, no banner e na pasta. _dedupCompromissoFatal
+// limpa só prazos[cid] — esta função é o complemento que toca em localAg.
+// Idempotente — invocado por init() após carregarDados e após sbInit.
 function _dedupLocalAgFatalV3(){
   try {
-    if(lsGet('co_dedup_fatal_v3')==='1') return;
     if(!Array.isArray(localAg)) return;
     var antes = localAg.length;
     var removidos = [];
@@ -13436,19 +13428,14 @@ function _dedupLocalAgFatalV3(){
       try { if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner(); }catch(e){}
       try { if(typeof renderHomeAlerts==='function') renderHomeAlerts(); }catch(e){}
       try { if(typeof renderProximosCompromissos==='function') renderProximosCompromissos(allPendCached(), getTodayKey()); }catch(e){}
-      console.log('[dedup-fatal v3] localAg limpo:', n, '· antes:', antes, '· depois:', localAg.length);
-      try { if(typeof showToast==='function') showToast('🧹 '+n+' duplicado'+(n>1?'s':'')+' apagado'+(n>1?'s':'')+' (v3)'); } catch(e){}
+      console.log('[dedup-fatal localAg] limpo:', n, '· antes:', antes, '· depois:', localAg.length);
+      try { if(typeof showToast==='function') showToast('🧹 '+n+' duplicado'+(n>1?'s':'')+' apagado'+(n>1?'s':'')); } catch(e){}
     }
-    lsSet('co_dedup_fatal_v3', '1');
-  } catch(e){ console.warn('[dedup-fatal v3] erro', e); }
+  } catch(e){ console.warn('[dedup-fatal localAg] erro', e); }
 }
-try { _dedupLocalAgFatalV3(); } catch(e){}
 
 // Trigger manual via console (suporte): _rodarDedupFatal()
 window._rodarDedupFatal = function(){
-  try { lsSet('co_dedup_fatal_v1', ''); }catch(e){}
-  try { lsSet('co_dedup_fatal_v2', ''); }catch(e){}
-  try { lsSet('co_dedup_fatal_v3', ''); }catch(e){}
   _dedupCompromissoFatal();
   _dedupLocalAgFatalV3();
 };
@@ -14496,6 +14483,10 @@ function _showDropdown(m,btn){
 async function init(){
   setTimeout(initSidebar,50);
   await carregarDados(); // carrega dados embutidos via fetch — precisa de await agora
+  // Dedup roda APÓS carregarDados — antes disso localAg/prazos estão vazios
+  // (declaração `let localAg=[]`) e qualquer dedup no module-load seria no-op.
+  try { _dedupCompromissoFatal(); } catch(e){}
+  try { _dedupLocalAgFatalV3(); } catch(e){}
   atualizarStats();
   renderHomeAlerts();
   renderFinDash();
@@ -14507,6 +14498,10 @@ async function init(){
   // Inicializa Supabase e, se tiver co_clientes lá, sobrescreve o CLIENTS embutido
   setTimeout(async ()=>{
     await sbInit();
+    // Re-roda dedup com dados frescos da nuvem (cobre device novo que não tinha
+    // localStorage e recebeu os duplicados só via Supabase).
+    try { _dedupCompromissoFatal(); } catch(e){}
+    try { _dedupLocalAgFatalV3(); } catch(e){}
     // Após sbInit (que já carrega outros dados), tenta carregar CLIENTS do Supabase
     const sbClientes = await sbCarregarClientes();
     if(sbClientes){
