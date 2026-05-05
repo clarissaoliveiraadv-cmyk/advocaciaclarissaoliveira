@@ -14266,7 +14266,7 @@ function renderAgLista(){
 
   const COR = {audiencia:'#7c3aed',prazo:'var(--vinho)',compromisso:'var(--vinho)',
                tarefa:'var(--ouro)',reuniao:'#0ea5e9',outro:'var(--mu)'};
-  const fmtDt = p => fmtDataBR(p.dt_raw);
+  const fmtDt = p => fmtDataBR(p.dt_fim||p.dt_raw);
   const diasL = dt => {
     const d = Math.ceil((new Date(dt)-new Date(hoje))/86400000);
     if(d<0)  return `<span style="color:var(--red)">vencido ${-d}d</span>`;
