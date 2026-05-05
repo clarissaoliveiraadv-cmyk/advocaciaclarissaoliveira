@@ -9425,6 +9425,103 @@ document.addEventListener('click',function(e){
   }
 });
 
+// Banner persistente de prazos fatais — só some quando o usuário confirma
+// cumprimento (com protocolo) ou desmarca a flag is_fatal. Cobre dois grupos:
+// (1) compromissos com is_fatal e dt_fatal <= hoje, não realizados;
+// (2) prazos[cid] com tipo='fatal' e data <= hoje, não cumpridos.
+function dshRenderFatalBanner(){
+  var el = document.getElementById('dsh-fatal-banner');
+  if(!el) return;
+  var hoje = getTodayKey();
+  var itens = [];
+
+  // (1) Compromissos com flag is_fatal
+  (allPendCached()||[]).forEach(function(p){
+    if(_isEventoConcluido(p)) return;
+    if(!p.is_fatal) return;
+    var dt = (p.dt_fatal||p.dt_fim||p.dt_raw||'').slice(0,10);
+    if(!dt || dt > hoje) return;
+    itens.push({
+      id: p.id||p.id_agenda,
+      titulo: p.titulo||p.tipo_compromisso||'Compromisso',
+      cliente: p.cliente||'',
+      cid: p.id_processo||0,
+      dt: dt,
+      tipo: 'compromisso'
+    });
+  });
+
+  // (2) Prazos fatais ainda em prazos[cid]
+  if(typeof prazos==='object' && prazos){
+    Object.keys(prazos).forEach(function(cid){
+      (prazos[cid]||[]).forEach(function(p){
+        if(p.cumprido || p.deleted) return;
+        if(p.tipo!=='fatal') return;
+        var dt = (p.data||'').slice(0,10);
+        if(!dt || dt > hoje) return;
+        var c = findClientById(Number(cid))||findClientById(cid);
+        itens.push({
+          id: p.id, titulo: p.titulo||'Prazo fatal',
+          cliente: c?c.cliente:'', cid: Number(cid)||cid, dt: dt,
+          tipo: 'prazo', _prazoLegado: true
+        });
+      });
+    });
+  }
+
+  if(!itens.length){
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+
+  // Ordena por data (mais antigos primeiro)
+  itens.sort(function(a,b){ return (a.dt||'').localeCompare(b.dt||''); });
+
+  var atrasados = itens.filter(function(i){ return i.dt < hoje; });
+  var ehHoje    = itens.filter(function(i){ return i.dt === hoje; });
+
+  var titleTxt = atrasados.length
+    ? '⚠ '+atrasados.length+' prazo'+(atrasados.length>1?'s':'')+' fatal '+(atrasados.length>1?'atrasados':'atrasado')
+      + (ehHoje.length ? ' · '+ehHoje.length+' venc'+(ehHoje.length>1?'em':'e')+' hoje' : '')
+    : '⚠ '+ehHoje.length+' prazo'+(ehHoje.length>1?'s':'')+' fatal '+(ehHoje.length>1?'vencem':'vence')+' hoje';
+
+  var lista = itens.slice(0,3).map(function(i){
+    var diasAtr = i.dt < hoje
+      ? Math.round((new Date(hoje)-new Date(i.dt))/86400000)
+      : 0;
+    var prazoLbl = diasAtr > 0
+      ? '<span style="color:#f87676;font-weight:700">atrasado '+diasAtr+'d</span>'
+      : '<span style="color:#f59e0b;font-weight:700">HOJE</span>';
+    return '<span class="dsh-fatal-banner-item"><strong>'
+      + escapeHtml(i.cliente||'—') + '</strong> · '
+      + escapeHtml(i.titulo) + ' — ' + prazoLbl
+      + '</span>';
+  }).join('');
+  if(itens.length > 3){
+    lista += '<span class="dsh-fatal-banner-item" style="opacity:.7">+ '+(itens.length-3)+' mais</span>';
+  }
+
+  // Primeiro item da fila — alvo do botão "Confirmar agora"
+  var alvo = itens[0];
+  var alvoFn = '';
+  if(alvo.tipo==='compromisso'){
+    alvoFn = "calEvtClick('"+alvo.id+"')";
+  } else if(alvo.tipo==='prazo'){
+    alvoFn = "prazosConcluirComDesfecho("+alvo.cid+",'"+alvo.id+"')";
+  }
+
+  el.className = 'dsh-fatal-banner';
+  el.style.display = '';
+  el.innerHTML =
+      '<div class="dsh-fatal-banner-ico">⚠️</div>'
+    + '<div class="dsh-fatal-banner-body">'
+      + '<div class="dsh-fatal-banner-title">'+titleTxt+'</div>'
+      + '<div class="dsh-fatal-banner-list">'+lista+'</div>'
+    + '</div>'
+    + '<button class="dsh-fatal-banner-btn" onclick="'+alvoFn+'">Confirmar agora</button>';
+}
+
 function _dshRefresh(){
   invalidarAllPend();
   _finLocaisCache = {};
@@ -9435,6 +9532,7 @@ function _dshRefresh(){
   if(typeof renderFinDash==='function') renderFinDash();
   if(typeof renderHomeIniciais==='function') renderHomeIniciais();
   if(typeof atualizarStats==='function') atualizarStats();
+  if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner();
   showToast('\u2713 Dashboard atualizado');
 }
 // Atualizar timestamp a cada 60s para mostrar "há X min"
@@ -11942,6 +12040,11 @@ function marcarAlterado(){
   vfInvalidarCache();      // Phase 3: invalidar cache de abas pesadas
   const btn = document.getElementById('btn-salvar');
   if(btn && btn.textContent === '💾 Salvar') btn.textContent = '💾 Salvar *';
+  // Banner de fatais — re-renderiza só se a view 'vc' está ativa
+  if(typeof dshRenderFatalBanner==='function'
+      && document.getElementById('vc')?.classList.contains('on')){
+    try { dshRenderFatalBanner(); } catch(e){}
+  }
 }
 
 // PERF: debounce — evita rerender a cada tecla em inputs de busca
@@ -12057,10 +12160,11 @@ function _abrirModalCompromisso(cid_fixo){
         +'<div id="cm-rec-preview" style="font-size:11px;color:var(--mu);margin-top:6px"></div>'
       +'</div>'
     +'</div>'
-    // Também lançar como prazo
+    // Marcar como prazo fatal — flag no próprio compromisso (sem entrada
+    // duplicada em prazos[cid]). A data fim do compromisso é a data fatal.
     +'<div style="margin-top:10px;display:flex;align-items:center;gap:8px">'
       +'<input type="checkbox" id="cm-eh-prazo" style="accent-color:var(--vinho);width:14px;height:14px">'
-      +'<label for="cm-eh-prazo" style="font-size:12px;color:var(--mu);cursor:pointer">Também lançar como prazo na pasta do cliente</label>'
+      +'<label for="cm-eh-prazo" style="font-size:12px;color:var(--mu);cursor:pointer">Tem prazo <strong style="color:#f87676">fatal</strong> na data fim</label>'
     +'</div>'
     +'<div style="margin-top:10px"><label class="fm-lbl">Observações</label>'
       +'<textarea class="fm-inp" id="cm-obs" rows="2" placeholder="Local, link, detalhes..."></textarea>'
@@ -12135,7 +12239,12 @@ function _abrirModalCompromisso(cid_fixo){
         id_processo: cid||null,
         realizado: false, cumprido: 'Não',
         recorrente: !!recorr, recorr_grupo: recGrupo,
-        natureza: (findClientById(cid)||{}).natureza||''
+        natureza: (findClientById(cid)||{}).natureza||'',
+        // Flag única — substitui o cadastro duplicado em prazos[cid].
+        // dt_fim é a data fatal. Renderização e gates de protocolo
+        // detectam essa flag para exigir cumprimento.
+        is_fatal: !!ehPrazo,
+        dt_fatal: ehPrazo ? d.fim : ''
       };
       localAg.push(ev); invalidarAllPend();
       // Andamento na pasta
@@ -12153,21 +12262,10 @@ function _abrirModalCompromisso(cid_fixo){
     sbSet('co_ag', localAg);
     if(cid) sbSet('co_localMov', localMov);
 
-    // Lançar como prazo
-    if(ehPrazo && cid){
-      if(!prazos[cid]) prazos[cid]=[];
-      datas.forEach((d,i)=>{
-        prazos[cid].push({
-          id:'cp'+genId(),
-          titulo, tipo: titulo.toLowerCase().includes('audiencia')||titulo.toLowerCase().includes('audiência')?'audiencia'
-            : titulo.toLowerCase().includes('prazo')||titulo.toLowerCase().includes('recurso')?'fatal':'outro',
-          data: d.fim||d.ini,
-          obs: obs||'Criado junto com compromisso',
-          cumprido: false
-        });
-      });
-      prazosSalvar(); // salva em co_prazos + co_td (legado)
-    }
+    // Antes, ehPrazo=true criava uma entrada duplicada em prazos[cid] com
+    // obs "Criado junto com compromisso", forçando baixa em dois lugares.
+    // Agora a flag is_fatal/dt_fatal no próprio compromisso (acima) resolve
+    // sem duplicar — render exibe chip FATAL e calEvtConcluir pede protocolo.
 
     marcarAlterado();
     fecharModal();
@@ -13215,6 +13313,56 @@ function _migrarPrazosParaAg(){
 }
 try { _migrarPrazosParaAg(); } catch(e){}
 
+// Dedup: pares duplicados (compromisso em localAg + prazo em prazos[cid] com
+// obs "Criado junto com compromisso") gerados pela versão antiga do
+// salvarCompromisso. Roda uma vez no boot — marca o compromisso com is_fatal
+// e remove a entrada de prazos[cid] com tombstone.
+function _dedupCompromissoFatal(){
+  try {
+    if(typeof prazos !== 'object' || !prazos) return;
+    if(lsGet('co_dedup_fatal_v1')==='1') return;
+    var fatorAg = new Map();  // chave: cid|dt_fim → ev em localAg
+    (localAg||[]).forEach(function(ev){
+      if(!ev || !ev.id_processo) return;
+      var dtFim = (ev.dt_fim||ev.dt_raw||'').slice(0,10);
+      if(!dtFim) return;
+      fatorAg.set(String(ev.id_processo)+'|'+dtFim, ev);
+    });
+    var prazosRemovidos = 0, fataisFlagged = 0;
+    Object.keys(prazos).forEach(function(cid){
+      var lista = prazos[cid]||[];
+      var keep = [];
+      lista.forEach(function(p){
+        var ehDuplicata = (p.obs||'').toLowerCase().indexOf('criado junto com compromisso') >= 0;
+        if(!ehDuplicata){ keep.push(p); return; }
+        var key = String(cid)+'|'+(p.data||'').slice(0,10);
+        var ev = fatorAg.get(key);
+        if(ev){
+          // Encontrou par — marca compromisso como fatal e descarta o prazo
+          if(!ev.is_fatal){
+            ev.is_fatal = true;
+            ev.dt_fatal = (p.data||ev.dt_fim||ev.dt_raw||'').slice(0,10);
+            fataisFlagged++;
+          }
+          // Tombstone p.id em co_prazos para não ressuscitar via Realtime
+          if(typeof _tombstoneAdd==='function') _tombstoneAdd('co_prazos', p.id);
+          prazosRemovidos++;
+          return; // não preserva
+        }
+        keep.push(p);
+      });
+      prazos[cid] = keep;
+    });
+    if(prazosRemovidos>0 || fataisFlagged>0){
+      try { if(typeof prazosSalvar==='function') prazosSalvar(); } catch(e){}
+      try { sbSet('co_ag', localAg); invalidarAllPend(); } catch(e){}
+      console.log('[dedup-fatal] removidos:', prazosRemovidos, '· flagged:', fataisFlagged);
+    }
+    lsSet('co_dedup_fatal_v1', '1');
+  } catch(e){ console.warn('[dedup-fatal] erro', e); }
+}
+try { _dedupCompromissoFatal(); } catch(e){}
+
 // Sincroniza um prazo individual prazos[cid][i] → entrada migrada em localAg.
 // Chamar sempre que prazo.cumprido for alterado para evitar cópia stale.
 function _syncPrazoToAg(cid, p){
@@ -13355,7 +13503,15 @@ function renderAgendaProc(cid){
     const pid=String(p.id||p.id_agenda);
     const onSt='agendaConcluirComDesfecho(\''+pid+'\','+cid+')';
     const onEd='editarAgCliente(\''+pid+'\','+cid+')';
-    return '<div class="comp-card '+(isDone?'comp-card-done':'')+'">'
+    var fatalChip = '';
+    if(p.is_fatal && !isDone){
+      var dtFatal = (p.dt_fatal||p.dt_fim||p.dt_raw||'').slice(0,10);
+      var fatalVenc = dtFatal && dtFatal < hoje;
+      var fatalCor = fatalVenc ? '#c9484a' : '#f87676';
+      fatalChip = ' <span style="font-size:8px;padding:1px 6px;border-radius:3px;background:rgba(201,72,74,.18);color:'+fatalCor+';font-weight:800;letter-spacing:.05em;vertical-align:middle">FATAL'
+        +(dtFatal?' '+fDt(dtFatal):'')+'</span>';
+    }
+    return '<div class="comp-card '+(isDone?'comp-card-done':'')+(p.is_fatal&&!isDone?' comp-card-fatal':'')+'">'
       +'<div class="comp-cal '+calCls+'">'
         +'<div class="comp-cal-dia">'+(dtP[2]||'?')+'</div>'
         +'<div class="comp-cal-mes">'+(dtP[1]?MA[parseInt(dtP[1],10)-1]||'':'')+'</div>'
@@ -13363,6 +13519,7 @@ function renderAgendaProc(cid){
       +'<div class="comp-card-body">'
         +'<div class="comp-card-titulo '+(isDone?'done':'')+'">'+( p.tipo_compromisso||p.titulo||'Compromisso')
           +(p._prazo?' <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:700;vertical-align:middle">PRAZO</span>':'')
+          +fatalChip
           +(p.hora?' <span style="font-size:9px;color:var(--mu)">\u23f0 '+p.hora+'</span>':'')
           +(!isDone&&!pass&&d>0&&d<999?' <span style="font-size:9px;color:'+(d<=3?'#f59e0b':'var(--mu)')+'">'+d+'d</span>':'')
         +'</div>'
@@ -14098,10 +14255,12 @@ function calEvtConcluir(id, opts){
   const idx = (localAg||[]).findIndex(a=>String(a.id||a.id_agenda)===raw);
   const ev  = idx>=0 ? localAg[idx] : (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
 
-  // Gate: prazos exigem protocolo/ID do documento como prova de cumprimento
-  // (consistente com togglePrazo na pasta e com vkMudarStatus no Kanban).
+  // Gate: prazos e compromissos com prazo fatal exigem protocolo/ID do
+  // documento como prova de cumprimento (consistente com togglePrazo na
+  // pasta e com vkMudarStatus no Kanban).
   if(!opts.skipPrazoCheck && ev){
-    var ehPrazo = ev._prazo===true || ev.tipo==='prazo' || (typeof agTipo==='function' && agTipo(ev)==='prazo');
+    var ehPrazo = ev._prazo===true || ev.tipo==='prazo' || ev.is_fatal===true
+                  || (typeof agTipo==='function' && agTipo(ev)==='prazo');
     if(ehPrazo){
       _calEvtConcluirComProtocolo(raw, ev);
       return;
@@ -14382,7 +14541,7 @@ function goView(v,btn){
     'vk':'nav-tasks','vct':'nav-contatos','vcalc':'nav-calc','vaudit':'nav-audit'};
   var navId=navMap[v];
   if(navId){ var nb=document.getElementById(navId); if(nb) nb.classList.add('on'); }
-  if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); renderHomeIniciais(); }
+  if(v==='vc'){ renderHomeAlerts(); renderChecklist(); renderHomeWeek(); renderFinDash(); renderHomeIniciais(); if(typeof dshRenderFatalBanner==='function') dshRenderFatalBanner(); }
   if(v==='vcl'){
     // Restaurar sidebar de clientes se estava escondida
     var vclWrap=document.querySelector('.vcl-wrap');
