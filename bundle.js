@@ -15015,7 +15015,7 @@ function renderListTable(lst, isEncView){
 // Phase 2: virtualização — altura fixa por item, renderiza só os visíveis
 var _rlData=[], _rlEnc=false, _rlItemH=68, _rlBuffer=5;
 
-function _rlBuildItem(grp, cf, isEncView){
+function _rlBuildItem(grp, cf, cFatal, isEncView){
     const procs=grp.processos||[grp];
     const isAtivo=AC&&procs.some(p=>p.id===AC.id);
     const encProcs=procs.filter(p=>isEncerrado(p.id));
@@ -15032,7 +15032,18 @@ function _rlBuildItem(grp, cf, isEncView){
     const nats=[...new Set(procs.filter(p=>!isEncerrado(p.id)).map(p=>p.natureza))];
     const dataLabel=allEnc?('Encerrado '+encProcs[encProcs.length-1].data):
       (procs.find(p=>!isEncerrado(p.id))?.data_inicio||'').slice(0,7);
-    return`<div class="ci ${isAtivo?'on':''} ${allEnc?'enc-item':''}" onclick="openC(${grp.id})">
+    // Severidade fatal agregada do grupo — pior caso entre os processos
+    let fatalSev=0;
+    procs.forEach(function(p){ var e=(cFatal||{})[p.id]; if(e&&e.sev>fatalSev) fatalSev=e.sev; });
+    let fatalChip='', fatalBorda='';
+    if(!allEnc && fatalSev===3){
+      fatalChip=' <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(201,72,74,.22);color:#c9484a;font-weight:800;letter-spacing:.05em">FATAL VENCIDO</span>';
+      fatalBorda='border-left:3px solid #c9484a;';
+    } else if(!allEnc && fatalSev===2){
+      fatalChip=' <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(245,158,11,.22);color:#f59e0b;font-weight:800;letter-spacing:.05em">FATAL HOJE</span>';
+      fatalBorda='border-left:3px solid #f59e0b;';
+    }
+    return`<div class="ci ${isAtivo?'on':''} ${allEnc?'enc-item':''}" style="${fatalBorda}" onclick="openC(${grp.id})">
       <div class="cn">${grp.nome||'(sem nome)'}</div>
       <div class="cmeta">
         <span style="display:flex;gap:3px;flex-wrap:wrap">
@@ -15041,6 +15052,7 @@ function _rlBuildItem(grp, cf, isEncView){
         <span class="cdate">${dataLabel}</span>
       </div>
       <div class="cbadges">
+        ${fatalChip}
         ${allEnc?`<span class="enc-badge">🗂 Enc.</span>`:''}
         ${nProcs>1?`<span class="badge" style="background:#2a1f3d;color:#c9a84c;font-size:9px">📁 ${nProcs}</span>`:''}
         ${!allEnc&&maxDorm>=1000&&maxDorm<9999?`<span class="dorm-badge">⚠ ${maxDorm}d</span>`:''}
@@ -15065,12 +15077,12 @@ function _rlPaint(){
   var parts=[];
   parts.push('<div style="height:'+first*h+'px"></div>');
   for(var i=first;i<=last;i++){
-    parts.push(_rlBuildItem(_rlData[i],cf,_rlEnc));
+    parts.push(_rlBuildItem(_rlData[i],cf,_rlCfFatal,_rlEnc));
   }
   parts.push('<div style="height:'+(total-1-last)*h+'px"></div>');
   el.innerHTML=parts.join('');
 }
-var _rlCf={};
+var _rlCf={}, _rlCfFatal={};
 
 function renderList(lst, isEncView=false){
   // Cache único de allPend para todo o renderList
@@ -15081,6 +15093,21 @@ function renderList(lst, isEncView=false){
       cf[p.id_processo]=(cf[p.id_processo]||0)+1;
   });
   _rlCf=cf;
+  // Severidade fatal por id_processo — só vencido e hoje (futuro ignorado pra
+  // não poluir a lista). 3=vencido, 2=hoje. Reusa _ehPrazoFatal e _isEventoConcluido.
+  var cFatal={};
+  _ap.forEach(function(p){
+    if(_isEventoConcluido(p)) return;
+    if(!_ehPrazoFatal(p)) return;
+    if(!p.id_processo) return;
+    var dt=(p.dt_fatal||p.dt_fim||p.dt_raw||'').slice(0,10);
+    if(!dt) return;
+    var sev = dt < HS ? 3 : dt === HS ? 2 : 0;
+    if(!sev) return;
+    var e = cFatal[p.id_processo] || {sev:0};
+    if(sev > e.sev){ e.sev = sev; cFatal[p.id_processo] = e; }
+  });
+  _rlCfFatal=cFatal;
   // Stats (usa cf já calculado — O(1) por cliente)
   var sbTxt = document.getElementById('sb-stats-txt');
   if(sbTxt){
@@ -15100,7 +15127,7 @@ function renderList(lst, isEncView=false){
     // lista pequena — render direto com DocumentFragment
     var frag=document.createDocumentFragment();
     lst.forEach(function(grp){
-      var html=_rlBuildItem(grp,cf,isEncView);
+      var html=_rlBuildItem(grp,cf,cFatal,isEncView);
       if(html) frag.appendChild(_fragFromHtml(html));
     });
     el.textContent='';
