@@ -9817,6 +9817,149 @@ function gerarResumoWpp(){
     '📋 Copiar para WhatsApp'
   );
 }
+
+// gerarPlanoDoDia — modo "plano de execução" do dia (sibling de gerarResumoWpp).
+// Usa as MESMAS fontes de dados, só reorganiza em 7 blocos de prioridade.
+// Não altera gerarResumoWpp nem nenhuma lógica de filtro/cálculo.
+function gerarPlanoDoDia(){
+  var hoje=getTodayKey(), NL='\n';
+  var MA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var dObj=new Date(HOJE);
+  var dataFmt=dObj.getDate()+' de '+MA[dObj.getMonth()]+' de '+dObj.getFullYear();
+  var amanha=new Date(new Date(HOJE).getTime()+1*86400000).toISOString().slice(0,10);
+  var em3d  =new Date(new Date(HOJE).getTime()+3*86400000).toISOString().slice(0,10);
+  var em2d  =new Date(new Date(HOJE).getTime()+2*86400000).toISOString().slice(0,10);
+
+  // Force re-fetch de vkTasks (mesmo guard de gerarResumoWpp)
+  try {
+    var vkFresh = JSON.parse(lsGet('co_vktasks')||'[]');
+    if(Array.isArray(vkFresh)){
+      vkTasks = vkFresh.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
+    }
+  } catch(e){}
+  try { if(typeof invalidarAllPend==='function') invalidarAllPend(); } catch(e){}
+  try { if(typeof invalidarCacheVfTodos==='function') invalidarCacheVfTodos(); } catch(e){}
+
+  var _ap = allPendCached()||[];
+  var fmtV = function(v){ return 'R$ '+Math.abs(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  // 1. PRAZOS FATAIS HOJE
+  var b1 = _ap.filter(function(p){
+    if(p.realizado || !_ehPrazoFatal(p)) return false;
+    return (p.dt_fim||p.dt_raw||'').slice(0,10) === hoje;
+  }).map(function(p){
+    var t=p.tipo_compromisso||p.titulo||'Prazo';
+    return t + (p.cliente?' — '+p.cliente:'');
+  });
+
+  // 2. AGENDA CRÍTICA — audiência/perícia/reunião que cai hoje (com horário)
+  var b2 = _ap.filter(function(p){
+    if(p.realizado) return false;
+    if(!eventoNoDia(p,hoje)) return false;
+    var t = agTipo(p);
+    return t==='audiencia' || t==='pericia' || t==='reuniao';
+  }).map(function(p){
+    var t=p.tipo_compromisso||p.titulo||'Compromisso';
+    var hr=(p.inicio||'').slice(11,16);
+    if(hr==='00:00') hr='';
+    return (hr?hr+' ':'')+t+(p.cliente?' — '+p.cliente:'');
+  }).sort();
+
+  // 3+5. Tarefas de hoje (mesma regra do resumo) split por heurística jurídica
+  var RX_JURIDICA = /protocol|ação|acao|inss|recurso|peti[cç][aã]o|contesta[cç][aã]o|embargo|contrarraz[oõ]e|r[eé]plica|impugna[cç][aã]o|alega[cç][oõ]es|memoria(l|is)|guia|RPV|alvar[aá]|levantamento|manifesta[cç][aã]o|juntada|certid[aã]o/i;
+  var tarefasDoDia = (vkTasks||[]).filter(function(t){
+    if(t.status==='done'||t.status==='concluido') return false;
+    if(t.prazo===hoje||t.paraHoje===hoje) return true;
+    if(t.prazo&&t.prazo<hoje) return true;
+    if(t.status_since===hoje) return true;
+    if(!t.prazo && !t.paraHoje) return true;
+    return false;
+  });
+  var b3 = [], b5 = [];
+  tarefasDoDia.forEach(function(t){
+    var cli = t.cliente && t.cliente!=='-' ? ' — '+t.cliente : '';
+    var linha = (t.titulo||'(sem título)') + cli;
+    if(RX_JURIDICA.test(t.titulo||'')) b3.push(linha);
+    else b5.push(linha);
+  });
+
+  // 4. PRAZOS EM RISCO — fatais com dt_fim entre amanhã e hoje+3
+  var b4 = _ap.filter(function(p){
+    if(p.realizado || !_ehPrazoFatal(p)) return false;
+    var d = (p.dt_fim||p.dt_raw||'').slice(0,10);
+    return d>=amanha && d<=em3d;
+  }).sort(function(a,b){
+    var da=(a.dt_fim||a.dt_raw||''), db=(b.dt_fim||b.dt_raw||'');
+    return da.localeCompare(db);
+  }).map(function(p){
+    var t=p.tipo_compromisso||p.titulo||'Prazo';
+    var d=(p.dt_fim||p.dt_raw||'').slice(0,10);
+    return fDt(d).slice(0,5)+' '+t+(p.cliente?' — '+p.cliente:'');
+  });
+
+  // 6. FINANCEIRO — recebimentos + pagamentos venc=hoje (mesma fonte de gerarResumoWpp)
+  var _todosFin = (localLanc||[]).concat((finLancs||[]).filter(function(l){return !l._projuris_id&&!l.proj_ref&&!l.origem_proj;}));
+  var b6 = [];
+  _todosFin.forEach(function(l){
+    if(isRec(l)) return;
+    var venc=(l.venc||l.data||'').slice(0,10);
+    if(venc!==hoje) return;
+    var ehReceber = (l.tipo!=='repasse' && l.tipo!=='despesa' && l.tipo!=='despint' && l.direcao!=='pagar');
+    var marker = ehReceber ? '↘' : '↗';
+    b6.push(marker+' '+(l.cliente||(ehReceber?'':'Escritório'))+' — '+(l.desc||(ehReceber?'Honorários':'Pagamento'))+' — '+fmtV(l.valor));
+  });
+
+  // 7. COBRANÇAS — recebimentos vencendo em até 2 dias (clone de "cobrar" do resumo)
+  var b7 = [];
+  _todosFin.forEach(function(l){
+    if(isRec(l)) return;
+    if(l.tipo==='repasse'||l.tipo==='despesa'||l.tipo==='despint'||l.direcao==='pagar') return;
+    var venc=(l.venc||l.data||'').slice(0,10);
+    if(venc>hoje && venc<=em2d){
+      b7.push((l.cliente||'')+' — '+(l.desc||'Honorários')+' — '+fmtV(l.valor)+' (vence '+fDt(venc)+')');
+    }
+  });
+
+  var txt='*Plano do Dia — '+dataFmt+'*'+NL+NL;
+  if(b1.length){txt+='🚨 *PRAZOS FATAIS HOJE*'+NL;b1.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b2.length){txt+='⏱️ *AGENDA CRÍTICA*'+NL;b2.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b3.length){txt+='🔥 *EXECUÇÃO JURÍDICA*'+NL;b3.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b4.length){txt+='⚖️ *PRAZOS EM RISCO*'+NL;b4.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b5.length){txt+='📂 *PRODUÇÃO / ESCRITÓRIO*'+NL;b5.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b6.length){txt+='💰 *FINANCEIRO*'+NL;b6.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b7.length){txt+='📣 *COBRANÇAS*'+NL;b7.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(!b1.length&&!b2.length&&!b3.length&&!b4.length&&!b5.length&&!b6.length&&!b7.length){
+    txt+='✅ _Nada estruturado para o plano hoje._'+NL;
+  }
+  txt+=NL+'_CO Advocacia App_';
+
+  abrirModal('📋 Plano do Dia — WhatsApp',
+    '<div style="font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5">Edite livremente antes de copiar: remova linhas, adicione notas ou reorganize. Mantém a formatação do WhatsApp (*negrito*, _itálico_).</div>'+
+    '<textarea id="wpp-plano-txt" style="width:100%;box-sizing:border-box;min-height:360px;background:var(--sf3);border:1px solid var(--bd);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;line-height:1.6;color:var(--tx);resize:vertical;white-space:pre">'+escapeHtml(txt)+'</textarea>',
+    function(){
+      var finalTxt = (document.getElementById('wpp-plano-txt')||{}).value || '';
+      function _fallbackCopy(){
+        var ta = document.getElementById('wpp-plano-txt');
+        if(ta){ ta.focus(); ta.select(); try{ document.execCommand('copy'); }catch(e){} }
+      }
+      if(navigator && navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(finalTxt).then(function(){
+          showToast('✓ Copiado! Cole no WhatsApp.');
+          fecharModal();
+        }).catch(function(){
+          _fallbackCopy();
+          showToast('✓ Copiado (fallback)! Cole no WhatsApp.');
+          fecharModal();
+        });
+      } else {
+        _fallbackCopy();
+        showToast('✓ Copiado! Cole no WhatsApp.');
+        fecharModal();
+      }
+    },
+    '📋 Copiar para WhatsApp'
+  );
+}
 function mostrarTxtModal(txt){
   abrirModal('Resumo do Dia',
     '<div style="background:var(--sf3);border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;color:var(--tx);max-height:300px;overflow-y:auto">'+txt.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>',
