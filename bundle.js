@@ -9687,6 +9687,20 @@ function gerarResumoWpp(){
   try { if(typeof invalidarAllPend==='function') invalidarAllPend(); } catch(e){}
   try { if(typeof invalidarCacheVfTodos==='function') invalidarCacheVfTodos(); } catch(e){}
 
+  // 0. FATAIS HOJE — prazos com criticidade fatal vencendo HOJE (fonte: localAg/PEND)
+  // Chave normalizada usada também pra de-duplicar com o bloco legado "🔴 Fatais"
+  var _normK = function(t,c,d){ return (t||'').toLowerCase().trim()+'|'+(c||'').toLowerCase().trim()+'|'+(d||''); };
+  var fataisHoje = [], fataisHojeKeys = new Set();
+  (allPendCached()||[]).forEach(function(p){
+    if(p.realizado || !_ehPrazoFatal(p)) return;
+    var d = (p.dt_fim||p.dt_raw||'').slice(0,10);
+    if(d !== hoje) return;
+    var titulo = p.tipo_compromisso||p.titulo||'Prazo';
+    var cli = p.cliente ? ' — '+p.cliente : '';
+    fataisHoje.push(titulo+cli);
+    fataisHojeKeys.add(_normK(titulo, p.cliente, d));
+  });
+
   // 1. FATAIS — prazos fatais de hoje + vencidos não cumpridos
   var fatais=[];
   if(typeof prazos!=='undefined'&&prazos){
@@ -9697,6 +9711,7 @@ function gerarResumoWpp(){
         if(p.data<=hoje){
           var c=(CLIENTS||[]).find(function(x){return String(x.id)===String(cid);});
           var nome=c?c.cliente:'';
+          if(fataisHojeKeys.has(_normK(p.titulo, nome, p.data))) return; // dedup com bloco "PRAZOS FATAIS HOJE"
           var vencLabel=p.data<hoje?' - venceu '+fDt(p.data):'';
           fatais.push(nome+' - '+p.titulo+vencLabel);
         }
@@ -9765,13 +9780,14 @@ function gerarResumoWpp(){
   });
 
   var txt='*Prazos/Tarefas de hoje — '+dataFmt+'*'+NL+NL;
+  if(fataisHoje.length){txt+='🚨 *PRAZOS FATAIS HOJE*'+NL;fataisHoje.forEach(function(f){txt+='- '+f+NL;});txt+=NL;}
   if(fatais.length){txt+='🔴 *Fatais*'+NL;fatais.forEach(function(f){txt+='- '+f+NL;});txt+=NL;}
   if(tarefasHj.length){txt+='📌 *Tarefas*'+NL;tarefasHj.forEach(function(t){txt+='- '+t+NL;});txt+=NL;}
   if(compHj.length){txt+='📅 *Compromissos*'+NL;compHj.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
   if(recebHoje.length){txt+='💰 *Recebimentos de hoje*'+NL;recebHoje.forEach(function(r){txt+='- '+r+NL;});txt+=NL;}
   if(pagHoje.length){txt+='💸 *Pagamentos de hoje*'+NL;pagHoje.forEach(function(r){txt+='- '+r+NL;});txt+=NL;}
   if(cobrar.length){txt+='📣 *Cobrar (vencem em 2 dias)*'+NL;cobrar.forEach(function(c){txt+='- '+c+NL;});txt+=NL;}
-  if(!fatais.length&&!tarefasHj.length&&!compHj.length&&!recebHoje.length&&!pagHoje.length&&!cobrar.length){txt+='✅ _Nenhuma pendência para hoje._'+NL;}
+  if(!fataisHoje.length&&!fatais.length&&!tarefasHj.length&&!compHj.length&&!recebHoje.length&&!pagHoje.length&&!cobrar.length){txt+='✅ _Nenhuma pendência para hoje._'+NL;}
   txt+=NL+'_CO Advocacia App_';
   // Abrir modal editável — usuário pode apagar linhas, digitar, reorganizar antes de copiar.
   abrirModal('📲 Resumo do Dia — WhatsApp',
