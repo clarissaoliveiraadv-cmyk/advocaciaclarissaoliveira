@@ -9865,6 +9865,22 @@ function gerarPlanoDoDia(){
     return (hr?hr+' ':'')+t+(p.cliente?' — '+p.cliente:'');
   }).sort();
 
+  // 2b. COMPROMISSOS E PRAZOS DE HOJE — eventos do dia que não entraram em b1 ou b2
+  // (compromissos genéricos, prazos não-fatais hoje, agTipo='outro').
+  var b2b = _ap.filter(function(p){
+    if(p.realizado) return false;
+    if(!eventoNoDia(p,hoje)) return false;
+    if(_ehPrazoFatal(p) && (p.dt_fim||p.dt_raw||'').slice(0,10) === hoje) return false;
+    var t = agTipo(p);
+    if(t==='audiencia' || t==='pericia' || t==='reuniao') return false;
+    return true;
+  }).map(function(p){
+    var t=p.tipo_compromisso||p.titulo||'Compromisso';
+    var hr=(p.inicio||'').slice(11,16);
+    if(hr==='00:00') hr='';
+    return (hr?hr+' ':'')+t+(p.cliente?' — '+p.cliente:'');
+  }).sort();
+
   // 3+5. Tarefas de hoje (mesma regra do resumo) split por heurística jurídica
   var RX_JURIDICA = /protocol|ação|acao|inss|recurso|peti[cç][aã]o|contesta[cç][aã]o|embargo|contrarraz[oõ]e|r[eé]plica|impugna[cç][aã]o|alega[cç][oõ]es|memoria(l|is)|guia|RPV|alvar[aá]|levantamento|manifesta[cç][aã]o|juntada|certid[aã]o/i;
   var tarefasDoDia = (vkTasks||[]).filter(function(t){
@@ -9923,12 +9939,13 @@ function gerarPlanoDoDia(){
   var txt='*Plano do Dia — '+dataFmt+'*'+NL+NL;
   if(b1.length){txt+='🚨 *PRAZOS FATAIS HOJE*'+NL;b1.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b2.length){txt+='⏱️ *AGENDA CRÍTICA*'+NL;b2.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
+  if(b2b.length){txt+='📅 *COMPROMISSOS E PRAZOS DE HOJE*'+NL;b2b.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b3.length){txt+='🔥 *EXECUÇÃO JURÍDICA*'+NL;b3.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b4.length){txt+='⚖️ *PRAZOS EM RISCO*'+NL;b4.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b5.length){txt+='📂 *PRODUÇÃO / ESCRITÓRIO*'+NL;b5.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b6.length){txt+='💰 *FINANCEIRO*'+NL;b6.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
   if(b7.length){txt+='📣 *COBRANÇAS*'+NL;b7.forEach(function(x){txt+='- '+x+NL;});txt+=NL;}
-  if(!b1.length&&!b2.length&&!b3.length&&!b4.length&&!b5.length&&!b6.length&&!b7.length){
+  if(!b1.length&&!b2.length&&!b2b.length&&!b3.length&&!b4.length&&!b5.length&&!b6.length&&!b7.length){
     txt+='✅ _Nada estruturado para o plano hoje._'+NL;
   }
   txt+=NL+'_CO Advocacia App_';
