@@ -11812,7 +11812,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=126');
+    const r = await fetch('dados.json?v=127');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13903,13 +13903,15 @@ function excluirAgCliente(agId, cid){
       <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
     </div>`,
     ()=>{
-      // Tombstone o id real (e id_agenda se houver) — cobre os dois caminhos
-      // de resolução no sbAplicar.
+      // Etapa 2.D: filter + sbSet + marcarAlterado + invalidarAllPend encapsulados.
+      repoAgenda.excluirPorIdLike(raw, {scope: 'ambos'});
+      // Tombstone defensivo: caso o usuario clique "excluir" para um item que esta
+      // APENAS em PEND (sem copia em localAg), o repo retorna sem gravar tombstone.
+      // Estes 2 _tombstoneAdd cobrem esse caso, garantindo que o item nao ressurja
+      // via Realtime. Sao idempotentes: quando o repo ja gravou, regravar no Set
+      // nao muda nada (Set.add com valor existente eh no-op).
       _tombstoneAdd('co_ag', raw);
       _tombstoneAdd('co_localAg', raw);
-      localAg = (localAg||[]).filter(function(a){return String(a.id)!==raw&&String(a.id_agenda)!==raw;});
-      sbSet('co_ag', localAg); invalidarAllPend();
-      marcarAlterado();
       fecharModal();
       var el = document.getElementById('tp-agenda-proc-'+cid);
       if(el) el.innerHTML = renderAgendaProc(cid);
