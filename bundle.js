@@ -11812,7 +11812,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=123');
+    const r = await fetch('dados.json?v=124');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13727,8 +13727,9 @@ function _isEventoConcluido(p){
 }
 
 function renderPrazos(cid){
-  // Filtra tombstones inline (prazos excluídos não devem reaparecer via sync)
-  const lista=(prazos[cid]||[]).filter(function(p){return !p.deleted;}), hoje=getTodayKey();
+  // Etapa 2.B: leitura via repoPrazos. O filtro de .deleted segue inline -
+  // o repo NAO filtra tombstones (mantem item para anti-ressurreicao no Realtime).
+  const lista=repoPrazos.listarPorCliente(cid).filter(function(p){return !p.deleted;}), hoje=getTodayKey();
   const pend=lista.filter(p=>!p.cumprido).sort((a,b)=>a.data.localeCompare(b.data));
   const done=lista.filter(p=>p.cumprido).sort((a,b)=>b.data.localeCompare(a.data));
   const MA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -14799,10 +14800,13 @@ function allPendCached(){
 function invalidarAllPend(){ _allPendCache=null; }
 
 function allPend(){
+  // Etapa 2.B: leitura via repoAgenda. Snapshot local da agenda corrente -
+  // mesma referencia que (localAg||[]) tinha antes; nenhuma copia, nenhum custo.
+  var ag = repoAgenda.listar();
   // Build localAg index first — both by id and by _origem_pend
   const localIdx  = new Map();
   const origemIdx = new Map();
-  (localAg||[]).forEach(function(p){
+  ag.forEach(function(p){
     var k = String(p.id||p.id_agenda||'');
     if(k) localIdx.set(k, p);
     if(p._origem_pend) origemIdx.set(String(p._origem_pend), p);
@@ -14810,7 +14814,7 @@ function allPend(){
 
   // Deduplicate localAg itself (user may have clicked concluir twice)
   var localDedup = new Map();
-  (localAg||[]).forEach(function(p){
+  ag.forEach(function(p){
     var k = p._origem_pend
       ? 'orig_'+String(p._origem_pend)
       : String(p.id||p.id_agenda||Math.random());
@@ -18965,11 +18969,4 @@ function djSincronizarTodos(){
 // ── Debounce no input de busca (#srch) ─────────────────────────
 // Substitui o oninput inline por um handler com _debounce para evitar
 // re-render a cada tecla (doSearch → renderVclEmpty → _vfConsolidar é caro).
-document.addEventListener('DOMContentLoaded', function(){
-  var srchEl = document.getElementById('srch');
-  if(srchEl){
-    // Remover oninput inline se existir, substituir por debounce
-    srchEl.oninput = function(){ _debounce('srchInput', doSearch, 250); };
-  }
-});
-
+document.add
