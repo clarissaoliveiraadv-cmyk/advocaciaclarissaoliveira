@@ -11825,7 +11825,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=130');
+    const r = await fetch('dados.json?v=131');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13916,6 +13916,15 @@ function excluirAgCliente(agId, cid){
       <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
     </div>`,
     ()=>{
+      // Etapa 2.D.bugfix-PEND: capturar item local ANTES de excluir para
+      // detectar se eh uma copia mascaradora de item PEND/Projuris (tem
+      // _origem_pend). Se for, tombstonear apenas o raw nao basta - precisa
+      // tombstonear tambem o id do PEND original, senao allPend()
+      // ressuscita o item via 'k = String(p.id||p.id_agenda)'.
+      const itemLocal = repoAgenda.obterPorIdLike(raw);
+      const origemPend = (itemLocal && itemLocal._origem_pend != null)
+        ? String(itemLocal._origem_pend) : null;
+
       // Etapa 2.D: filter + sbSet + marcarAlterado + invalidarAllPend encapsulados.
       repoAgenda.excluirPorIdLike(raw, {scope: 'ambos'});
       // Tombstone defensivo: caso o usuario clique "excluir" para um item que esta
@@ -13925,6 +13934,14 @@ function excluirAgCliente(agId, cid){
       // nao muda nada (Set.add com valor existente eh no-op).
       _tombstoneAdd('co_ag', raw);
       _tombstoneAdd('co_localAg', raw);
+      // Etapa 2.D.bugfix-PEND: propagar tombstone para _origem_pend quando a
+      // copia local mascarava um item PEND/Projuris. Sem isso, o PEND original
+      // ressurge em allPend() apos exclusao da copia. Idempotente: se
+      // _origem_pend === raw, regravar nao muda nada.
+      if (origemPend && origemPend !== raw) {
+        _tombstoneAdd('co_ag', origemPend);
+        _tombstoneAdd('co_localAg', origemPend);
+      }
       fecharModal();
       var el = document.getElementById('tp-agenda-proc-'+cid);
       if(el) el.innerHTML = renderAgendaProc(cid);
@@ -13983,7 +14000,12 @@ function editarAgCliente(agId,cid){
         inicio: dt, dt_raw: dt, obs
       });
     } else {
-      repoAgenda.criar({...updated, id: raw, id_agenda: raw});
+      // Etapa 2.E.bugfix-PEND: padronizar copia local com _origem_pend:raw,
+      // alinhando com hcToggle (2.G), calEvtConcluir e _calEvtConcluirComProtocolo.
+      // Reforco: alem de localIdx (id), origemIdx (_origem_pend) tambem mascara
+      // PEND original em allPend(). E fornece a chave para excluirAgCliente
+      // propagar tombstone se a copia for excluida depois.
+      repoAgenda.criar({...updated, id: raw, id_agenda: raw, _origem_pend: raw});
     }
     fecharModal();
     const el=document.getElementById('tp-agenda-proc-'+cid);
