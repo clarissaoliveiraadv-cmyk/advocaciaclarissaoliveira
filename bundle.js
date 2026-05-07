@@ -11825,7 +11825,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=131');
+    const r = await fetch('dados.json?v=132');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -17467,9 +17467,11 @@ function agendaConcluirComDesfecho(agId, cid){
   let idx = (localAg||[]).findIndex(a=>
     String(a.id)===raw||String(a.id_agenda)===raw||String(a.id)===String(agId));
 
-  // Se não está em localAg, é um item do PEND (importado) — copiar para localAg
+  // Etapa 2.F.1: detectar pendItem SEM fazer push. Push movido para o
+  // callback do modal - assim cancelar nao gera copia orfa em localAg.
+  let pendItem = null;
   if(idx===-1){
-    const pendItem = (PEND||[]).find(p=>
+    pendItem = (PEND||[]).find(p=>
       String(p.id)===raw||String(p.id_agenda)===raw||String(p.id)===String(agId));
     if(pendItem){
       // Check if already copied to localAg
@@ -17477,17 +17479,20 @@ function agendaConcluirComDesfecho(agId, cid){
         return String(a._origem_pend)===String(pendItem.id)||String(a._origem_pend)===raw;
       });
       if(existIdx !== -1){
-        idx = existIdx; // use existing copy
-      } else {
-        const copy = {...pendItem, id: 'pend_'+genId(), _origem_pend: pendItem.id};
-        localAg.push(copy);
-        idx = localAg.length - 1;
+        idx = existIdx;        // ja existe copia - vamos mutar essa
+        pendItem = null;        // nao precisa criar nova no callback
       }
+      // se existIdx === -1, mantemos pendItem nao-null e a copia sera
+      // criada DENTRO do callback de confirmacao, somente se user confirmar.
     } else {
       showToast('Compromisso nao encontrado'); return;
     }
   }
-  const item = localAg[idx];
+
+  // Item de referencia para montar o modal (sem mutar localAg ainda).
+  // Se idx>=0 -> item ja em localAg. Se pendItem -> item original do PEND
+  // (sera copiado no callback se user confirmar).
+  const item = (idx >= 0) ? localAg[idx] : pendItem;
   if(item.realizado){ showToast('Ja esta concluido'); return; }
 
   // Se o compromisso é do tipo "Prazo", exige protocolo/ID como prova do cumprimento.
@@ -17517,6 +17522,15 @@ function agendaConcluirComDesfecho(agId, cid){
       if(!prot){ showToast('Informe o link ou ID do protocolo'); return; }
     }
     const obs = document.getElementById('agcd-obs')?.value.trim()||'';
+    // Etapa 2.F.1: criar copia em localAg AGORA (apos user confirmar). Se
+    // tivesse cancelado o modal, este bloco nao rodaria e localAg permaneceria
+    // limpo - sem copia orfa. Mantemos o padrao 'pend_'+genId() + _origem_pend
+    // numerico (padronizacao para id/raw/_origem_pend fica para 2.F.2).
+    if (idx === -1 && pendItem) {
+      const copy = {...pendItem, id: 'pend_'+genId(), _origem_pend: pendItem.id};
+      localAg.push(copy);
+      idx = localAg.length - 1;
+    }
     localAg[idx] = {
       ...localAg[idx],
       realizado: true,
