@@ -11825,7 +11825,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=132');
+    const r = await fetch('dados.json?v=133');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -17527,7 +17527,15 @@ function agendaConcluirComDesfecho(agId, cid){
     // limpo - sem copia orfa. Mantemos o padrao 'pend_'+genId() + _origem_pend
     // numerico (padronizacao para id/raw/_origem_pend fica para 2.F.2).
     if (idx === -1 && pendItem) {
-      const copy = {...pendItem, id: 'pend_'+genId(), _origem_pend: pendItem.id};
+      // Etapa 2.F.2: padronizar id/id_agenda/_origem_pend = raw, alinhando com
+      // hcToggle (2.G), editarAgCliente (Frente A), calEvtConcluir e
+      // _calEvtConcluirComProtocolo. Beneficios:
+      //   - mascaramento dual em allPend (localIdx via id/id_agenda + origemIdx
+      //     via _origem_pend, todos casando em raw);
+      //   - exclusao posterior via excluirAgCliente: tombstone em raw cobre o
+      //     PEND original (sem precisar de propagacao no bloco extra da Frente A);
+      //   - _origem_pend SEMPRE string (raw) - elimina mismatch numerico/string.
+      const copy = {...pendItem, id: raw, id_agenda: raw, _origem_pend: raw};
       localAg.push(copy);
       idx = localAg.length - 1;
     }
