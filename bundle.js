@@ -11812,7 +11812,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=127');
+    const r = await fetch('dados.json?v=128');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -14833,6 +14833,12 @@ function allPend(){
     if(!k) return;
     // Skip if localAg has a copy (by id or by _origem_pend)
     if(localIdx.has(k) || origemIdx.has(k)) return;
+    // Bugfix 2.D.1: respeitar tombstones de exclusao para itens vindos de PEND.
+    // Antes, excluirAgCliente gravava tombstones em co_ag/co_localAg, mas
+    // allPend() so os consultava em sbAplicar (Realtime). Itens PEND-only
+    // ressuscitavam apos exclusao. Esta linha fecha o ciclo.
+    if(typeof _tombstoneHas === 'function' && (
+         _tombstoneHas('co_ag', k) || _tombstoneHas('co_localAg', k))) return;
     seen.set(k, p);
   });
   // localAg (deduped) second — overwrites any matching PEND
