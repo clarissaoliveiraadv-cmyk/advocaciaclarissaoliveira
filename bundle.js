@@ -11812,7 +11812,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=124');
+    const r = await fetch('dados.json?v=126');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -17162,7 +17162,6 @@ function calcSalvarPrazo(){
 // ── Adicionar à agenda ───────────────────────────────────────
 function calcAdicionarAgenda(){
   if(!_calcUltimo) return;
-  if(!localAg) localAg=[];
   const novo = {
     id: 'calc_ag_'+genId(),
     titulo: _calcUltimo.tipoDef.l,
@@ -17172,9 +17171,8 @@ function calcAdicionarAgenda(){
     obs: _calcUltimo.trib.toUpperCase()+' · '+_calcUltimo.estado+' · '+_calcUltimo.tipoDef.obs,
     cliente: _calcUltimo.pasta||'',
   };
-  localAg.push(novo); invalidarAllPend();
-  sbSet('co_ag', localAg);
-  marcarAlterado();
+  // Etapa 2.C: criar via repoAgenda. Encapsula push + sbSet + marcarAlterado + invalidarAllPend.
+  repoAgenda.criar(novo);
   atualizarStats();
   showToast('📅 Adicionado à Agenda: '+fmtDataBR(_calcUltimo.vencimento));
 }
@@ -18376,7 +18374,9 @@ function _processarPublicacao(texto){
       // Criar prazo se marcado
       if(criarPrazo){
         var c = findClientById(cid);
-        localAg.push({
+        // Etapa 2.C: criar via repoAgenda. Encapsula push + sbSet + invalidarAllPend + marcarAlterado.
+        // (localMov continua sendo salvo no proprio call-site, fora do escopo do repo de agenda.)
+        repoAgenda.criar({
           id: 'ag'+genId(), titulo: 'Providenciar: '+(tipoPub||'Publica\u00e7\u00e3o DJe'),
           tipo_compromisso: 'Prazo', cliente: c?c.cliente:'', id_processo: cid,
           dt_raw: _addDiasUteis(dataPub, 5, 'MG'), dt_fim: _addDiasUteis(dataPub, 5, 'MG'),
@@ -18384,8 +18384,6 @@ function _processarPublicacao(texto){
           obs: 'Gerado de publica\u00e7\u00e3o: '+descPub,
           realizado: false, _prazo: true, origem: 'publicacao_prazo'
         });
-        invalidarAllPend();
-        sbSet('co_ag', localAg);
       }
     });
 
@@ -18967,6 +18965,4 @@ function djSincronizarTodos(){
 }
 
 // ── Debounce no input de busca (#srch) ─────────────────────────
-// Substitui o oninput inline por um handler com _debounce para evitar
-// re-render a cada tecla (doSearch → renderVclEmpty → _vfConsolidar é caro).
-document.add
+// Substitui o o

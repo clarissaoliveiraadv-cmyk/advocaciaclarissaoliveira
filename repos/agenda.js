@@ -205,6 +205,82 @@
   }
 
   // ============================================================
+  // VARIANTES "idLike" - pattern legado id || id_agenda
+  // ============================================================
+  // No bundle.js varias funcoes (excluirAgCliente, editarAgCliente,
+  // hcToggle ramo agenda, agendaConcluirComDesfecho, modal de evento)
+  // resolvem o item percorrendo localAg com o pattern:
+  //   String(a.id)===raw || String(a.id_agenda)===raw
+  //
+  // Esses dois metodos espelham EXATAMENTE essa semantica para
+  // permitir que esses call-sites sejam migrados na sub-etapa 2.D
+  // sem regressao. NAO sao alias - operam sobre os dois campos.
+  //
+  // Comparacao sempre por String(...) para casar a convencao do
+  // bundle (ids podem ser number ou string conforme a origem).
+  // ============================================================
+
+  /**
+   * obterPorIdLike(idLike):
+   * Retorna o PRIMEIRO item de localAg cujo `id` ou `id_agenda`
+   * (comparados como String) bate com idLike.
+   * Retorna null se nenhum casa, ou se idLike for null/undefined.
+   */
+  function obterPorIdLike(idLike) {
+    if (idLike == null) return null;
+    var raw = String(idLike);
+    var arr = _arr();
+    for (var i = 0; i < arr.length; i++) {
+      var ev = arr[i];
+      if (!ev) continue;
+      if (String(ev.id) === raw)         return ev;
+      if (String(ev.id_agenda) === raw)  return ev;
+    }
+    dbg('obterPorIdLike: idLike inexistente', idLike);
+    return null;
+  }
+
+  /**
+   * excluirPorIdLike(idLike, opts):
+   * Remove TODOS os itens cujo `id` ou `id_agenda` casa com idLike
+   * (espelha o `localAg.filter(a => id!==raw && id_agenda!==raw)`
+   * que ja existe no bundle - pode remover mais de 1 se houver
+   * duplicidade entre id e id_agenda).
+   *
+   * Registra tombstone igual a `excluir()`. opts.scope:
+   *   'ambos'      (default) tombstone em co_ag E co_localAg
+   *   'co_ag'      tombstone apenas em co_ag
+   *   'co_localAg' tombstone apenas em co_localAg
+   *
+   * Retorna true se removeu pelo menos 1 item; false se nenhum casou.
+   */
+  function excluirPorIdLike(idLike, opts) {
+    if (idLike == null) return false;
+    var raw = String(idLike);
+    var scope = (opts && opts.scope) || 'ambos';
+    var arr = _arr();
+    var antes = arr.length;
+    window.localAg = arr.filter(function (ev) {
+      if (!ev) return true;
+      return String(ev.id) !== raw && String(ev.id_agenda) !== raw;
+    });
+    var removidos = antes - window.localAg.length;
+    if (removidos === 0) {
+      dbg('excluirPorIdLike: idLike inexistente', idLike);
+      return false;
+    }
+    if (typeof window._tombstoneAdd === 'function') {
+      if (scope === 'ambos' || scope === 'co_ag')      window._tombstoneAdd('co_ag', raw);
+      if (scope === 'ambos' || scope === 'co_localAg') window._tombstoneAdd('co_localAg', raw);
+    } else {
+      console.warn('[repoAgenda.excluirPorIdLike] _tombstoneAdd indisponivel - tombstone ignorado');
+    }
+    dbg('excluirPorIdLike', raw, 'scope=' + scope, 'removidos=' + removidos);
+    _persist();          // sbSet + marcarAlterado + invalidarAllPend
+    return true;
+  }
+
+  // ============================================================
   // REALTIME (consumo de payload remoto)
   // ============================================================
 
@@ -252,10 +328,12 @@
     listar: listar,
     listarPorCliente: listarPorCliente,
     obterPorId: obterPorId,
+    obterPorIdLike: obterPorIdLike,
     criar: criar,
     atualizar: atualizar,
     marcarRealizado: marcarRealizado,
     excluir: excluir,
+    excluirPorIdLike: excluirPorIdLike,
     aplicarRemoto: aplicarRemoto,
     _raw: _raw,
     _marcarPersistir: _marcarPersistir
