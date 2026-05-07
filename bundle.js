@@ -11812,7 +11812,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=128');
+    const r = await fetch('dados.json?v=129');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13928,7 +13928,8 @@ function excluirAgCliente(agId, cid){
 
 function editarAgCliente(agId,cid){
   const raw=String(agId).replace(/^ag/,'');
-  let item=(localAg||[]).find(a=>String(a.id)===raw||String(a.id_agenda)===raw);
+  // Etapa 2.E: lookup local via repoAgenda. Fallback PEND fica fora do repo.
+  let item = repoAgenda.obterPorIdLike(raw);
   if(!item) item=(PEND||[]).find(p=>String(p.id)===raw||String(p.id_agenda)===raw);
   if(!item){showToast('Compromisso nao encontrado');return;}
   const fDate=d=>d?(d.includes('T')?d.slice(0,10):d.slice(0,10)):'';
@@ -13957,10 +13958,21 @@ function editarAgCliente(agId,cid){
     const obs=document.getElementById('eag-obs')?.value.trim()||'';
     const dt=hora?data+'T'+hora:data;
     const updated={...item,titulo,descricao:titulo,tipo_compromisso:tipo,inicio:dt,dt_raw:dt,obs};
-    const idxL=(localAg||[]).findIndex(a=>String(a.id)===raw||String(a.id_agenda)===raw);
-    if(idxL>=0) localAg[idxL]=updated;
-    else{if(!localAg)localAg=[];localAg.push({...updated,id:raw,id_agenda:raw});}
-    sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado(); fecharModal();
+    // Etapa 2.E: dois caminhos preservados literalmente.
+    //   A) item ja em localAg: atualiza pelo id REAL (pode ser !== raw se foi achado por id_agenda).
+    //   B) item so em PEND: cria copia em localAg com id/id_agenda=raw.
+    //      Esse padrao (id=raw) faz localIdx em allPend() mascarar o PEND original -
+    //      mesmo mecanismo de agendaConcluirComDesfecho. Sem tombstone (edit nao eh delete).
+    const itemLocal = repoAgenda.obterPorIdLike(raw);
+    if (itemLocal) {
+      repoAgenda.atualizar(itemLocal.id, {
+        titulo, descricao: titulo, tipo_compromisso: tipo,
+        inicio: dt, dt_raw: dt, obs
+      });
+    } else {
+      repoAgenda.criar({...updated, id: raw, id_agenda: raw});
+    }
+    fecharModal();
     const el=document.getElementById('tp-agenda-proc-'+cid);
     if(el) el.innerHTML=renderAgendaProc(cid);
     showToast('Compromisso atualizado');
