@@ -2401,15 +2401,28 @@ function hcToggle(id, origem, tdIdx, hoje){
   } else if(origem==='agenda'){
     // Marcar evento da agenda como realizado/pendente
     const raw = String(id);
-    const idx = (localAg||[]).findIndex(a=>String(a.id||a.id_agenda)===raw);
-    if(idx>=0){
-      localAg[idx].realizado = !localAg[idx].realizado;
-      localAg[idx].cumprido = localAg[idx].realizado ? 'Sim' : 'Não';
+    // Etapa 2.G: Pattern B (id||id_agenda) preservado literalmente.
+    // Diferente de obterPorIdLike (Pattern A): se item.id eh truthy casa
+    // soh por id; se falsy, cai no id_agenda. Mantemos para equivalencia
+    // bit-a-bit. cumprido eh STRING ('Sim'/'Não') seguindo padrao do bundle
+    // - NAO usamos repoAgenda.marcarRealizado que salvaria boolean.
+    const ag = repoAgenda.listar();
+    const idx = ag.findIndex(a => String(a.id||a.id_agenda) === raw);
+    if (idx >= 0) {
+      // Caminho A: mutacao in-place + _marcarPersistir (= sbSet+marcarAlterado+invalidarAllPend)
+      ag[idx].realizado = !ag[idx].realizado;
+      ag[idx].cumprido = ag[idx].realizado ? 'Sim' : 'Não';
+      repoAgenda._marcarPersistir();
     } else {
-      const orig = (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
-      if(orig){ if(!localAg) localAg=[]; localAg.push({...orig,id:raw,id_agenda:raw,realizado:true,cumprido:'Sim',_origem_pend:raw}); }
+      const orig = (PEND||[]).find(p => String(p.id||p.id_agenda) === raw);
+      if (orig) {
+        // Caminho B: copia mascaradora, sempre realizado=true
+        repoAgenda.criar({...orig, id:raw, id_agenda:raw, realizado:true, cumprido:'Sim', _origem_pend:raw});
+      }
+      // Caminho C (nada encontrado): codigo antigo chamava sbSet+invalidarAllPend
+      // redundantes. Aqui aceitamos divergencia benigna documentada -
+      // sem broadcast nem cache flush sem motivo (Opcao 1).
     }
-    sbSet('co_ag', localAg); invalidarAllPend();
   } else {
     if(tarefasDia[hoje]?.[tdIdx]!==undefined){
       tarefasDia[hoje][tdIdx].done = !tarefasDia[hoje][tdIdx].done;
@@ -11812,7 +11825,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=129');
+    const r = await fetch('dados.json?v=130');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
