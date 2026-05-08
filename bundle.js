@@ -12101,7 +12101,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=140');
+    const r = await fetch('dados.json?v=141');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -12236,7 +12236,10 @@ let _vfTodosInvalido = true;
 function invalidarCacheVfTodos(){ _vfTodosInvalido = true; _vfTodosCache = null; }
 
 let CLIENTES_AGRUPADOS=[];
-let tasks={}, notes={}, localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
+// 2.K (v141): let -> var para sincronizar com window.X (mesma classe de bug
+// que pegou localAg na v137). Permite repos futuros (repoTasks/repoMov/etc.)
+// lerem window.X sem se isolarem do estado do bundle.
+var tasks={}, notes={}, localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
 // FIX bundle/repo scope: localAg em var (top-level) para criar propriedade window.localAg
 // sincronizada automaticamente. Antes: let localAg=[] criava escopo isolado e
 // repoAgenda.listar() lia window.localAg vazio enquanto o bundle modificava a let.
