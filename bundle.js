@@ -12101,7 +12101,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=138');
+    const r = await fetch('dados.json?v=139');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -14922,11 +14922,14 @@ function calEvtClick(id){
   setTimeout(()=>{ const b=document.getElementById('modal-save'); if(b) b.style.display='none'; const bc=document.querySelector('.mbtn-cancel'); if(bc) bc.textContent='Fechar'; }, 30);
 }
 
+// 2.H: migrado para repoAgenda (substitui mutacao in-place + sbSet manual)
 function calEvtConcluir(id, opts){
   opts = opts || {};
   const raw = String(id);
-  const idx = (localAg||[]).findIndex(a=>String(a.id||a.id_agenda)===raw);
-  const ev  = idx>=0 ? localAg[idx] : (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
+  const evLocal = (typeof repoAgenda !== 'undefined' && repoAgenda.obterPorIdLike)
+    ? repoAgenda.obterPorIdLike(raw)
+    : (localAg||[]).find(a=>String(a.id||a.id_agenda)===raw);
+  const ev = evLocal || (PEND||[]).find(p=>String(p.id||p.id_agenda)===raw);
 
   // Gate: prazos e compromissos com prazo fatal exigem protocolo/ID do
   // documento como prova de cumprimento (consistente com togglePrazo na
@@ -14940,13 +14943,22 @@ function calEvtConcluir(id, opts){
     }
   }
 
-  if(idx>=0){
-    localAg[idx].realizado=true; localAg[idx].cumprido='Sim';
+  if(evLocal){
+    // 2.H-fix: fallback id_agenda — repoAgenda.atualizar so casa por id.
+    // Se item legado nao tem `id`, mutar via referencia + _marcarPersistir.
+    if(evLocal.id != null){
+      repoAgenda.atualizar(evLocal.id, {realizado:true, cumprido:'Sim'});
+    } else {
+      Object.assign(evLocal, {realizado:true, cumprido:'Sim'});
+      repoAgenda._marcarPersistir();
+    }
   } else if(ev){
-    if(!localAg) localAg=[];
-    localAg.push({...ev,id:raw,id_agenda:raw,realizado:true,cumprido:'Sim',_origem_pend:raw});
+    repoAgenda.criar(Object.assign({}, ev, {
+      id:raw, id_agenda:raw, realizado:true, cumprido:'Sim', _origem_pend:raw
+    }));
   }
-  sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado();
+  // _persist do repo cobre sbSet + invalidarAllPend + marcarAlterado.
+  // Render fica no call-site (contrato do repo).
   _render_agenda_all(); atualizarStats();
   showToast('Compromisso marcado como realizado ✓');
 }
@@ -14990,17 +15002,24 @@ function _calEvtConcluirComProtocolo(raw, ev){
         }
       }
 
-      // Registra protocolo na entrada de localAg
-      if(!localAg) localAg=[];
-      var idx = localAg.findIndex(function(a){ return String(a.id||a.id_agenda)===raw; });
+      // 2.H: migrado para repoAgenda
       var patch = { realizado:true, cumprido:'Sim', protocolo:prot,
                     obs_conclusao:obs, dt_conclusao:new Date().toISOString().slice(0,10) };
-      if(idx>=0){
-        Object.assign(localAg[idx], patch);
+      var evLocal = (typeof repoAgenda !== 'undefined' && repoAgenda.obterPorIdLike)
+        ? repoAgenda.obterPorIdLike(raw)
+        : (localAg||[]).find(function(a){ return String(a.id||a.id_agenda)===raw; });
+      if(evLocal){
+        // 2.H-fix: fallback id_agenda — mesma logica de calEvtConcluir.
+        if(evLocal.id != null){
+          repoAgenda.atualizar(evLocal.id, patch);
+        } else {
+          Object.assign(evLocal, patch);
+          repoAgenda._marcarPersistir();
+        }
       } else {
-        localAg.push(Object.assign({}, ev, {id:raw,id_agenda:raw,_origem_pend:raw}, patch));
+        repoAgenda.criar(Object.assign({}, ev, {id:raw, id_agenda:raw, _origem_pend:raw}, patch));
       }
-      sbSet('co_ag', localAg); invalidarAllPend(); marcarAlterado();
+      // _persist do repo cobre sbSet('co_ag') + invalidarAllPend + marcarAlterado.
 
       // Auto-histórico na pasta
       if(ev.id_processo!=null){
