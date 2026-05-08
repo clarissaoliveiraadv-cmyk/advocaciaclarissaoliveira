@@ -11970,7 +11970,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=136');
+    const r = await fetch('dados.json?v=137');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -12105,7 +12105,11 @@ let _vfTodosInvalido = true;
 function invalidarCacheVfTodos(){ _vfTodosInvalido = true; _vfTodosCache = null; }
 
 let CLIENTES_AGRUPADOS=[];
-let tasks={}, notes={}, localAg=[], localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
+let tasks={}, notes={}, localMov={}, localLanc=[], encerrados={}, localContatos=[], tarefasDia={};
+// FIX bundle/repo scope: localAg em var (top-level) para criar propriedade window.localAg
+// sincronizada automaticamente. Antes: let localAg=[] criava escopo isolado e
+// repoAgenda.listar() lia window.localAg vazio enquanto o bundle modificava a let.
+var localAg=[];
 // Tombstone list: keys `_migrado_projuris|tipo` de lançamentos migrados que foram excluídos pelo usuário.
 // Usado pelo bloco de migração (bundle.js:~371) para não re-inserir itens deletados.
 var _projurisDeletados = new Set();
