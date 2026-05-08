@@ -11825,7 +11825,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=134');
+    const r = await fetch('dados.json?v=135');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -17522,30 +17522,32 @@ function agendaConcluirComDesfecho(agId, cid){
       if(!prot){ showToast('Informe o link ou ID do protocolo'); return; }
     }
     const obs = document.getElementById('agcd-obs')?.value.trim()||'';
-    // Etapa 2.F.3: mutacao encapsulada via repoAgenda. Dois caminhos:
-    //   A) idx>=0 -> item ja em localAg: repoAgenda.atualizar pelo id real
-    //      (suporta copias legadas com id='pend_xxx' e novas com id=raw).
-    //   B) idx===-1, pendItem!=null -> PEND-only sem copia: repoAgenda.criar
-    //      com a copia padronizada (2.F.2) + dados de conclusao em uma so
-    //      chamada (consolida 2.F.1+2.F.2+mutacao em 1 unica operacao do repo).
-    // _persist interno do repo encapsula sbSet+marcarAlterado+invalidarAllPend.
-    // (push prematuro - 2.F.1 - permanece eliminado: criar so dispara aqui,
-    // dentro do callback, apos user confirmar.)
-    const dadosConclusao = {
+    // Etapa 2.F.1: criar copia em localAg AGORA (apos user confirmar). Se
+    // tivesse cancelado o modal, este bloco nao rodaria e localAg permaneceria
+    // limpo - sem copia orfa. Mantemos o padrao 'pend_'+genId() + _origem_pend
+    // numerico (padronizacao para id/raw/_origem_pend fica para 2.F.2).
+    if (idx === -1 && pendItem) {
+      // Etapa 2.F.2: padronizar id/id_agenda/_origem_pend = raw, alinhando com
+      // hcToggle (2.G), editarAgCliente (Frente A), calEvtConcluir e
+      // _calEvtConcluirComProtocolo. Beneficios:
+      //   - mascaramento dual em allPend (localIdx via id/id_agenda + origemIdx
+      //     via _origem_pend, todos casando em raw);
+      //   - exclusao posterior via excluirAgCliente: tombstone em raw cobre o
+      //     PEND original (sem precisar de propagacao no bloco extra da Frente A);
+      //   - _origem_pend SEMPRE string (raw) - elimina mismatch numerico/string.
+      const copy = {...pendItem, id: raw, id_agenda: raw, _origem_pend: raw};
+      localAg.push(copy);
+      idx = localAg.length - 1;
+    }
+    localAg[idx] = {
+      ...localAg[idx],
       realizado: true,
       cumprido: 'Sim',
       dt_conclusao: new Date().toISOString().slice(0,10),
       obs_conclusao: obs
     };
-    if (prot) dadosConclusao.protocolo = prot;
-    if (idx >= 0) {
-      repoAgenda.atualizar(localAg[idx].id, dadosConclusao);
-    } else if (pendItem) {
-      repoAgenda.criar({
-        ...pendItem, id: raw, id_agenda: raw, _origem_pend: raw,
-        ...dadosConclusao
-      });
-    }
+    if(prot) localAg[idx].protocolo = prot;
+    sbSet('co_ag', localAg); invalidarAllPend();
     // Andamento na pasta
     if(cid){
       if(!localMov[cid]) localMov[cid]=[];
@@ -17567,8 +17569,7 @@ function agendaConcluirComDesfecho(agId, cid){
       });
       sbSet('co_localMov', localMov);
     }
-    // Etapa 2.F.3: marcarAlterado() removido aqui - ja foi chamado pelo _persist
-    // do repoAgenda.atualizar/criar (encapsula sbSet+marcarAlterado+invalidarAllPend).
+    marcarAlterado();
     fecharModal();
     // Re-renderizar a aba de compromissos da pasta
     if(cid){
