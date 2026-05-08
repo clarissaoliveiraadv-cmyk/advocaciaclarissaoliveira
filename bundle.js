@@ -1277,6 +1277,137 @@ window.coRepararCompromissos = function(opts){
   };
 };
 
+// -------------------------------------------------------------
+// coCorrigirIntervalosReparados() - Helper manual de console
+// -------------------------------------------------------------
+// CORRECAO POS-REPARO: itens recriados por coRepararCompromissos()
+// receberam dt_fim = dt_raw (data de inicio), o que faz o sistema
+// considera-los "vencidos" no dia seguinte ao inicio mesmo quando
+// o titulo descreve um intervalo (ex: "PRAZO P/ R.O (05.05 a 15.05)").
+//
+// Este helper:
+//   - Itera apenas itens com origem === "reparado_de_localMov"
+//   - Faz parse do titulo procurando "(DD.MM a DD.MM)"
+//   - Reconstroi dt_fim usando o ano de dt_raw (com rollover Dez->Jan)
+//   - So atualiza se o dt_fim calculado for MAIOR que o atual
+//     (nao regride correcoes manuais ja feitas)
+//   - Idempotente: rodar duas vezes nao gera efeito colateral
+//   - Nao altera localMov nem o titulo
+//
+// USO:
+//   coCorrigirIntervalosReparados()              -- aplicar
+//   coCorrigirIntervalosReparados({dryRun:true}) -- simular
+//
+window.coCorrigirIntervalosReparados = function(opts){
+  opts = opts || {};
+  var dryRun = !!opts.dryRun;
+  var corrigidos = [];
+  var ignorados = [];
+
+  if(!Array.isArray(localAg)){
+    console.warn("[coCorrigirIntervalosReparados] localAg indisponivel");
+    return {corrigidos:[], ignorados:[], total_corrigido:0, total_ignorado:0};
+  }
+
+  var RX = /\((\d{2})\.(\d{2})(?:\s+a\s+(\d{2})\.(\d{2}))?\)/;
+
+  localAg.forEach(function(ev, evIdx){
+    if(!ev || ev.origem !== "reparado_de_localMov"){ return; }
+    var titulo = ev.titulo || "";
+    var m = titulo.match(RX);
+    if(!m){
+      ignorados.push({idx:evIdx, id:ev.id, titulo:titulo, motivo:"sem_intervalo_no_titulo"});
+      return;
+    }
+    if(!m[3] || !m[4]){
+      ignorados.push({idx:evIdx, id:ev.id, titulo:titulo, motivo:"data_unica_no_titulo"});
+      return;
+    }
+
+    var diaFim = parseInt(m[3], 10);
+    var mesFim = parseInt(m[4], 10);
+    var diaIni = parseInt(m[1], 10);
+    var mesIni = parseInt(m[2], 10);
+
+    var dtRaw = (ev.dt_raw || "").slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dtRaw)){
+      ignorados.push({idx:evIdx, id:ev.id, titulo:titulo, motivo:"dt_raw_invalido", dt_raw:dtRaw});
+      return;
+    }
+    var anoBase = parseInt(dtRaw.slice(0,4), 10);
+
+    var anoFim = anoBase;
+    if(mesFim < mesIni){ anoFim = anoBase + 1; }
+
+    var dtFimNovo = anoFim + "-" +
+      String(mesFim).padStart(2,"0") + "-" +
+      String(diaFim).padStart(2,"0");
+
+    var dtFimAtual = (ev.dt_fim || "").slice(0,10);
+
+    if(dtFimAtual && dtFimAtual >= dtFimNovo){
+      ignorados.push({idx:evIdx, id:ev.id, titulo:titulo, motivo:"dt_fim_atual_ja_ok", dt_fim_atual:dtFimAtual, dt_fim_calc:dtFimNovo});
+      return;
+    }
+
+    if(!dryRun){
+      ev.dt_fim = dtFimNovo;
+      ev.fim = dtFimNovo;
+      ev._intervalo_corrigido_em = new Date().toISOString();
+    }
+    corrigidos.push({
+      idx:evIdx,
+      id:ev.id,
+      titulo:titulo,
+      dt_raw:dtRaw,
+      dt_fim_antes:dtFimAtual,
+      dt_fim_depois:dtFimNovo,
+      ano_rollover: anoFim !== anoBase
+    });
+  });
+
+  if(corrigidos.length > 0 && !dryRun){
+    if(typeof sbSet === "function") sbSet("co_ag", localAg);
+    if(typeof invalidarAllPend === "function") invalidarAllPend();
+    if(typeof marcarAlterado === "function") marcarAlterado();
+    if(typeof _render_agenda_all === "function"){ try{ _render_agenda_all(); }catch(e){} }
+    if(typeof atualizarStats === "function"){ try{ atualizarStats(); }catch(e){} }
+  }
+
+  var ignoradosPorMotivo = ignorados.reduce(function(acc, s){
+    acc[s.motivo] = (acc[s.motivo]||0) + 1;
+    return acc;
+  }, {});
+
+  console.log(
+    "%c[coCorrigirIntervalosReparados]" + (dryRun ? " (dryRun)" : ""),
+    "color:#D4AF37;font-weight:bold",
+    "Corrigidos:", corrigidos.length,
+    "Ignorados:", ignorados.length, "(motivos:", ignoradosPorMotivo, ")"
+  );
+  if(corrigidos.length > 0){
+    console.log("Lista de itens corrigidos:");
+    corrigidos.forEach(function(r){
+      console.log("  -", r.titulo, "|", r.dt_fim_antes, "->", r.dt_fim_depois, (r.ano_rollover?"(rollover ano)":""));
+    });
+  }
+  if(corrigidos.length > 0 && !dryRun){
+    console.log("%cOK Persistido em co_ag. Recarregue a pagina para confirmar visualmente.", "color:#3B6D11;font-weight:bold");
+  } else if(dryRun){
+    console.log("%c(dryRun) Nenhuma persistencia. Rode sem dryRun para aplicar.", "color:#854F0B;font-weight:bold");
+  } else if(corrigidos.length === 0){
+    console.log("%cNenhum item precisava correcao.", "color:#666");
+  }
+
+  return {
+    corrigidos: corrigidos,
+    ignorados: ignorados,
+    total_corrigido: corrigidos.length,
+    total_ignorado: ignorados.length,
+    ignorados_por_motivo: ignoradosPorMotivo
+  };
+};
+
 async function sbInit(){
   const ok = await sbCarregarTudo();
   sbStartWatchdog();
@@ -11970,7 +12101,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=137');
+    const r = await fetch('dados.json?v=138');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
