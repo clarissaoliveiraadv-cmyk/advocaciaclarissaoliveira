@@ -1132,6 +1132,151 @@ window.coReativarTodos = function(){
   return count+' processos reativados ✓';
 };
 
+// ─────────────────────────────────────────────────────────────
+// coRepararCompromissos() — Helper manual de console
+// ─────────────────────────────────────────────────────────────
+// Reconstrói entries em `localAg` para compromissos que existem em
+// `localMov` (Andamentos) mas sumiram de `localAg` (aba Compromissos).
+//
+// Causa típica: race-condition no Realtime/merge de `co_ag` sobrescreveu
+// o item localmente, mas `localMov` (chave `co_localMov`) persistiu por
+// ser estrutura independente.
+//
+// REGRAS:
+//   - NÃO altera `localMov`.
+//   - NÃO apaga nada.
+//   - APENAS recria entries ausentes em `localAg`.
+//   - Idempotente: dedup por id_processo + titulo + dt_raw.
+//   - Marca itens reparados com origem='reparado_de_localMov' + _reparado_em.
+//   - Persiste `co_ag` apenas se houver pelo menos 1 item recriado.
+//
+// USO:
+//   coRepararCompromissos()           — reparar e mostrar relatório
+//   coRepararCompromissos({dryRun:true}) — só simula, sem persistir
+//
+// Retorno: { reparados:[…], skips:[…], total_reparado, total_ignorado }
+window.coRepararCompromissos = function(opts){
+  opts = opts || {};
+  var dryRun = !!opts.dryRun;
+  var reparados = [];
+  var skips = [];
+
+  if(!localMov || typeof localMov !== 'object'){
+    console.warn('[coRepararCompromissos] localMov indisponivel');
+    return {reparados:[], skips:[], total_reparado:0, total_ignorado:0};
+  }
+
+  Object.keys(localMov).forEach(function(cidStr){
+    var cid = (cidStr.match(/^-?\d+$/)) ? Number(cidStr) : cidStr;
+    var movs = localMov[cidStr] || [];
+    movs.forEach(function(m, mIdx){
+      // Filtro: só entradas que claramente representam compromissos
+      var ehAgenda = (m.tipo_movimentacao === 'Agenda') || (m.origem === 'agenda_add');
+      if(!ehAgenda){ return; }
+      if(!m.movimentacao || typeof m.movimentacao !== 'string'){ return; }
+      if(m.movimentacao.indexOf('[Compromisso]') !== 0){
+        skips.push({cid:cid, idx:mIdx, motivo:'nao_eh_compromisso', mov:m});
+        return;
+      }
+
+      // Parse permissivo: titulo eh tudo apos '[Compromisso] ' ate o ' — '
+      // (ou ate o fim, se nao houver). Remove sufixo ' (recorrente)' do titulo.
+      var titulo;
+      var matchTit = m.movimentacao.match(/^\[Compromisso\]\s+(.+?)(?:\s+—.*)?$/);
+      if(matchTit){
+        titulo = matchTit[1].replace(/\s+\(recorrente\)$/, '').trim();
+      } else {
+        skips.push({cid:cid, idx:mIdx, motivo:'parse_falhou', mov:m});
+        return;
+      }
+
+      // dt_raw vem do campo `data` do registro de localMov (formato YYYY-MM-DD)
+      var dt_raw = (m.data || '').slice(0,10);
+      if(!dt_raw){
+        skips.push({cid:cid, idx:mIdx, motivo:'sem_data', mov:m});
+        return;
+      }
+
+      // Dedup: ja existe em localAg com mesmo id_processo + titulo + dt_raw?
+      var jaExiste = (localAg||[]).find(function(a){
+        return a &&
+          String(a.id_processo) === String(cid) &&
+          (a.titulo||'') === titulo &&
+          (a.dt_raw||'').slice(0,10) === dt_raw;
+      });
+      if(jaExiste){
+        skips.push({cid:cid, titulo:titulo, dt_raw:dt_raw, motivo:'ja_existe', id_existente:jaExiste.id});
+        return;
+      }
+
+      // Recriar entry em localAg
+      var c = (typeof findClientById === 'function') ? findClientById(cid) : null;
+      var novoId = 'rep_' + (typeof genId==='function' ? genId() : (Date.now()+'_'+Math.floor(Math.random()*1e6)));
+      var ev = {
+        id: novoId,
+        titulo: titulo,
+        tipo_compromisso: titulo,
+        dt_raw: dt_raw,
+        dt_fim: dt_raw,
+        inicio: dt_raw,
+        cliente: c ? c.cliente : '',
+        id_processo: cid,
+        realizado: false,
+        cumprido: 'Não',
+        origem: 'reparado_de_localMov',
+        _reparado_em: new Date().toISOString()
+      };
+
+      if(!dryRun){
+        if(!Array.isArray(localAg)) localAg = [];
+        localAg.push(ev);
+      }
+      reparados.push({cid:cid, titulo:titulo, dt_raw:dt_raw, id_novo:novoId, dryRun:dryRun});
+    });
+  });
+
+  // Persistir apenas se reparou algo (e nao for dryRun)
+  if(reparados.length > 0 && !dryRun){
+    if(typeof sbSet === 'function') sbSet('co_ag', localAg);
+    if(typeof invalidarAllPend === 'function') invalidarAllPend();
+    if(typeof marcarAlterado === 'function') marcarAlterado();
+    if(typeof _render_agenda_all === 'function'){ try{ _render_agenda_all(); }catch(e){} }
+    if(typeof atualizarStats === 'function'){ try{ atualizarStats(); }catch(e){} }
+  }
+
+  // Relatório agrupado por motivo
+  var skipsPorMotivo = skips.reduce(function(acc, s){
+    acc[s.motivo] = (acc[s.motivo]||0) + 1;
+    return acc;
+  }, {});
+
+  console.log(
+    '%c[coRepararCompromissos]' + (dryRun ? ' (dryRun)' : ''),
+    'color:#D4AF37;font-weight:bold',
+    'Reparados:', reparados.length,
+    'Ignorados:', skips.length, '(motivos:', skipsPorMotivo, ')'
+  );
+  if(reparados.length > 0){
+    console.log('Lista de itens recriados:');
+    reparados.forEach(function(r){
+      console.log('  -', r.cid, '|', r.titulo, '|', r.dt_raw, '|', 'id_novo='+r.id_novo);
+    });
+  }
+  if(reparados.length > 0 && !dryRun){
+    console.log('%c✓ Persistido em co_ag. Recarregue a pagina para garantir consistencia visual.', 'color:#3B6D11;font-weight:bold');
+  } else if(dryRun){
+    console.log('%c(dryRun) Nenhuma persistencia. Rode sem dryRun para aplicar.', 'color:#854F0B;font-weight:bold');
+  }
+
+  return {
+    reparados: reparados,
+    skips: skips,
+    total_reparado: reparados.length,
+    total_ignorado: skips.length,
+    skips_por_motivo: skipsPorMotivo
+  };
+};
+
 async function sbInit(){
   const ok = await sbCarregarTudo();
   sbStartWatchdog();
@@ -11825,7 +11970,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=135');
+    const r = await fetch('dados.json?v=136');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
