@@ -12101,7 +12101,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=139');
+    const r = await fetch('dados.json?v=140');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -14222,6 +14222,34 @@ function excluirAgCliente(agId, cid){
         _tombstoneAdd('co_ag', origemPend);
         _tombstoneAdd('co_localAg', origemPend);
       }
+
+      // excl-cascade-B: remover espelho [Compromisso] em localMov[cid].
+      // O compromisso eh criado em DOIS lugares (_abrirModalCompromisso):
+      //   localAg.push(ev) + localMov[cid].unshift({mov:"[Compromisso] ..."}).
+      // Sem essa cascata, o espelho fica orfao na aba Andamentos apos exclusao.
+      // Matching: tipo+origem (origem nova) OU prefixo (legado/reparado).
+      try {
+        if(item && cid != null && Array.isArray(localMov[cid])){
+          var _titEv = String(item.titulo || item.tipo_compromisso || '').trim();
+          var _dataEv = String(item.dt_raw || item.inicio || '').slice(0,10);
+          var _antes = localMov[cid].length;
+          localMov[cid] = localMov[cid].filter(function(m){
+            if(!m) return true;
+            var ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                            || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+            if(!ehEspelho) return true;
+            var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+            if(!mt) return true;
+            var _titMov = mt[1].trim();
+            var _dataMov = String(m.data||'').slice(0,10);
+            return !(_titMov === _titEv && _dataMov === _dataEv);
+          });
+          if(localMov[cid].length !== _antes){
+            sbSet('co_localMov', localMov);
+          }
+        }
+      } catch(_e){ /* nao bloquear exclusao por falha em cascata */ }
+
       fecharModal();
       var el = document.getElementById('tp-agenda-proc-'+cid);
       if(el) el.innerHTML = renderAgendaProc(cid);
@@ -14298,6 +14326,26 @@ function excluirMovimentacao(cid, idx){
   const lista = localMov[cid]||[];
   const m = lista[idx];
   if(!m) return;
+
+  // excl-block-B: bloquear exclusao se for espelho de compromisso.
+  // Forca o usuario a usar a aba Compromissos / Agenda, garantindo
+  // exclusao consistente em ambos os lados (localAg + localMov).
+  var _ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                   || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+  if(_ehEspelho){
+    abrirModal('Andamento vinculado a compromisso',
+      '<div style="font-size:13px;color:var(--mu);line-height:1.6">'
+        +'Este andamento foi gerado automaticamente a partir de um <strong style="color:var(--ouro)">compromisso da agenda</strong>.<br><br>'
+        +'Para exclu\u00ed-lo, use a aba <strong style="color:var(--tx)">Compromissos</strong> ou a <strong style="color:var(--tx)">Agenda</strong> \u2014 assim a exclus\u00e3o fica consistente em todos os lugares.'
+      +'</div>',
+      null, null);
+    setTimeout(function(){
+      var b = document.getElementById('modal-save'); if(b) b.style.display='none';
+      var bc = document.querySelector('.mbtn-cancel'); if(bc) bc.textContent='Entendi';
+    }, 30);
+    return;
+  }
+
   const desc = (m.movimentacao||m.desc||'').slice(0,60);
   abrirModal('Excluir movimentação',
     `<div style="font-size:13px;color:var(--mu);line-height:1.6">
