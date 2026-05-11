@@ -12381,7 +12381,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=151');
+    const r = await fetch('dados.json?v=152');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13920,17 +13920,22 @@ function prazosConcluirComDesfecho(cid, pid){
     marcarAlterado();
     fecharModal();
     if(AC && String(AC.id)===String(cid)) renderFicha(AC, _grupoAtual);
-    // Registrar andamento na pasta (com protocolo)
-    if(!localMov[cid]) localMov[cid]=[];
+    // 3.B.7 (v152): migrado para repoMov.inserirNoTopo
     var msg = 'Prazo "'+(p.titulo||'')+'" cumprido — protocolo: '+prot;
     if(obs) msg += ' · '+obs;
-    localMov[cid].unshift({
+    var _movNovo = {
       data: new Date().toISOString().slice(0,10),
       movimentacao: msg,
       tipo_movimentacao: 'Judicial',
       origem: 'prazo_cumprido'
-    });
-    sbSet('co_localMov', localMov);
+    };
+    if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+      repoMov.inserirNoTopo(cid, _movNovo);
+    } else {
+      if(!localMov[cid]) localMov[cid]=[];
+      localMov[cid].unshift(_movNovo);
+      sbSet('co_localMov', localMov);
+    }
     showToast('Prazo cumprido ✓');
   }, '✅ Confirmar Cumprimento');
 }
@@ -15385,19 +15390,24 @@ function _calEvtConcluirComProtocolo(raw, ev){
       }
       // _persist do repo cobre sbSet('co_ag') + invalidarAllPend + marcarAlterado.
 
-      // Auto-histórico na pasta
+      // 3.B.7 (v152): Auto-historico migrado para repoMov.inserirNoTopo
       if(ev.id_processo!=null){
         var cidH = ev.id_processo;
-        if(!localMov[cidH]) localMov[cidH]=[];
-        var msg = 'Prazo "'+(ev.titulo||ev.tipo_compromisso||'')+'" cumprido — protocolo: '+prot;
-        if(obs) msg += ' · '+obs;
-        localMov[cidH].unshift({
+        var msgCe = 'Prazo "'+(ev.titulo||ev.tipo_compromisso||'')+'" cumprido — protocolo: '+prot;
+        if(obs) msgCe += ' · '+obs;
+        var _movCe = {
           data: new Date().toISOString().slice(0,10),
-          movimentacao: msg,
+          movimentacao: msgCe,
           tipo_movimentacao: 'Judicial',
           origem: 'agenda_cumprimento_prazo'
-        });
-        sbSet('co_localMov', localMov);
+        };
+        if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+          repoMov.inserirNoTopo(cidH, _movCe);
+        } else {
+          if(!localMov[cidH]) localMov[cidH]=[];
+          localMov[cidH].unshift(_movCe);
+          sbSet('co_localMov', localMov);
+        }
       }
 
       fecharModal();
@@ -18272,9 +18282,8 @@ function agendaConcluirComDesfecho(agId, cid){
     };
     if(prot) localAg[idx].protocolo = prot;
     sbSet('co_ag', localAg); invalidarAllPend();
-    // Andamento na pasta
+    // 3.B.7 (v152): andamento na pasta migrado para repoMov.inserirNoTopo
     if(cid){
-      if(!localMov[cid]) localMov[cid]=[];
       var msg, tipoMov, origem;
       if(isPrazo){
         msg = 'Prazo "'+(item.titulo||'Compromisso')+'" cumprido — protocolo: '+prot;
@@ -18286,12 +18295,18 @@ function agendaConcluirComDesfecho(agId, cid){
         tipoMov = 'Agenda';
         origem = 'agenda_concluido';
       }
-      localMov[cid].unshift({
+      var _movAcd = {
         data: new Date().toISOString().slice(0,10),
         movimentacao: msg,
         tipo_movimentacao: tipoMov, origem: origem
-      });
-      sbSet('co_localMov', localMov);
+      };
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(cid, _movAcd);
+      } else {
+        if(!localMov[cid]) localMov[cid]=[];
+        localMov[cid].unshift(_movAcd);
+        sbSet('co_localMov', localMov);
+      }
     }
     marcarAlterado();
     fecharModal();
