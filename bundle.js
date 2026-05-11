@@ -1601,10 +1601,27 @@ window.coLimparEspelhosOrfaos = function(opts){
       }
       var titMov = mt[1].trim();
       var dataMov = String(m.data||'').slice(0,10);
+      // v150: matching flexivel — strip de sufixo entre parenteses + prefixo.
+      // Causa: titulo em localAg eh frequentemente "Audiencia Inicial" mas o
+      // espelho tem "Audiencia Inicial (13.05 as 08h25)". Matching estrito falha.
       var temCompromisso = localAg.some(function(ev){
-        return ev && String(ev.id_processo) === String(cidStr)
-            && String(ev.titulo || ev.tipo_compromisso || '').trim() === titMov
-            && String(ev.dt_raw || ev.inicio || '').slice(0,10) === dataMov;
+        if(!ev || String(ev.id_processo) !== String(cidStr)) return false;
+        var dataEv = String(ev.dt_raw || ev.inicio || '').slice(0,10);
+        if(dataEv !== dataMov) return false;
+        // Gate cid+data passou. Agora matching flexivel de titulo.
+        var titEv = String(ev.titulo || ev.tipo_compromisso || '').trim();
+        if(!titEv || !titMov) return true; // sem titulo = nao da pra discriminar, confia
+        if(titEv === titMov) return true;
+        // Strip de sufixo entre parenteses dos dois lados
+        var titMovStripped = titMov.replace(/\s*\([^)]*\)\s*$/, '').trim();
+        var titEvStripped = titEv.replace(/\s*\([^)]*\)\s*$/, '').trim();
+        if(titEv === titMovStripped) return true;
+        if(titEvStripped === titMov) return true;
+        if(titEvStripped && titEvStripped === titMovStripped) return true;
+        // Prefixo: um eh prefixo do outro (ex: "Audiencia" vs "Audiencia Inicial")
+        if(titMov.indexOf(titEv) === 0) return true;
+        if(titEv.indexOf(titMov) === 0) return true;
+        return false;
       });
       if(temCompromisso){
         ignorados.push({cid:cidStr, idx:idx, motivo:'tem_compromisso_correspondente'});
@@ -12364,7 +12381,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=149');
+    const r = await fetch('dados.json?v=150');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
