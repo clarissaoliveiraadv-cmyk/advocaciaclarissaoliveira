@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Sistema de gestão jurídica — Clarissa Oliveira Advocacia (PWA)",
-  "assetVersion": 143,
+  "assetVersion": 144,
   "scripts": {
     "build": "node apply.js",
     "build:bump": "node apply.js --bump",

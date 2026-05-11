@@ -398,23 +398,33 @@ function _sbMergeArrays(local, remote, chave){
   return Array.from(map.values());
 }
 
+// v144: _movKey promovido para top-level — usado tanto no merge quanto nos tombstones.
+function _movKey(m){
+  if(!m) return '';
+  if(m.id) return 'id:'+m.id;
+  // Fallback: hash dos campos essenciais (data+movimentacao+tipo+origem)
+  return (m.data||'')+'|'+(m.movimentacao||m.texto||m.desc||'')+'|'+(m.tipo_movimentacao||m.tipo||'')+'|'+(m.origem||'');
+}
+
 // Merge profundo para objetos cujo valor é um array (ex: co_localMov = {cid: [movs]})
 // Une as chaves e, para cada chave presente em ambos, mergea os arrays por conteúdo
 // (hash estável dos campos relevantes) para não perder entradas criadas em PCs diferentes.
-function _sbMergeObjectOfArrays(local, remote){
+// v144: para chave === 'co_localMov', consulta tombstones e filtra entries removidas.
+function _sbMergeObjectOfArrays(local, remote, chave){
   var out = {};
   var keys = new Set();
   Object.keys(local||{}).forEach(function(k){ keys.add(k); });
   Object.keys(remote||{}).forEach(function(k){ keys.add(k); });
-  function _movKey(m){
-    if(!m) return '';
-    if(m.id) return 'id:'+m.id;
-    // Fallback: hash dos campos essenciais (data+movimentacao+tipo)
-    return (m.data||'')+'|'+(m.movimentacao||m.texto||m.desc||'')+'|'+(m.tipo_movimentacao||m.tipo||'')+'|'+(m.origem||'');
-  }
+  // v144: tombstones para co_localMov
+  var _aplicaTomb = (chave === 'co_localMov' && typeof _tombstoneHas === 'function');
   keys.forEach(function(k){
     var a = Array.isArray(local[k]) ? local[k] : [];
     var b = Array.isArray(remote[k]) ? remote[k] : [];
+    // v144: filtrar tombstones antes do merge
+    if(_aplicaTomb){
+      a = a.filter(function(m){ return !_tombstoneHas('co_localMov', _movKey(m)); });
+      b = b.filter(function(m){ return !_tombstoneHas('co_localMov', _movKey(m)); });
+    }
     if(!a.length){ out[k] = b.slice(); return; }
     if(!b.length){ out[k] = a.slice(); return; }
     // União por chave de conteúdo — ordena por data descendente
@@ -448,7 +458,7 @@ function _sbMerge(chave, localVal, remoteVal){
   if(chave==='co_localMov' || chave==='co_coments' || chave==='co_notes'){
     if(localVal && remoteVal && typeof localVal==='object' && typeof remoteVal==='object'
        && !Array.isArray(localVal)){
-      return _sbMergeObjectOfArrays(localVal, remoteVal);
+      return _sbMergeObjectOfArrays(localVal, remoteVal, chave); // v144: chave para tombstones
     }
   }
   // Objetos (prazos, encerrados): merge de chaves
@@ -842,6 +852,16 @@ function sbAplicar(chave, valor, quem){
       if(typeof invalidarAllPend==='function') invalidarAllPend();
     } else if(baseKey==='co_atend' && Array.isArray(localAtend)){
       localAtend = localAtend.filter(function(x){ return !_tombstoneHas('co_atend', x.id); });
+    } else if(baseKey==='co_localMov' && localMov && typeof localMov==='object'){
+      // v144: filtrar entries tombstoneadas em todas as pastas
+      Object.keys(localMov).forEach(function(_cid){
+        if(Array.isArray(localMov[_cid])){
+          localMov[_cid] = localMov[_cid].filter(function(m){
+            return !_tombstoneHas('co_localMov', _movKey(m));
+          });
+        }
+      });
+      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
     }
     if(document.getElementById('vf')?.classList.contains('on')) vfRender();
     return;
@@ -1528,6 +1548,119 @@ window.coNormalizarIdsAg = function(opts){
     ignorados: ignorados,
     total_normalizado: normalizados.length,
     total_ignorado: ignorados.length,
+    ignorados_por_motivo: ignoradosPorMotivo
+  };
+};
+
+// -------------------------------------------------------------
+// coLimparEspelhosOrfaos() - Helper manual de console (v144)
+// -------------------------------------------------------------
+// Remove espelhos [Compromisso] em localMov que NAO tem compromisso
+// correspondente em localAg (orfaos cross-PC do bug pre-v144).
+// Tambem grava tombstone para impedir ressurreicao via merge.
+//
+// USO:
+//   coLimparEspelhosOrfaos({dryRun:true}) -- simular
+//   coLimparEspelhosOrfaos()              -- aplicar
+//
+window.coLimparEspelhosOrfaos = function(opts){
+  opts = opts || {};
+  var dryRun = !!opts.dryRun;
+  var orfaos = [];
+  var ignorados = [];
+
+  if(!localMov || typeof localMov !== 'object'){
+    console.warn('[coLimparEspelhosOrfaos] localMov indisponivel');
+    return {orfaos:[], ignorados:[], total_orfaos:0};
+  }
+  if(!Array.isArray(localAg)){
+    console.warn('[coLimparEspelhosOrfaos] localAg indisponivel');
+    return {orfaos:[], ignorados:[], total_orfaos:0};
+  }
+
+  Object.keys(localMov).forEach(function(cidStr){
+    var lista = localMov[cidStr] || [];
+    if(!Array.isArray(lista)) return;
+    lista.forEach(function(m, idx){
+      var ehEspelho = (m && m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                      || (m && typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+      if(!ehEspelho){
+        ignorados.push({cid:cidStr, idx:idx, motivo:'nao_eh_espelho'});
+        return;
+      }
+      var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+      if(!mt){
+        ignorados.push({cid:cidStr, idx:idx, motivo:'parse_falhou'});
+        return;
+      }
+      var titMov = mt[1].trim();
+      var dataMov = String(m.data||'').slice(0,10);
+      var temCompromisso = localAg.some(function(ev){
+        return ev && String(ev.id_processo) === String(cidStr)
+            && String(ev.titulo || ev.tipo_compromisso || '').trim() === titMov
+            && String(ev.dt_raw || ev.inicio || '').slice(0,10) === dataMov;
+      });
+      if(temCompromisso){
+        ignorados.push({cid:cidStr, idx:idx, motivo:'tem_compromisso_correspondente'});
+        return;
+      }
+      orfaos.push({
+        cid: cidStr,
+        idx: idx,
+        movKey: _movKey(m),
+        titulo: titMov,
+        data: dataMov,
+        movimentacao: m.movimentacao
+      });
+    });
+  });
+
+  if(orfaos.length > 0 && !dryRun){
+    var cidsAfetados = new Set();
+    orfaos.forEach(function(o){ cidsAfetados.add(o.cid); });
+    cidsAfetados.forEach(function(cidStr){
+      var orfaosDoCid = orfaos.filter(function(o){ return o.cid === cidStr; });
+      var keysOrfaos = new Set(orfaosDoCid.map(function(o){ return o.movKey; }));
+      localMov[cidStr] = (localMov[cidStr]||[]).filter(function(m){
+        return !keysOrfaos.has(_movKey(m));
+      });
+      orfaosDoCid.forEach(function(o){ _tombstoneAdd('co_localMov', o.movKey); });
+    });
+    if(typeof sbSet === 'function') sbSet('co_localMov', localMov);
+    if(typeof marcarAlterado === 'function') marcarAlterado();
+    if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
+  }
+
+  var ignoradosPorMotivo = ignorados.reduce(function(acc, s){
+    acc[s.motivo] = (acc[s.motivo]||0) + 1;
+    return acc;
+  }, {});
+
+  console.log(
+    '%c[coLimparEspelhosOrfaos]' + (dryRun ? ' (dryRun)' : ''),
+    'color:#D4AF37;font-weight:bold',
+    'Orfaos:', orfaos.length,
+    'Ignorados:', ignorados.length, '(motivos:', ignoradosPorMotivo, ')'
+  );
+  if(orfaos.length > 0){
+    console.log('Lista de orfaos:');
+    orfaos.forEach(function(o){
+      console.log('  - cid='+o.cid+' | data='+o.data+' | '+(o.movimentacao||'').slice(0,80));
+    });
+  }
+  if(orfaos.length > 0 && !dryRun){
+    console.log('%cOK Persistido em co_localMov + tombstones gravados.', 'color:#3B6D11;font-weight:bold');
+  } else if(dryRun){
+    console.log('%c(dryRun) Nenhuma persistencia.', 'color:#854F0B;font-weight:bold');
+  } else if(orfaos.length === 0){
+    console.log('%cNenhum orfao encontrado.', 'color:#666');
+  }
+
+  return {
+    orfaos: orfaos,
+    ignorados: ignorados,
+    total_orfaos: orfaos.length,
+    total_ignorados: ignorados.length,
     ignorados_por_motivo: ignoradosPorMotivo
   };
 };
@@ -12225,7 +12358,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=143');
+    const r = await fetch('dados.json?v=144');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -12400,6 +12533,7 @@ function _tombstoneHas(chave, id){
 // Carregar tombstones dos arrays financeiros no boot
 _tombstoneLoad('co_fin');
 _tombstoneLoad('co_localLanc');
+_tombstoneLoad('co_localMov'); // v144: tombstones para espelhos removidos via cascata
 
 // Cleanup: arrays carregados ANTES dos helpers de tombstone existirem
 // (como vkTasks, já lido em linha ~2256) podem conter itens deletados em outro PC.
@@ -14369,7 +14503,13 @@ function excluirAgCliente(agId, cid){
             if(!mt) return true;
             var _titMov = mt[1].trim();
             var _dataMov = String(m.data||'').slice(0,10);
-            return !(_titMov === _titEv && _dataMov === _dataEv);
+            var _matchEspelho = (_titMov === _titEv && _dataMov === _dataEv);
+            if(_matchEspelho){
+              // v144: tombstone para impedir ressurreicao via merge cross-PC
+              try { _tombstoneAdd('co_localMov', _movKey(m)); } catch(__e){}
+              return false;
+            }
+            return true;
           });
           if(localMov[cid].length !== _antes){
             sbSet('co_localMov', localMov);
