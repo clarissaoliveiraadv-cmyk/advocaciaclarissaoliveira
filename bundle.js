@@ -12432,7 +12432,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=153');
+    const r = await fetch('dados.json?v=154');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -19235,10 +19235,13 @@ function _processarPublicacao(texto){
     var criarPrazo = document.getElementById('pub-criar-prazo')?.checked;
     var importados = 0;
 
+    // 3.B.6 (v154): batch usa repoMov via escape hatch — unshift direto no _raw()
+    // mantém performance (1 sbSet/marcarAlterado final, nao 1 por iteracao).
+    var _pubMov = (typeof repoMov !== 'undefined' && repoMov._raw) ? repoMov._raw() : localMov;
     checks.forEach(function(chk){
       var cid = Number(chk.dataset.cid);
-      if(!localMov[cid]) localMov[cid]=[];
-      localMov[cid].unshift({
+      if(!_pubMov[cid]) _pubMov[cid]=[];
+      _pubMov[cid].unshift({
         data: dataPub, movimentacao: descPub,
         tipo_movimentacao: 'Publica\u00e7\u00e3o', origem: 'publicacao_dje'
       });
@@ -19261,8 +19264,13 @@ function _processarPublicacao(texto){
     });
 
     if(importados>0){
-      sbSet('co_localMov', localMov);
-      marcarAlterado();
+      // 3.B.6 (v154): persistir via repoMov (cobre sbSet + marcarAlterado)
+      if(typeof repoMov !== 'undefined' && repoMov._marcarPersistir){
+        repoMov._marcarPersistir();
+      } else {
+        sbSet('co_localMov', localMov);
+        marcarAlterado();
+      }
     }
     fecharModal();
     showToast('\u2713 Publica\u00e7\u00e3o registrada em '+importados+' processo'+(importados>1?'s':''));
@@ -19781,6 +19789,8 @@ function djSincronizar(cid){
     abrirModal('\ud83d\udd0d Tribunal \u2014 '+escapeHtml(c.cliente), html+resumo, novidades>0?function(){
       // Importar novidades
       var importados = 0;
+      // 3.B.6 (v154): batch DataJud via escape hatch repoMov
+      var _djMov = (typeof repoMov !== 'undefined' && repoMov._raw) ? repoMov._raw() : localMov;
       movsTrib.forEach(function(m){
         var dt = (m.dataHora||'').slice(0,10);
         var nome = m.nome||'';
@@ -19788,14 +19798,18 @@ function djSincronizar(cid){
         var txtFull = nome+(compl?' \u2014 '+compl:'');
         var txtCheck = dt+'|'+txtFull.toLowerCase().slice(0,40);
         if(!movsLocais.has(txtCheck)){
-          if(!localMov[cid]) localMov[cid]=[];
-          localMov[cid].unshift({data:dt, movimentacao:'[DataJud] '+txtFull, tipo_movimentacao:'DataJud', origem:'datajud'});
+          if(!_djMov[cid]) _djMov[cid]=[];
+          _djMov[cid].unshift({data:dt, movimentacao:'[DataJud] '+txtFull, tipo_movimentacao:'DataJud', origem:'datajud'});
           importados++;
         }
       });
       if(importados>0){
-        sbSet('co_localMov', localMov);
-        marcarAlterado();
+        if(typeof repoMov !== 'undefined' && repoMov._marcarPersistir){
+          repoMov._marcarPersistir();
+        } else {
+          sbSet('co_localMov', localMov);
+          marcarAlterado();
+        }
         if(AC && AC.id===cid) renderFicha(AC, AC_PROC);
       }
       fecharModal();
