@@ -3218,13 +3218,19 @@ function vkMudarStatus(id, novoStatus, opts){
         tipoMov = 'Sistema';
         origem = 'kanban_conclusao';
       }
-      localMov[t.processo].unshift({
+      // 3.B.8 (v157): migrado para repoMov.inserirNoTopo
+      var _movKan = {
         data: new Date(HOJE).toISOString().slice(0,10),
         movimentacao: msg,
         tipo_movimentacao: tipoMov,
         origem: origem
-      });
-      sbSet('co_localMov', localMov);
+      };
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(t.processo, _movKan);
+      } else {
+        localMov[t.processo].unshift(_movKan);
+        sbSet('co_localMov', localMov);
+      }
     }
   } else {
     delete t.concluido_em;
@@ -5922,8 +5928,14 @@ function vfBaixarComRepasse(id){
         +' · Honorários ('+perc+'%) '+fBRL(hon)
         +' · Escritório: '+fBRL(meu)
         +(repasse>0.01?' · Repasse cliente: '+fBRL(repasse)+' até '+dtRepStr2:'');
-      localMov[cliObj.id].unshift({ data:dtBaixa, movimentacao:resumo, tipo_movimentacao:'Financeiro', origem:'baixa_repasse' });
-      sbSet('co_localMov', localMov);
+      // 3.B.8 (v157): migrado para repoMov.inserirNoTopo
+      var _movRep = { data:dtBaixa, movimentacao:resumo, tipo_movimentacao:'Financeiro', origem:'baixa_repasse' };
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(cliObj.id, _movRep);
+      } else {
+        localMov[cliObj.id].unshift(_movRep);
+        sbSet('co_localMov', localMov);
+      }
       _reRenderFinPasta(cliObj.id);
     }
     renderFinDash(); atualizarStats();
@@ -11584,14 +11596,19 @@ function salvarAtendimento(){
   localAtend.push(registro);
   sbSet('co_atend', localAtend);
 
-  // Andamento no processo
+  // Andamento no processo — 3.B.8 (v157): migrado para repoMov.inserirNoTopo
   if(clienteMatch){
-    if(!localMov[clienteMatch.id]) localMov[clienteMatch.id]=[];
-    localMov[clienteMatch.id].unshift({
+    var _movAtend = {
       data: dataAt, movimentacao: descricao,
       tipo_movimentacao: 'Atendimento', origem: 'atendimento'
-    });
-    sbSet('co_localMov', localMov);
+    };
+    if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+      repoMov.inserirNoTopo(clienteMatch.id, _movAtend);
+    } else {
+      if(!localMov[clienteMatch.id]) localMov[clienteMatch.id]=[];
+      localMov[clienteMatch.id].unshift(_movAtend);
+      sbSet('co_localMov', localMov);
+    }
   }
 
   // Agenda local
@@ -12471,7 +12488,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=156');
+    const r = await fetch('dados.json?v=157');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
