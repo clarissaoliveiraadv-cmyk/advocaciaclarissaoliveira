@@ -87,6 +87,7 @@ patch('index.html', 'CSS + JS + repos', [
   { re: /bundle\.js\?v=\d+/g,         replace: 'bundle.js?v=' + v },
   { re: /repos\/agenda\.js\?v=\d+/g,  replace: 'repos/agenda.js?v=' + v },
   { re: /repos\/prazos\.js\?v=\d+/g,  replace: 'repos/prazos.js?v=' + v },
+  { re: /repos\/mov\.js\?v=\d+/g,     replace: 'repos/mov.js?v=' + v },
 ]);
 
 console.log('-> Atualizando sw.js...');
@@ -96,6 +97,7 @@ patch('sw.js', 'CACHE_NAME + precache', [
   { re: /bundle\.js\?v=\d+/g,         replace: 'bundle.js?v=' + v },
   { re: /repos\/agenda\.js\?v=\d+/g,  replace: 'repos/agenda.js?v=' + v },
   { re: /repos\/prazos\.js\?v=\d+/g,  replace: 'repos/prazos.js?v=' + v },
+  { re: /repos\/mov\.js\?v=\d+/g,     replace: 'repos/mov.js?v=' + v },
 ]);
 
 console.log('-> Atualizando bundle.js (fetch de dados.json)...');
@@ -110,7 +112,7 @@ console.log('-> package.json: assetVersion = ' + target);
 
 // ---------------- 5. Validar sintaxe do bundle e dos repos ----------------
 console.log('-> Validando sintaxe...');
-const checks = ['bundle.js', 'repos/agenda.js', 'repos/prazos.js'];
+const checks = ['bundle.js', 'repos/agenda.js', 'repos/prazos.js', 'repos/mov.js'];
 for (const f of checks) {
   try {
     execSync('node --check ' + JSON.stringify(f), { cwd: ROOT, stdio: 'pipe' });
