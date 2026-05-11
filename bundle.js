@@ -12381,7 +12381,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=150');
+    const r = await fetch('dados.json?v=151');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -18010,13 +18010,41 @@ function deletarPrazo(cid, pid){
     });
     prazosSalvar(); // salva em co_prazos E co_td
     marcarAlterado();
-    // Também remover de localAg se foi migrado — com tombstone array (flat)
+    // 3.B.3-fix2 (v151): mesmo bug do calEvtExcluir v149 — sem cascata para localMov.
+    // Quando um prazo legado eh migrado para localAg, ele tambem cria espelho em
+    // localMov[cid] (via _abrirModalCompromisso). Sem cascata, espelho fica orfao.
     var agsRemovidos = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)===String(pid); });
     agsRemovidos.forEach(function(a){
-      _tombstoneAdd('co_ag', a.id);
-      _tombstoneAdd('co_localAg', a.id);
+      // Capturar info para cascata ANTES da remocao
+      var titEv = String(a.titulo || a.tipo_compromisso || '').trim();
+      var dataEv = String(a.dt_raw || a.inicio || '').slice(0,10);
+
+      // Remover de localAg via repoAgenda (cobre tombstones co_ag + co_localAg + persist)
+      if(typeof repoAgenda !== 'undefined' && repoAgenda.excluirPorIdLike){
+        repoAgenda.excluirPorIdLike(a.id, {scope: 'ambos'});
+      } else {
+        // Fallback defensivo
+        _tombstoneAdd('co_ag', a.id);
+        _tombstoneAdd('co_localAg', a.id);
+      }
+
+      // Cascata para localMov[cid] (mesmo predicate da v140/v148)
+      try {
+        if(cid != null && typeof repoMov !== 'undefined' && repoMov.excluirPorFiltro){
+          repoMov.excluirPorFiltro(cid, function(m){
+            if(!m) return false;
+            var ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                            || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+            if(!ehEspelho) return false;
+            var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+            if(!mt) return false;
+            return mt[1].trim() === titEv && String(m.data||'').slice(0,10) === dataEv;
+          });
+        }
+      } catch(_e){ /* nao bloquear exclusao por falha em cascata */ }
     });
-    if(agsRemovidos.length){
+    // Fallback: se repoAgenda nao removeu (carga falhou), fazer filter manual
+    if(agsRemovidos.length && (typeof repoAgenda === 'undefined' || !repoAgenda.excluirPorIdLike)){
       localAg = (localAg||[]).filter(function(a){ return String(a._prazo_legado_id)!==String(pid); });
       sbSet('co_ag', localAg); invalidarAllPend();
     }

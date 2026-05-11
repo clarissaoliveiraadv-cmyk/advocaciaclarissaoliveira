@@ -2,15 +2,15 @@
 // Phase 4: cache offline para uso em campo sem internet
 // IMPORTANTE: bumpar CACHE_NAME sempre que bundle.js/styles.css mudarem.
 // Versão atual precisa bater (ou ser maior que) o ?v= no index.html.
-const CACHE_NAME = 'co-advocacia-v150';
+const CACHE_NAME = 'co-advocacia-v151';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=150',
-  './repos/agenda.js?v=150',
-  './repos/prazos.js?v=150',
-  './repos/mov.js?v=150',
-  './bundle.js?v=150',
+  './styles.css?v=151',
+  './repos/agenda.js?v=151',
+  './repos/prazos.js?v=151',
+  './repos/mov.js?v=151',
+  './bundle.js?v=151',
   './manifest.json'
 ];
 
