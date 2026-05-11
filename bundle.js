@@ -6061,7 +6061,18 @@ function _executarBaixa(id, valorBaixa, dtBaixa, forma, obs, lancRef){
     else { const fi=finLancs.indexOf(ex); finLancs[fi]={...finLancs[fi],...reg}; }
     sbSet('co_fin',finLancs);
     const c2=findClientByName(lancRef?lancRef.cliente:'');
-    if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:dtBaixa,movimentacao:'[Financeiro] '+fBRL(valorBaixa)+' via '+(forma||'—'),tipo_movimentacao:'Financeiro',origem:'baixa'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
+    // 3.B.5 (v156): migrado para repoMov.inserirNoTopo
+    if(c2){
+      var _movBxC2 = {data:dtBaixa, movimentacao:'[Financeiro] '+fBRL(valorBaixa)+' via '+(forma||'—'), tipo_movimentacao:'Financeiro', origem:'baixa'};
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(c2.id, _movBxC2);
+      } else {
+        if(!localMov[c2.id]) localMov[c2.id]=[];
+        localMov[c2.id].unshift(_movBxC2);
+        sbSet('co_localMov',localMov);
+      }
+      _reRenderFinPasta(c2.id);
+    }
   }
   marcarAlterado();
 }
@@ -7036,7 +7047,18 @@ function extratoBaixarVinculo(i){
     else { var fi=finLancs.indexOf(existInFin); finLancs[fi]={...finLancs[fi],...reg}; }
     sbSet('co_fin',finLancs);
     const c2=findClientByName(l._match_cliente);
-    if(c2){if(!localMov[c2.id])localMov[c2.id]=[];localMov[c2.id].unshift({data:l.data,movimentacao:'[Conciliação] Baixa confirmada via extrato: '+l._match_desc+' — '+fBRL(Math.abs(l.valor)),tipo_movimentacao:'Financeiro',origem:'conciliacao'});sbSet('co_localMov',localMov);_reRenderFinPasta(c2.id);}
+    // 3.B.5 (v156): migrado para repoMov.inserirNoTopo
+    if(c2){
+      var _movConcil = {data:l.data, movimentacao:'[Conciliação] Baixa confirmada via extrato: '+l._match_desc+' — '+fBRL(Math.abs(l.valor)), tipo_movimentacao:'Financeiro', origem:'conciliacao'};
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(c2.id, _movConcil);
+      } else {
+        if(!localMov[c2.id]) localMov[c2.id]=[];
+        localMov[c2.id].unshift(_movConcil);
+        sbSet('co_localMov',localMov);
+      }
+      _reRenderFinPasta(c2.id);
+    }
   } else if(vid.startsWith('l')){
     const rawId=vid.slice(1);
     const li=(localLanc||[]).findIndex(function(x){return String(x.id)===rawId;});
@@ -7270,8 +7292,14 @@ function extratoClassificar(i){
             return mov.indexOf(matchT.desc)!==-1 && mov.indexOf(fBRL(valorAbs))!==-1;
           });
           if(!jaExiste){
-            localMov[c2.id].unshift({data:l.data,movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'});
-            sbSet('co_localMov',localMov);
+            // 3.B.5 (v156): migrado para repoMov.inserirNoTopo
+            var _movRecExt = {data:l.data, movimentacao:'[Financeiro] Recebimento via extrato: '+matchT.desc+' — '+fBRL(valorAbs)+' via '+forma, tipo_movimentacao:'Financeiro', origem:'extrato'};
+            if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+              repoMov.inserirNoTopo(c2.id, _movRecExt);
+            } else {
+              localMov[c2.id].unshift(_movRecExt);
+              sbSet('co_localMov',localMov);
+            }
           }
           _reRenderFinPasta(c2.id);
         }
@@ -7303,7 +7331,18 @@ function extratoClassificar(i){
       finLancs.push(novoLanc);
       sbSet('co_fin', finLancs);
       const cliP=findClientByName(cliTxt);
-      if(cliP){ if(!localMov[cliP.id]) localMov[cliP.id]=[]; localMov[cliP.id].unshift({data:l.data,movimentacao:'[Financeiro] Extrato: '+desc+' — '+fBRL(valorAbs)+' via '+forma,tipo_movimentacao:'Financeiro',origem:'extrato'}); sbSet('co_localMov',localMov); _reRenderFinPasta(cliP.id); }
+      if(cliP){
+        // 3.B.5 (v156): migrado para repoMov.inserirNoTopo
+        var _movExtCli = {data:l.data, movimentacao:'[Financeiro] Extrato: '+desc+' — '+fBRL(valorAbs)+' via '+forma, tipo_movimentacao:'Financeiro', origem:'extrato'};
+        if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+          repoMov.inserirNoTopo(cliP.id, _movExtCli);
+        } else {
+          if(!localMov[cliP.id]) localMov[cliP.id]=[];
+          localMov[cliP.id].unshift(_movExtCli);
+          sbSet('co_localMov',localMov);
+        }
+        _reRenderFinPasta(cliP.id);
+      }
       _extratoLinhas[i]._status='importado';
       _extratoLinhas[i]._lanc_id=novoLanc.id;
       marcarAlterado(); fecharModal(); vfRender(); renderFinDash();
@@ -12432,7 +12471,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=155');
+    const r = await fetch('dados.json?v=156');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
