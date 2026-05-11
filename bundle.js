@@ -12364,7 +12364,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=146');
+    const r = await fetch('dados.json?v=147');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -14626,9 +14626,19 @@ function excluirMovimentacao(cid, idx){
       <span style="color:var(--tx);font-weight:600">"${desc}${desc.length>=60?'…':''}"</span>
     </div>`,
     ()=>{
-      localMov[cid].splice(idx, 1);
-      sbSet('co_localMov', localMov);
-      marcarAlterado(); fecharModal();
+      // 3.B.4 (v147): migrado para repoMov.excluirPorIndice.
+      // Side-effect novo (positivo): tombstone gravado automaticamente —
+      // cross-PC fix similar ao v144 (sem isso, exclusao via aba Andamentos
+      // nao propagava cross-PC; o item ressuscitava no merge cego).
+      if(typeof repoMov !== 'undefined' && repoMov.excluirPorIndice){
+        repoMov.excluirPorIndice(cid, idx);
+      } else {
+        // Fallback defensivo (repoMov nao carregou)
+        localMov[cid].splice(idx, 1);
+        sbSet('co_localMov', localMov);
+        marcarAlterado();
+      }
+      fecharModal();
       if(AC?.id===cid) renderFicha(AC, _grupoAtual);
       showToast('Andamento exclu\u00eddo');
     }, 'Excluir'
@@ -14649,8 +14659,16 @@ function editarMovimentacao(cid, idx){
     const data = document.getElementById('emov-data')?.value||m.data;
     const desc = document.getElementById('emov-desc')?.value.trim();
     if(!desc){ showToast('Informe a descrição'); return; }
-    lista[idx] = {...m, data, movimentacao:desc, desc};
-    sbSet('co_localMov', localMov);
+    // 3.B.4 (v147): migrado para repoMov.atualizarPorIndice.
+    // Side-effect novo (positivo): marcarAlterado() chamado via _persist do repo —
+    // antes, edicoes nao marcavam mudanca pendente (esquecimento; excluir ja marcava).
+    if(typeof repoMov !== 'undefined' && repoMov.atualizarPorIndice){
+      repoMov.atualizarPorIndice(cid, idx, {data:data, movimentacao:desc, desc:desc});
+    } else {
+      // Fallback defensivo
+      lista[idx] = {...m, data, movimentacao:desc, desc};
+      sbSet('co_localMov', localMov);
+    }
     fecharModal();
     if(AC?.id===cid) renderFicha(AC, _grupoAtual);
     showToast('Movimentação atualizada ✓');
