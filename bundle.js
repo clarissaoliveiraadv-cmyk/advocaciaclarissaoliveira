@@ -1688,6 +1688,39 @@ window.coLimparEspelhosOrfaos = function(opts){
   };
 };
 
+// -------------------------------------------------------------
+// coResetSW() - Helper manual de console (v153)
+// -------------------------------------------------------------
+// Desregistra o Service Worker, apaga todos os caches e recarrega.
+// Util quando o SW serve cache stale apos um bump de versao
+// (caso classico: bundle.js?v=X com conteudo da versao anterior).
+//
+// USO:
+//   coResetSW()
+//
+window.coResetSW = function(){
+  if(!navigator.serviceWorker){
+    console.warn("[coResetSW] Service Worker indisponivel neste navegador");
+    location.reload(true);
+    return;
+  }
+  console.log("%c[coResetSW] desregistrando SW + limpando caches...", "color:#D4AF37;font-weight:bold");
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+    return Promise.all(regs.map(function(r){ return r.unregister(); }));
+  }).then(function(){
+    if(typeof caches === "undefined") return;
+    return caches.keys().then(function(keys){
+      return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+    });
+  }).then(function(){
+    console.log("%cOK SW + caches limpos. Recarregando em 800ms...", "color:#3B6D11;font-weight:bold");
+    setTimeout(function(){ location.reload(true); }, 800);
+  }).catch(function(e){
+    console.error("[coResetSW] erro:", e);
+    setTimeout(function(){ location.reload(true); }, 500);
+  });
+};
+
 async function sbInit(){
   const ok = await sbCarregarTudo();
   sbStartWatchdog();
@@ -5580,8 +5613,8 @@ function vfBaixar(id){
       cli._ultimo_recebimento = { valor: valorBaixa, data: dtBaixa, desc: descLanc };
       // Andamento na pasta
       const cid = cli.id;
-      if(!localMov[cid]) localMov[cid]=[];
-      localMov[cid].unshift({
+      // 3.B.1 (v153): migrado para repoMov.inserirNoTopo
+      var _movBxFin = {
         data: dtBaixa,
         movimentacao: '['+(isRec?'Recebimento':'Pagamento')+'] '+descLanc
           +' — '+fBRL(valorBaixa)
@@ -5590,8 +5623,14 @@ function vfBaixar(id){
           +(obs?' | '+obs:''),
         tipo_movimentacao: 'Financeiro',
         origem: 'baixa_fin'
-      });
-      sbSet('co_localMov', localMov);
+      };
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(cid, _movBxFin);
+      } else {
+        if(!localMov[cid]) localMov[cid]=[];
+        localMov[cid].unshift(_movBxFin);
+        sbSet('co_localMov', localMov);
+      }
       // Atualizar histórico Projuris na ficha do cliente
       if(typeof renderFinXlsx==='function') renderFinXlsx(cli);
       if(typeof _reRenderFinPasta==='function') _reRenderFinPasta(cid);
@@ -9470,13 +9509,19 @@ function finBaixarLanc(cid, lid, direcao){
       const c = CLIENTS.find(function(x){ return String(x.pasta)===String(lanc.cliente); });
       const clienteId = c ? c.id : null;
       if(clienteId){
-        if(!localMov[clienteId]) localMov[clienteId]=[];
-        localMov[clienteId].unshift({
+        // 3.B.1 (v153): migrado para repoMov.inserirNoTopo
+        var _movBxProj = {
           data: dtBaixa,
           movimentacao: '[Financeiro] '+label+' Projuris baixado: '+lanc.desc+' — '+fBRL(lanc.valor)+(forma?' via '+forma:''),
           tipo_movimentacao:'Financeiro', origem:'baixa_projuris'
-        });
-        sbSet('co_localMov', localMov);
+        };
+        if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+          repoMov.inserirNoTopo(clienteId, _movBxProj);
+        } else {
+          if(!localMov[clienteId]) localMov[clienteId]=[];
+          localMov[clienteId].unshift(_movBxProj);
+          sbSet('co_localMov', localMov);
+        }
         _reRenderFinPasta(clienteId);
       }
     } else if(isGlobal){
@@ -9494,13 +9539,19 @@ function finBaixarLanc(cid, lid, direcao){
       };
       sbSet('co_localLanc', localLanc);
       if(cid){
-        if(!localMov[cid]) localMov[cid]=[];
-        localMov[cid].unshift({
+        // 3.B.1 (v153): migrado para repoMov.inserirNoTopo
+        var _movBxLoc = {
           data: dtBaixa,
           movimentacao: '[Financeiro] '+label+' baixado: '+(lanc.desc||'')+' — '+fBRL(lanc.valor||0)+(forma?' via '+forma:''),
           tipo_movimentacao:'Financeiro', origem:'baixa_manual'
-        });
-        sbSet('co_localMov', localMov);
+        };
+        if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+          repoMov.inserirNoTopo(cid, _movBxLoc);
+        } else {
+          if(!localMov[cid]) localMov[cid]=[];
+          localMov[cid].unshift(_movBxLoc);
+          sbSet('co_localMov', localMov);
+        }
         _reRenderFinPasta(cid);
       }
     }
@@ -12381,7 +12432,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=152');
+    const r = await fetch('dados.json?v=153');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -16927,13 +16978,19 @@ function atConverterProcesso(cid){
       c.data_inicio = data;
       if(valor) c.valor_causa = valor;
 
-      // Registrar andamento
-      if(!localMov[cid]) localMov[cid]=[];
-      localMov[cid].unshift({
+      // Registrar andamento — 3.B.1 (v153): migrado para repoMov.inserirNoTopo
+      var _movConv = {
         data: new Date().toISOString().slice(0,10),
         movimentacao: '[Processo cadastrado] Evoluído de atendimento'+(at?.assunto?' — '+at.assunto:''),
         tipo_movimentacao:'Sistema', origem:'conversao_atendimento'
-      });
+      };
+      if(typeof repoMov !== 'undefined' && repoMov.inserirNoTopo){
+        repoMov.inserirNoTopo(cid, _movConv);
+      } else {
+        if(!localMov[cid]) localMov[cid]=[];
+        localMov[cid].unshift(_movConv);
+        // sbSet abaixo cobre persistencia
+      }
 
       // Marcar atendimento como contratado
       const atIdx = localAtend.findIndex(a=>String(a.id_cliente)===String(cid));
