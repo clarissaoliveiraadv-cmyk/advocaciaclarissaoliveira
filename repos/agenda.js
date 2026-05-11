@@ -307,6 +307,30 @@
     return window.localAg;
   }
 
+  /**
+   * filtrarPorTombstones(baseKey): remove itens de localAg cujo id
+   * esta tombstoneado em `baseKey`. Usado pelo sbAplicar quando
+   * recebe payload "_del" via Realtime (B2/v145).
+   *
+   * NAO chama _persist: o filtro acontece em resposta a payload remoto;
+   * regravar provocaria loop com o proprio Realtime que entregou o tombstone.
+   * Equivalente funcional ao localAg.filter(...) que estava inline no bundle.
+   */
+  function filtrarPorTombstones(baseKey) {
+    if (!baseKey) return _arr();
+    var antes = _arr().length;
+    window.localAg = _arr().filter(function (x) {
+      if (!x || x.id == null) return true;
+      return typeof window._tombstoneHas === 'function'
+        ? !window._tombstoneHas(baseKey, x.id)
+        : true;
+    });
+    var removidos = antes - window.localAg.length;
+    if (typeof window.invalidarAllPend === 'function') window.invalidarAllPend();
+    dbg('filtrarPorTombstones', baseKey, 'removidos=' + removidos);
+    return window.localAg;
+  }
+
   // ============================================================
   // ESCAPE HATCH (transicao - usar com parcimonia)
   // ============================================================
@@ -335,6 +359,7 @@
     excluir: excluir,
     excluirPorIdLike: excluirPorIdLike,
     aplicarRemoto: aplicarRemoto,
+    filtrarPorTombstones: filtrarPorTombstones,
     _raw: _raw,
     _marcarPersistir: _marcarPersistir
   };

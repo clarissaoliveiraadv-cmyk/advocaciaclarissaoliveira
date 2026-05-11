@@ -847,9 +847,15 @@ function sbAplicar(chave, valor, quem){
     } else if(baseKey==='co_vktasks' && Array.isArray(vkTasks)){
       vkTasks = vkTasks.filter(function(x){ return !_tombstoneHas('co_vktasks', x.id); });
       if(typeof renderChecklist==='function') try{ renderChecklist(); }catch(e){}
-    } else if((baseKey==='co_ag'||baseKey==='co_localAg') && Array.isArray(localAg)){
-      localAg = localAg.filter(function(x){ return !_tombstoneHas(baseKey, x.id); });
-      if(typeof invalidarAllPend==='function') invalidarAllPend();
+    } else if(baseKey==='co_ag'||baseKey==='co_localAg'){
+      // B2 (v145): migrado para repoAgenda.filtrarPorTombstones
+      if(typeof repoAgenda !== 'undefined' && repoAgenda.filtrarPorTombstones){
+        repoAgenda.filtrarPorTombstones(baseKey);
+      } else if(Array.isArray(localAg)){
+        // Fallback defensivo se repoAgenda nao carregou
+        localAg = localAg.filter(function(x){ return !_tombstoneHas(baseKey, x.id); });
+        if(typeof invalidarAllPend==='function') invalidarAllPend();
+      }
     } else if(baseKey==='co_atend' && Array.isArray(localAtend)){
       localAtend = localAtend.filter(function(x){ return !_tombstoneHas('co_atend', x.id); });
     } else if(baseKey==='co_localMov' && localMov && typeof localMov==='object'){
@@ -12358,7 +12364,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=144');
+    const r = await fetch('dados.json?v=145');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
