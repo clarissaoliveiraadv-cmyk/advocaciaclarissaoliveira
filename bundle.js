@@ -873,17 +873,21 @@ function sbAplicar(chave, valor, quem){
       if(document.getElementById('vf')?.classList.contains('on')) vfRender();
       break;
     case 'co_localAg':
-      localAg=(valor||[]).filter(function(x){ return !_tombstoneHas('co_localAg', x.id) && !_tombstoneHas('co_ag', x.id); });
-      invalidarAllPend();
-      if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
-      if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
-      if(typeof renderHomeWeek==='function') try{ renderHomeWeek(); }catch(e){}
-      break;
     case 'co_ag':
-      localAg=(valor||[]).filter(function(x){ return !_tombstoneHas('co_ag', x.id) && !_tombstoneHas('co_localAg', x.id); });
-      invalidarAllPend();
+      // 2.B-realtime: migrado para repoAgenda.aplicarRemoto (v143).
+      // aplicarRemoto faz filter por tombstones de ambas as chaves
+      // (co_ag + co_localAg), atualiza window.localAg, e invalida allPend.
+      // Render fica no call-site (contrato do repo).
+      if(typeof repoAgenda !== 'undefined' && repoAgenda.aplicarRemoto){
+        repoAgenda.aplicarRemoto(valor||[]);
+      } else {
+        // Fallback defensivo: se repoAgenda nao carregou, mantem comportamento legado.
+        localAg=(valor||[]).filter(function(x){ return !_tombstoneHas('co_ag', x.id) && !_tombstoneHas('co_localAg', x.id); });
+        invalidarAllPend();
+      }
       if(typeof AC!=='undefined' && AC && typeof renderFicha==='function'){ try{ renderFicha(AC); }catch(e){} }
       if(typeof renderHomeAlerts==='function') try{ renderHomeAlerts(); }catch(e){}
+      if(chave === 'co_localAg' && typeof renderHomeWeek==='function') try{ renderHomeWeek(); }catch(e){}
       break;
     case 'co_encerrados': encerrados=valor||{}; _encIdsCache=null; if(typeof doSearch==='function') try{ doSearch(); }catch(e){} break;
     case 'co_notes':
@@ -12221,7 +12225,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=142');
+    const r = await fetch('dados.json?v=143');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
