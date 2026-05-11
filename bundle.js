@@ -12432,7 +12432,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=154');
+    const r = await fetch('dados.json?v=155');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -13090,8 +13090,12 @@ function _abrirModalCompromisso(cid_fixo){
       }
     }
 
-    // Criar eventos
+    // 3.B.2 (v155): batch via escape hatch dos dois repos.
+    // Recorrente pode gerar 10+ eventos; usar inserirNoTopo/criar individuais
+    // dispararia N sbSet (lento). _raw + _marcarPersistir mantém 1 sbSet final.
     let criados = 0;
+    var _ag = (typeof repoAgenda !== 'undefined' && repoAgenda._raw) ? repoAgenda._raw() : localAg;
+    var _mov = (typeof repoMov !== 'undefined' && repoMov._raw) ? repoMov._raw() : localMov;
     datas.forEach((d,i)=>{
       const ev = {
         id: 'cm'+genId(), id_agenda: genId(),
@@ -13111,11 +13115,11 @@ function _abrirModalCompromisso(cid_fixo){
         tipoItem: ehPrazo ? 'prazo_fatal' : 'compromisso',
         criticidade: ehPrazo ? 'fatal' : 'media'
       };
-      localAg.push(ev); invalidarAllPend();
-      // Andamento na pasta
+      _ag.push(ev);
+      // Andamento na pasta (espelho [Compromisso])
       if(cid){
-        if(!localMov[cid]) localMov[cid]=[];
-        localMov[cid].unshift({
+        if(!_mov[cid]) _mov[cid]=[];
+        _mov[cid].unshift({
           data:d.ini,
           movimentacao: '[Compromisso] '+titulo+(recorr?' (recorrente)':'')+' — '+fmtDataBR(d.ini)+(d.fim!==d.ini?' a '+fmtDataBR(d.fim):''),
           tipo_movimentacao:'Agenda', origem:'agenda_add'
@@ -13124,8 +13128,19 @@ function _abrirModalCompromisso(cid_fixo){
       criados++;
     });
 
-    sbSet('co_ag', localAg);
-    if(cid) sbSet('co_localMov', localMov);
+    // Persistir 1x cada via repo (inclui sbSet + marcarAlterado + invalidarAllPend onde aplicavel)
+    if(typeof repoAgenda !== 'undefined' && repoAgenda._marcarPersistir){
+      repoAgenda._marcarPersistir();
+    } else {
+      sbSet('co_ag', localAg); invalidarAllPend();
+    }
+    if(cid){
+      if(typeof repoMov !== 'undefined' && repoMov._marcarPersistir){
+        repoMov._marcarPersistir();
+      } else {
+        sbSet('co_localMov', localMov);
+      }
+    }
 
     // Antes, ehPrazo=true criava uma entrada duplicada em prazos[cid] com
     // obs "Criado junto com compromisso", forçando baixa em dois lugares.
