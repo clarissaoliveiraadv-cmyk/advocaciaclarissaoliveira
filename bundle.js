@@ -12364,7 +12364,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=148');
+    const r = await fetch('dados.json?v=149');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -15406,10 +15406,43 @@ function calEvtExcluir(id, cid){
         <span style="font-size:11px">Esta ação não pode ser desfeita.</span>
       </div>`,
       ()=>{
+        // 3.B.3-fix (v149): calEvtExcluir agora segue o padrao de excluirAgCliente.
+        // Antes mutava localAg direto (sem cascata para localMov, sem repoAgenda).
+        // Bug: espelho [Compromisso] na aba Andamentos ficava orfao apos exclusao
+        // via Agenda principal.
+        const itemLocal = repoAgenda.obterPorIdLike(raw);
+        const origemPend = (itemLocal && itemLocal._origem_pend != null)
+          ? String(itemLocal._origem_pend) : null;
+
+        repoAgenda.excluirPorIdLike(raw, {scope: 'ambos'});
+        // Tombstone defensivo: idempotente quando repoAgenda ja gravou.
         _tombstoneAdd('co_ag', raw);
         _tombstoneAdd('co_localAg', raw);
-        localAg=(localAg||[]).filter(a=>String(a.id||a.id_agenda)!==raw);
-        sbSet('co_ag',localAg); invalidarAllPend(); marcarAlterado(); fecharModal();
+        if(origemPend && origemPend !== raw){
+          _tombstoneAdd('co_ag', origemPend);
+          _tombstoneAdd('co_localAg', origemPend);
+        }
+
+        // Cascata Op-B: remover espelho [Compromisso] em localMov[cid]
+        try {
+          if(item && cid != null){
+            var _titEv = String(item.titulo || item.tipo_compromisso || '').trim();
+            var _dataEv = String(item.dt_raw || item.inicio || '').slice(0,10);
+            if(typeof repoMov !== 'undefined' && repoMov.excluirPorFiltro){
+              repoMov.excluirPorFiltro(cid, function(m){
+                if(!m) return false;
+                var ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                                || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+                if(!ehEspelho) return false;
+                var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+                if(!mt) return false;
+                return mt[1].trim() === _titEv && String(m.data||'').slice(0,10) === _dataEv;
+              });
+            }
+          }
+        } catch(_e){ /* nao bloquear exclusao por falha em cascata */ }
+
+        fecharModal();
         if(cid){ const el=document.getElementById('tp-agenda-proc-'+cid); if(el) el.innerHTML=renderAgendaProc(cid); }
         _render_agenda_all(); atualizarStats();
         showToast('Compromisso excluído');
