@@ -1408,6 +1408,126 @@ window.coCorrigirIntervalosReparados = function(opts){
   };
 };
 
+// -------------------------------------------------------------
+// coNormalizarIdsAg() - Helper manual de console (v142)
+// -------------------------------------------------------------
+// Remove o prefixo "ag" de IDs em localAg que sobraram da geracao
+// antiga (linha 18807, importacao de publicacao DJe). Sem isso,
+// excluir/editar/concluir nao conseguia achar o item porque os
+// strippers (replace(/^ag/, "")) produziam raw "123" mas localAg
+// guardava id "ag123" -> find falhava silenciosamente.
+//
+// REGRAS:
+//   - Detector estrito: /^ag\d/ (so IDs "ag" + digito).
+//   - Tambem normaliza id_agenda se tiver mesmo prefixo.
+//   - Pula item se houver tombstone do id_novo (anti-colisao).
+//   - Idempotente: rodar 2x nao tem efeito colateral.
+//   - dryRun: simular sem persistir.
+//
+// USO:
+//   coNormalizarIdsAg()              -- aplicar
+//   coNormalizarIdsAg({dryRun:true}) -- simular
+//
+window.coNormalizarIdsAg = function(opts){
+  opts = opts || {};
+  var dryRun = !!opts.dryRun;
+  var normalizados = [];
+  var ignorados = [];
+
+  if(!Array.isArray(localAg)){
+    console.warn("[coNormalizarIdsAg] localAg indisponivel");
+    return {normalizados:[], ignorados:[], total_normalizado:0, total_ignorado:0};
+  }
+
+  var RX = /^ag\d/;
+
+  localAg.forEach(function(ev, evIdx){
+    if(!ev){ return; }
+    if(ev.id == null){
+      ignorados.push({idx:evIdx, motivo:"sem_id"});
+      return;
+    }
+    var idStr = String(ev.id);
+    if(!RX.test(idStr)){
+      ignorados.push({idx:evIdx, id:ev.id, motivo:"sem_prefixo_ag"});
+      return;
+    }
+    var idNovo = idStr.replace(/^ag/, "");
+
+    // Anti-colisao: se ja ha tombstone do idNovo, nao normaliza (evita
+    // exclusao fantasma de item ressuscitado).
+    if(typeof _tombstoneHas === "function" &&
+       (_tombstoneHas("co_ag", idNovo) || _tombstoneHas("co_localAg", idNovo))){
+      ignorados.push({idx:evIdx, id:ev.id, id_novo:idNovo, motivo:"tombstone_colide"});
+      return;
+    }
+
+    // Normalizar id_agenda se tiver mesmo prefixo
+    var idAgendaAntes = ev.id_agenda;
+    var idAgendaNovo = idAgendaAntes;
+    if(typeof idAgendaAntes === "string" && RX.test(idAgendaAntes)){
+      idAgendaNovo = idAgendaAntes.replace(/^ag/, "");
+    }
+
+    if(!dryRun){
+      ev.id = idNovo;
+      if(idAgendaNovo !== idAgendaAntes){
+        ev.id_agenda = idAgendaNovo;
+      }
+      ev._normalizado_id_em = new Date().toISOString();
+    }
+    normalizados.push({
+      idx:evIdx,
+      titulo:ev.titulo || ev.tipo_compromisso || "(sem titulo)",
+      id_antes:idStr,
+      id_depois:idNovo,
+      id_agenda_antes:idAgendaAntes,
+      id_agenda_depois:idAgendaNovo
+    });
+  });
+
+  if(normalizados.length > 0 && !dryRun){
+    if(typeof sbSet === "function") sbSet("co_ag", localAg);
+    if(typeof invalidarAllPend === "function") invalidarAllPend();
+    if(typeof marcarAlterado === "function") marcarAlterado();
+    if(typeof _render_agenda_all === "function"){ try{ _render_agenda_all(); }catch(e){} }
+    if(typeof atualizarStats === "function"){ try{ atualizarStats(); }catch(e){} }
+  }
+
+  var ignoradosPorMotivo = ignorados.reduce(function(acc, s){
+    acc[s.motivo] = (acc[s.motivo]||0) + 1;
+    return acc;
+  }, {});
+
+  console.log(
+    "%c[coNormalizarIdsAg]" + (dryRun ? " (dryRun)" : ""),
+    "color:#D4AF37;font-weight:bold",
+    "Normalizados:", normalizados.length,
+    "Ignorados:", ignorados.length, "(motivos:", ignoradosPorMotivo, ")"
+  );
+  if(normalizados.length > 0){
+    console.log("Lista de IDs normalizados:");
+    normalizados.forEach(function(r){
+      console.log("  -", r.titulo, "|", r.id_antes, "->", r.id_depois);
+    });
+  }
+  if(normalizados.length > 0 && !dryRun){
+    console.log("%cOK Persistido em co_ag. Recarregue a pagina para confirmar.", "color:#3B6D11;font-weight:bold");
+  } else if(dryRun){
+    console.log("%c(dryRun) Nenhuma persistencia. Rode sem dryRun para aplicar.", "color:#854F0B;font-weight:bold");
+  } else if(normalizados.length === 0){
+    console.log("%cNenhum item precisava normalizacao.", "color:#666");
+  }
+
+  return {
+    normalizados: normalizados,
+    ignorados: ignorados,
+    total_normalizado: normalizados.length,
+    total_ignorado: ignorados.length,
+    ignorados_por_motivo: ignoradosPorMotivo
+  };
+};
+
 async function sbInit(){
   const ok = await sbCarregarTudo();
   sbStartWatchdog();
@@ -12101,7 +12221,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=141');
+    const r = await fetch('dados.json?v=142');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -18804,7 +18924,7 @@ function _processarPublicacao(texto){
         // Etapa 2.C: criar via repoAgenda. Encapsula push + sbSet + invalidarAllPend + marcarAlterado.
         // (localMov continua sendo salvo no proprio call-site, fora do escopo do repo de agenda.)
         repoAgenda.criar({
-          id: 'ag'+genId(), titulo: 'Providenciar: '+(tipoPub||'Publica\u00e7\u00e3o DJe'),
+          id: genId(), titulo: 'Providenciar: '+(tipoPub||'Publica\u00e7\u00e3o DJe'), // v142: prefixo 'ag' removido (bug latente, IDs com prefixo nao casavam no excluir/editar/concluir)
           tipo_compromisso: 'Prazo', cliente: c?c.cliente:'', id_processo: cid,
           dt_raw: _addDiasUteis(dataPub, 5, 'MG'), dt_fim: _addDiasUteis(dataPub, 5, 'MG'),
           inicio: _addDiasUteis(dataPub, 5, 'MG'),
