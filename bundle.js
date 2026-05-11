@@ -12364,7 +12364,7 @@ async function carregarDados(){
   // Fallback: objeto vazio se o JSON falhar (Supabase preenche depois)
   let d = {versao:"1.0", clientes:[], agenda:[], all_lanc:[], mutavel:{}, financeiro_xlsx:[], despesas_processo:[]};
   try {
-    const r = await fetch('dados.json?v=147');
+    const r = await fetch('dados.json?v=148');
     if(r.ok) d = await r.json();
   } catch(e) { console.warn('[carregarDados] dados.json indisponível:', e.message); }
   carregarDadosObj(d);
@@ -14495,30 +14495,38 @@ function excluirAgCliente(agId, cid){
       //   localAg.push(ev) + localMov[cid].unshift({mov:"[Compromisso] ..."}).
       // Sem essa cascata, o espelho fica orfao na aba Andamentos apos exclusao.
       // Matching: tipo+origem (origem nova) OU prefixo (legado/reparado).
+      // 3.B.3 (v148): cascata Op-B migrada para repoMov.excluirPorFiltro.
+      // O repoMov ja cuida de: filter + tombstone(_movKey) + sbSet + marcarAlterado.
+      // Predicate identifica espelhos [Compromisso] que casam com titulo+data do evento.
       try {
-        if(item && cid != null && Array.isArray(localMov[cid])){
+        if(item && cid != null){
           var _titEv = String(item.titulo || item.tipo_compromisso || '').trim();
           var _dataEv = String(item.dt_raw || item.inicio || '').slice(0,10);
-          var _antes = localMov[cid].length;
-          localMov[cid] = localMov[cid].filter(function(m){
-            if(!m) return true;
-            var ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
-                            || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
-            if(!ehEspelho) return true;
-            var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
-            if(!mt) return true;
-            var _titMov = mt[1].trim();
-            var _dataMov = String(m.data||'').slice(0,10);
-            var _matchEspelho = (_titMov === _titEv && _dataMov === _dataEv);
-            if(_matchEspelho){
-              // v144: tombstone para impedir ressurreicao via merge cross-PC
-              try { _tombstoneAdd('co_localMov', _movKey(m)); } catch(__e){}
-              return false;
-            }
-            return true;
-          });
-          if(localMov[cid].length !== _antes){
-            sbSet('co_localMov', localMov);
+          if(typeof repoMov !== 'undefined' && repoMov.excluirPorFiltro){
+            repoMov.excluirPorFiltro(cid, function(m){
+              if(!m) return false;
+              var ehEspelho = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                              || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+              if(!ehEspelho) return false;
+              var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+              if(!mt) return false;
+              return mt[1].trim() === _titEv && String(m.data||'').slice(0,10) === _dataEv;
+            });
+          } else if(Array.isArray(localMov[cid])){
+            // Fallback defensivo se repoMov nao carregou
+            var _antes = localMov[cid].length;
+            localMov[cid] = localMov[cid].filter(function(m){
+              if(!m) return true;
+              var eh = (m.tipo_movimentacao === 'Agenda' && m.origem === 'agenda_add')
+                       || (typeof m.movimentacao === 'string' && m.movimentacao.indexOf('[Compromisso]') === 0);
+              if(!eh) return true;
+              var mt = (m.movimentacao||'').match(/^\[Compromisso\]\s+(.+?)(?:\s+\(recorrente\))?(?:\s+\u2014.*)?$/);
+              if(!mt) return true;
+              var match = (mt[1].trim() === _titEv && String(m.data||'').slice(0,10) === _dataEv);
+              if(match){ try { _tombstoneAdd('co_localMov', _movKey(m)); } catch(__e){} }
+              return !match;
+            });
+            if(localMov[cid].length !== _antes){ sbSet('co_localMov', localMov); }
           }
         }
       } catch(_e){ /* nao bloquear exclusao por falha em cascata */ }
