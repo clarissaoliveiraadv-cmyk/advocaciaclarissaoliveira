@@ -14,9 +14,7 @@ export function sum(values: ReadonlyArray<Money | number | string>): Money {
 export function toBRL(value: Money | number | string): string {
   const n = value instanceof Decimal ? value.toNumber() : Number(value);
   // Normaliza non-breaking space (U+00A0) que o Intl produz para um espaço comum.
-  return n
-    .toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-    .replace(/ /g, " ");
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/ /g, " ");
 }
 
 export function parseBRL(input: string): Money {
