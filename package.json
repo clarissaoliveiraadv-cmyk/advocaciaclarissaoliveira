@@ -1,16 +1,44 @@
 {
-  "name": "co-advocacia",
-  "version": "1.0.0",
+  "name": "advocacia-clarissa-oliveira",
+  "version": "0.1.0",
   "private": true,
-  "description": "Sistema de gestão jurídica — Clarissa Oliveira Advocacia (PWA)",
-  "assetVersion": 157,
   "scripts": {
-    "build": "node apply.js",
-    "build:bump": "node apply.js --bump",
-    "check": "node --check bundle.js",
-    "version:show": "node -p \"require('./package.json').assetVersion\""
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts"
   },
-  "engines": {
-    "node": ">=18"
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.7.4",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "next": "^15.5.18",
+    "next-auth": "5.0.0-beta.25",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.5.18",
+    "postcss": "^8.4.49",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
