@@ -7,27 +7,31 @@ function brl(n: number) {
 }
 
 export default async function DashboardPage() {
-  const [contas, totalRecebiveisPrevistos, totalRecebidoMes, totalRessarcirPendente] = await Promise.all([
-    prisma.contaBancaria.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" } }),
-    prisma.recebivel.aggregate({
-      _sum: { valorParcela: true },
-      where: { status: "PREVISTA" },
-    }),
-    prisma.recebivel.aggregate({
-      _sum: { valorParcela: true },
-      where: {
-        status: { in: ["RECEBIDA", "REPASSADA"] },
-        dataRecebimento: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
-      },
-    }),
-    prisma.ressarcimento.aggregate({
-      _sum: { valor: true },
-      where: { status: "PAGO_PELO_ESCRITORIO" },
-    }),
-  ]);
+  const [contas, totalRecebiveisPrevistos, totalRecebidoMes, totalRessarcirPendente] =
+    await Promise.all([
+      prisma.contaBancaria.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" } }),
+      prisma.recebivel.aggregate({
+        _sum: { valorParcela: true },
+        where: { status: "PREVISTA" },
+      }),
+      prisma.recebivel.aggregate({
+        _sum: { valorParcela: true },
+        where: {
+          status: { in: ["RECEBIDA", "REPASSADA"] },
+          dataRecebimento: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+        },
+      }),
+      prisma.ressarcimento.aggregate({
+        _sum: { valor: true },
+        where: { status: "PAGO_PELO_ESCRITORIO" },
+      }),
+    ]);
 
   const cards = [
-    { label: "Recebíveis previstos", value: Number(totalRecebiveisPrevistos._sum.valorParcela ?? 0) },
+    {
+      label: "Recebíveis previstos",
+      value: Number(totalRecebiveisPrevistos._sum.valorParcela ?? 0),
+    },
     { label: "Recebido neste mês", value: Number(totalRecebidoMes._sum.valorParcela ?? 0) },
     { label: "Ressarcimento pendente", value: Number(totalRessarcirPendente._sum.valor ?? 0) },
     { label: "Contas ativas", value: contas.length, isCount: true },
@@ -55,7 +59,8 @@ export default async function DashboardPage() {
         <h2 className="mb-4 text-lg font-semibold">Contas bancárias</h2>
         {contas.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Nenhuma conta cadastrada. Rode <code className="rounded bg-slate-100 px-1">npm run db:seed</code> para popular.
+            Nenhuma conta cadastrada. Rode{" "}
+            <code className="rounded bg-slate-100 px-1">npm run db:seed</code> para popular.
           </p>
         ) : (
           <table className="w-full text-sm">

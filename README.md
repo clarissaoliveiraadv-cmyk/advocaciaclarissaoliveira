@@ -6,10 +6,18 @@ Baseado na **Especificação Funcional** (documento `ESPECI1.DOC`).
 
 ## Stack
 
-- **Next.js 15** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS**
+- **Next.js 15** (App Router) + **React 19** + **TypeScript** strict
+- **Tailwind CSS** + **shadcn/ui** (Radix UI primitives)
 - **Prisma** ORM + **PostgreSQL**
 - **Auth.js v5** (NextAuth) — login por credenciais, perfis (`ADMIN`, `SOCIA`, `SECRETARIA`, `PARCEIRO_LEITURA`)
+- **React Hook Form + Zod** — validação única para form e Server Actions
+- **Vitest** (unit) — Playwright entra na Slice 2
+- **ESLint + Prettier + Husky + lint-staged** — pre-commit obrigatório
+
+## Documentação arquitetural
+
+- [`docs/arquitetura-financeira.md`](./docs/arquitetura-financeira.md) — premissas das 3 camadas (Lançamento / Recebível / Distribuição), regra "sistema sugere, usuário confirma", beneficiários de distribuição
+- [`docs/CONVENCOES.md`](./docs/CONVENCOES.md) — regras de código (vertical slices, limites de tamanho, sem `any`, etc.)
 
 ## Setup
 
@@ -55,18 +63,48 @@ prisma/
   seed.ts             # dados iniciais
 ```
 
-## Roadmap (conforme §13 da especificação)
+## Comandos
 
-### Fase 1 — MVP (reposição da planilha)
-- [x] Schema relacional cobrindo todas as entidades
-- [x] Login + perfis
-- [x] Layout / navegação
-- [ ] CRUD Clientes / Processos / Categorias / Parceiros / Contas
-- [ ] Movimento de Caixa (CRUD + filtros + totalizadores)
-- [ ] Recebíveis (CRUD + transição PREVISTA → RECEBIDA → REPASSADA)
-- [ ] Vinculação automática Recebível → Lançamento (eliminar duplo lançamento)
-- [ ] Ressarcimentos
-- [ ] Dashboard com saldos por conta e faturamento mensal
+```bash
+npm run dev          # servidor local
+npm run lint         # ESLint
+npm run typecheck    # tsc --noEmit
+npm test             # vitest (watch)
+npm test -- --run    # vitest (single run)
+npm run format       # prettier --write
+npm run build        # next build (validação completa)
+npm run db:push      # sincroniza schema com o banco
+npm run db:seed      # popular admin + contas + categorias
+```
+
+## Roadmap
+
+### Slice 0 — Fundação ✅
+- Auth.js v5 + perfis, guards de permissão
+- shadcn/ui (Button, Input, Form, Card, Table, Dialog, Select, Sonner)
+- Helpers monetários (`src/lib/money.ts`) com testes
+- Helper de auditoria (`src/lib/audit.ts`)
+- ESLint + Prettier + Husky + lint-staged
+- Vitest configurado
+- CI (lint + typecheck + test + build em PRs)
+- Estrutura de módulos (`src/modules/`)
+- Docs arquiteturais (3 camadas + "sistema sugere, usuário confirma")
+
+### Slice 1 — Cadastros essenciais (próximo)
+Clientes → Processos → Contas → Categorias → Parceiros (um PR por entidade).
+
+### Slice 2 — Movimento de Caixa
+CRUD + filtros (mês/conta/categoria) + transferência entre contas (2 lançamentos vinculados) + saldo por conta.
+
+### Slice 3 — Recebíveis Jurídicos
+Inclui introdução do modelo `Distribuicao` / `ItemDistribuicao` (3ª camada).
+"Marcar recebido" → tela de revisão da distribuição sugerida → usuário confirma → gera lançamentos.
+
+### Slice 4 — Prestação de Contas
+Demonstrativo por processo: valor recebido, honorários, sucumbência, perito, parceiro, ressarcimento, repasse líquido.
+
+### Slice 5 — Dashboard real
+Saldos por conta calculados de `Lancamento`, faturamento líquido do mês, gráficos.
 
 ### Fase 2 — Parcerias e Sucumbência
 - [ ] Parceria Pagável

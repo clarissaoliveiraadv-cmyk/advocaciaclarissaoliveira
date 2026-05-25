@@ -21,8 +21,18 @@ async function main() {
 
   // ---- CONTAS BANCÁRIAS PADRÃO (espec §8.1) ----
   const contas = [
-    { codigo: "INTER_PJ", nome: "Banco Inter PJ", tipo: TipoConta.CONTA_CORRENTE, banco: "Banco Inter" },
-    { codigo: "INTER_PF", nome: "Inter PF / Cora", tipo: TipoConta.CONTA_CORRENTE, banco: "Banco Inter / Cora" },
+    {
+      codigo: "INTER_PJ",
+      nome: "Banco Inter PJ",
+      tipo: TipoConta.CONTA_CORRENTE,
+      banco: "Banco Inter",
+    },
+    {
+      codigo: "INTER_PF",
+      nome: "Inter PF / Cora",
+      tipo: TipoConta.CONTA_CORRENTE,
+      banco: "Banco Inter / Cora",
+    },
     { codigo: "DIN", nome: "Caixa Físico", tipo: TipoConta.CAIXA_FISICO, banco: null },
   ];
   for (const c of contas) {
@@ -45,18 +55,24 @@ async function main() {
     { nome: "Ressarcimento Recebido", tipo: TipoCategoria.RECEITA },
   ];
   for (const cat of categorias) {
-    await prisma.categoria.upsert({
-      where: { nome_categoriaPaiId: { nome: cat.nome, categoriaPaiId: null as unknown as string } },
-      update: {},
-      create: cat,
-    }).catch(async () => {
-      // Prisma exige categoriaPaiId não-null no compound key; fallback findFirst+create
-      const existing = await prisma.categoria.findFirst({ where: { nome: cat.nome, categoriaPaiId: null } });
-      if (!existing) await prisma.categoria.create({ data: cat });
-    });
+    await prisma.categoria
+      .upsert({
+        where: {
+          nome_categoriaPaiId: { nome: cat.nome, categoriaPaiId: null as unknown as string },
+        },
+        update: {},
+        create: cat,
+      })
+      .catch(async () => {
+        // Prisma exige categoriaPaiId não-null no compound key; fallback findFirst+create
+        const existing = await prisma.categoria.findFirst({
+          where: { nome: cat.nome, categoriaPaiId: null },
+        });
+        if (!existing) await prisma.categoria.create({ data: cat });
+      });
   }
 
-  console.log("Seed concluído. Admin:", adminEmail);
+  console.warn("Seed concluído. Admin:", adminEmail);
 }
 
 main()
