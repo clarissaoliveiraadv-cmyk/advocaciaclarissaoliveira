@@ -52,6 +52,34 @@ export function validarCpfCnpj(value: string): boolean {
   return false;
 }
 
+/**
+ * Formato CNJ: NNNNNNN-DD.AAAA.J.TR.OOOO (20 dígitos)
+ * - Sequencial (7) · DD (2) · Ano (4) · Justiça (1) · Tribunal (2) · Origem (4)
+ */
+export function formatCnj(value: string): string {
+  const d = onlyDigits(value);
+  if (d.length !== 20) return value;
+  return d.replace(/^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})$/, "$1-$2.$3.$4.$5.$6");
+}
+
+/**
+ * Validação CNJ via algoritmo módulo 97 (Resolução CNJ 65/2008).
+ * DD = 98 - (numeroSemDD * 100 mod 97)
+ */
+export function validarCnj(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 20) return false;
+  const seq = d.slice(0, 7);
+  const dd = d.slice(7, 9);
+  const ano = d.slice(9, 13);
+  const j = d.slice(13, 14);
+  const tr = d.slice(14, 16);
+  const orig = d.slice(16, 20);
+  const semDd = `${seq}${ano}${j}${tr}${orig}`;
+  const computed = 98 - Number((BigInt(semDd) * 100n) % 97n);
+  return computed === Number(dd);
+}
+
 export function blankToUndefined(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();

@@ -72,16 +72,26 @@ enum NaturezaProcesso {
   OUTRO
 }
 
+enum StatusProcesso {
+  EM_ANDAMENTO
+  SUSPENSO
+  ENCERRADO
+  ARQUIVADO
+}
+
 model Processo {
-  id            String              @id @default(cuid())
-  clienteId     String
-  numeroCnj     String?
-  natureza      NaturezaProcesso    @default(OUTRO)
-  descricao     String?
-  vara          String?
-  ativo         Boolean             @default(true)
-  criadoEm      DateTime            @default(now())
-  atualizadoEm  DateTime            @updatedAt
+  id              String              @id @default(cuid())
+  clienteId       String
+  numeroCnj       String?             @unique
+  natureza        NaturezaProcesso    @default(OUTRO)
+  vara            String?
+  tribunal        String?
+  parteContraria  String?
+  status          StatusProcesso      @default(EM_ANDAMENTO)
+  observacoes     String?
+  ativo           Boolean             @default(true)
+  criadoEm        DateTime            @default(now())
+  atualizadoEm    DateTime            @updatedAt
 
   cliente         Cliente         @relation(fields: [clienteId], references: [id])
   recebiveis      Recebivel[]
@@ -91,7 +101,7 @@ model Processo {
   lancamentos     Lancamento[]
 
   @@index([clienteId])
-  @@index([numeroCnj])
+  @@index([status])
   @@map("processo")
 }
 

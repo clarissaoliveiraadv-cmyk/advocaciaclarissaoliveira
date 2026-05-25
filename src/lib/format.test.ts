@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   blankToUndefined,
+  formatCnj,
   formatCpfCnpj,
   formatTelefone,
   onlyDigits,
+  validarCnj,
   validarCnpj,
   validarCpf,
   validarCpfCnpj,
@@ -43,6 +45,18 @@ describe("format", () => {
     expect(validarCpfCnpj("529.982.247-25")).toBe(true);
     expect(validarCpfCnpj("11.222.333/0001-81")).toBe(true);
     expect(validarCpfCnpj("123")).toBe(false);
+  });
+
+  it("formatCnj aplica máscara padrão para 20 dígitos", () => {
+    expect(formatCnj("00008374320238130024")).toBe("0000837-43.2023.8.13.0024");
+    expect(formatCnj("123")).toBe("123");
+  });
+
+  it("validarCnj aceita CNJ válido e rejeita DD errado", () => {
+    expect(validarCnj("0000837-43.2023.8.13.0024")).toBe(true);
+    expect(validarCnj("0000001-45.2024.8.26.0001")).toBe(true);
+    expect(validarCnj("0000837-99.2023.8.13.0024")).toBe(false);
+    expect(validarCnj("123")).toBe(false);
   });
 
   it("blankToUndefined trata vazio e espaços", () => {
