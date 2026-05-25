@@ -16,7 +16,7 @@ const CADASTROS = [
     title: "Categorias",
     descricao: "Plano de contas: receitas e despesas (hierárquico).",
     icon: ListTree,
-    disponivel: false,
+    disponivel: true,
   },
   {
     href: "/cadastros/parceiros",
