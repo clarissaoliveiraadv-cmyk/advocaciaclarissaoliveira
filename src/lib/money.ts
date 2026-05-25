@@ -25,3 +25,28 @@ export function parseBRL(input: string): Money {
 export function isZero(value: Money | number | string): boolean {
   return new Decimal(value).isZero();
 }
+
+/**
+ * Converte fração (0..1) armazenada no banco para string humana com sinal "%".
+ * `0.34` → `"34,00%"`. `null`/`undefined`/inválido → `"—"`.
+ */
+export function toPercent(value: Money | number | string | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const n = value instanceof Decimal ? value.toNumber() : Number(value);
+  if (Number.isNaN(n)) return "—";
+  const pct = n * 100;
+  return (
+    pct.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    }) + "%"
+  );
+}
+
+/**
+ * Converte um percentual humano (0..100) na fração equivalente (0..1) para persistência.
+ * `34` → `Decimal(0.34)`.
+ */
+export function fromPercent(value: number | string): Money {
+  return new Decimal(value).div(100);
+}

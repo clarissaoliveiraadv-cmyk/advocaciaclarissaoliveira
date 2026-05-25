@@ -23,7 +23,7 @@ const CADASTROS = [
     title: "Parceiros / Advogados",
     descricao: "Sócia, parceiros externos e funcionários para sucumbência e repasses.",
     icon: UserCog,
-    disponivel: false,
+    disponivel: true,
   },
 ] as const;
 
