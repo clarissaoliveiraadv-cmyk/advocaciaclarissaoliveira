@@ -177,7 +177,7 @@ async function main() {
     },
   });
 
-  const lanc = await prisma.lancamento.create({
+  await prisma.lancamento.create({
     data: {
       data: meio,
       descricao: "Honorário recebido — João Pereira",

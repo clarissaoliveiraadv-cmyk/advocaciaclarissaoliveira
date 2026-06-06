@@ -1,6 +1,6 @@
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
-async function shot(name: string, url: string, after?: (page: import("playwright").Page) => Promise<void>) {
+async function shot(name: string, url: string, after?: (page: Page) => Promise<void>) {
   const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   await page.goto(url, { waitUntil: "networkidle" });
