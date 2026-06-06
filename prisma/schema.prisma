@@ -22,17 +22,18 @@ enum Perfil {
 }
 
 model Usuario {
-  id            String    @id @default(cuid())
-  nome          String
-  email         String    @unique
-  senhaHash     String
-  perfil        Perfil    @default(SECRETARIA)
-  ativo         Boolean   @default(true)
-  criadoEm      DateTime  @default(now())
-  atualizadoEm  DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  perfil       Perfil   @default(SECRETARIA)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  lancamentosCriados Lancamento[] @relation("LancamentoCriadoPor")
-  auditorias         Auditoria[]
+  lancamentosCriados   Lancamento[]   @relation("LancamentoCriadoPor")
+  distribuicoesCriadas Distribuicao[] @relation("DistribuicaoCriadoPor")
+  auditorias           Auditoria[]
 
   @@map("usuario")
 }
@@ -42,22 +43,23 @@ model Usuario {
 // =====================================================================
 
 model Cliente {
-  id            String    @id @default(cuid())
-  nome          String
-  cpfCnpj       String?
-  email         String?
-  telefone      String?
-  observacoes   String?
-  ativo         Boolean   @default(true)
-  criadoEm      DateTime  @default(now())
-  atualizadoEm  DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  nome         String
+  cpfCnpj      String?
+  email        String?
+  telefone     String?
+  observacoes  String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  processos       Processo[]
-  recebiveis      Recebivel[]
-  ressarcimentos  Ressarcimento[]
-  sucumbencias    Sucumbencia[]
-  parceriasPagas  ParceriaPaga[]
-  lancamentos     Lancamento[]
+  processos         Processo[]
+  recebiveis        Recebivel[]
+  ressarcimentos    Ressarcimento[]
+  sucumbencias      Sucumbencia[]
+  parceriasPagas    ParceriaPaga[]
+  lancamentos       Lancamento[]
+  itensDistribuicao ItemDistribuicao[]
 
   @@index([nome])
   @@map("cliente")
@@ -80,25 +82,25 @@ enum StatusProcesso {
 }
 
 model Processo {
-  id              String              @id @default(cuid())
-  clienteId       String
-  numeroCnj       String?             @unique
-  natureza        NaturezaProcesso    @default(OUTRO)
-  vara            String?
-  tribunal        String?
-  parteContraria  String?
-  status          StatusProcesso      @default(EM_ANDAMENTO)
-  observacoes     String?
-  ativo           Boolean             @default(true)
-  criadoEm        DateTime            @default(now())
-  atualizadoEm    DateTime            @updatedAt
+  id             String           @id @default(cuid())
+  clienteId      String
+  numeroCnj      String?          @unique
+  natureza       NaturezaProcesso @default(OUTRO)
+  vara           String?
+  tribunal       String?
+  parteContraria String?
+  status         StatusProcesso   @default(EM_ANDAMENTO)
+  observacoes    String?
+  ativo          Boolean          @default(true)
+  criadoEm       DateTime         @default(now())
+  atualizadoEm   DateTime         @updatedAt
 
-  cliente         Cliente         @relation(fields: [clienteId], references: [id])
-  recebiveis      Recebivel[]
-  ressarcimentos  Ressarcimento[]
-  sucumbencias    Sucumbencia[]
-  parceriasPagas  ParceriaPaga[]
-  lancamentos     Lancamento[]
+  cliente        Cliente         @relation(fields: [clienteId], references: [id])
+  recebiveis     Recebivel[]
+  ressarcimentos Ressarcimento[]
+  sucumbencias   Sucumbencia[]
+  parceriasPagas ParceriaPaga[]
+  lancamentos    Lancamento[]
 
   @@index([clienteId])
   @@index([status])
@@ -112,18 +114,19 @@ enum TipoParceiro {
 }
 
 model AdvogadoParceiro {
-  id                            String      @id @default(cuid())
-  nome                          String
-  tipo                          TipoParceiro @default(PARCEIRO_EXTERNO)
-  oab                           String?
-  percentualPadraoSucumbencia   Decimal?    @db.Decimal(5, 4)
-  ativo                         Boolean     @default(true)
-  criadoEm                      DateTime    @default(now())
-  atualizadoEm                  DateTime    @updatedAt
+  id                          String       @id @default(cuid())
+  nome                        String
+  tipo                        TipoParceiro @default(PARCEIRO_EXTERNO)
+  oab                         String?
+  percentualPadraoSucumbencia Decimal?     @db.Decimal(5, 4)
+  ativo                       Boolean      @default(true)
+  criadoEm                    DateTime     @default(now())
+  atualizadoEm                DateTime     @updatedAt
 
   recebiveis        Recebivel[]
   parceriasPagas    ParceriaPaga[]
   sucumbencias      Sucumbencia[]
+  itensDistribuicao ItemDistribuicao[]
 
   @@map("advogado_parceiro")
 }
@@ -136,21 +139,21 @@ enum TipoConta {
 }
 
 model ContaBancaria {
-  id            String     @id @default(cuid())
-  codigo        String     @unique   // ex: DIN, INTER, CEF
-  nome          String
-  tipo          TipoConta  @default(CONTA_CORRENTE)
-  banco         String?
-  agencia       String?
-  conta         String?
-  saldoInicial  Decimal    @default(0) @db.Decimal(14, 2)
-  ativo         Boolean    @default(true)
-  criadoEm      DateTime   @default(now())
-  atualizadoEm  DateTime   @updatedAt
+  id           String    @id @default(cuid())
+  codigo       String    @unique // ex: DIN, INTER, CEF
+  nome         String
+  tipo         TipoConta @default(CONTA_CORRENTE)
+  banco        String?
+  agencia      String?
+  conta        String?
+  saldoInicial Decimal   @default(0) @db.Decimal(14, 2)
+  ativo        Boolean   @default(true)
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
 
-  lancamentosConta       Lancamento[] @relation("LancamentoConta")
-  recebimentosConta      Recebivel[]  @relation("RecebivelContaRecebimento")
-  repassesConta          Recebivel[]  @relation("RecebivelContaRepasse")
+  lancamentosConta  Lancamento[] @relation("LancamentoConta")
+  recebimentosConta Recebivel[]  @relation("RecebivelContaRecebimento")
+  repassesConta     Recebivel[]  @relation("RecebivelContaRepasse")
 
   @@map("conta_bancaria")
 }
@@ -161,18 +164,18 @@ enum TipoCategoria {
 }
 
 model Categoria {
-  id              String          @id @default(cuid())
-  nome            String
-  tipo            TipoCategoria
-  isPessoal       Boolean         @default(false)
-  categoriaPaiId  String?
-  ativo           Boolean         @default(true)
-  criadoEm        DateTime        @default(now())
-  atualizadoEm    DateTime        @updatedAt
+  id             String        @id @default(cuid())
+  nome           String
+  tipo           TipoCategoria
+  isPessoal      Boolean       @default(false)
+  categoriaPaiId String?
+  ativo          Boolean       @default(true)
+  criadoEm       DateTime      @default(now())
+  atualizadoEm   DateTime      @updatedAt
 
-  categoriaPai    Categoria?      @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
-  filhas          Categoria[]     @relation("CategoriaHierarquia")
-  lancamentos     Lancamento[]
+  categoriaPai Categoria?   @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
+  filhas       Categoria[]  @relation("CategoriaHierarquia")
+  lancamentos  Lancamento[]
 
   @@unique([nome, categoriaPaiId])
   @@map("categoria")
@@ -197,44 +200,119 @@ enum StatusRecebivel {
 }
 
 model Recebivel {
-  id                      String          @id @default(cuid())
-  processoId              String
-  clienteId               String          // denormalizado p/ query
-  dataPrevista            DateTime        @db.Date
-  tipoParcela             TipoParcela     @default(NORMAL)
-  numeroParcela           Int?
-  totalParcelas           Int?
-  valorIntegral           Decimal         @db.Decimal(14, 2)
-  valorParcela            Decimal         @db.Decimal(14, 2)
-  ressarcimentoEmbutido   Decimal         @default(0) @db.Decimal(14, 2)
-  percHonorarios          Decimal         @db.Decimal(5, 4)
-  parceiroId              String?
-  percParceiro            Decimal?        @db.Decimal(5, 4)
+  id                    String      @id @default(cuid())
+  processoId            String
+  clienteId             String // denormalizado p/ query
+  dataPrevista          DateTime    @db.Date
+  tipoParcela           TipoParcela @default(NORMAL)
+  numeroParcela         Int?
+  totalParcelas         Int?
+  valorIntegral         Decimal     @db.Decimal(14, 2)
+  valorParcela          Decimal     @db.Decimal(14, 2)
+  ressarcimentoEmbutido Decimal     @default(0) @db.Decimal(14, 2)
+  percHonorarios        Decimal     @db.Decimal(5, 4)
+  parceiroId            String?
+  percParceiro          Decimal?    @db.Decimal(5, 4)
 
-  status                  StatusRecebivel @default(PREVISTA)
-  dataRecebimento         DateTime?       @db.Date
-  contaRecebimentoId      String?
-  dataRepasseCliente      DateTime?       @db.Date
-  contaRepasseId          String?
-  formaRepasse            String?
+  status             StatusRecebivel @default(PREVISTA)
+  dataRecebimento    DateTime?       @db.Date
+  contaRecebimentoId String?
+  dataRepasseCliente DateTime?       @db.Date
+  contaRepasseId     String?
+  formaRepasse       String?
 
-  observacoes             String?
-  criadoEm                DateTime        @default(now())
-  atualizadoEm            DateTime        @updatedAt
+  observacoes  String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  processo            Processo            @relation(fields: [processoId], references: [id])
-  cliente             Cliente             @relation(fields: [clienteId], references: [id])
-  parceiro            AdvogadoParceiro?   @relation(fields: [parceiroId], references: [id])
-  contaRecebimento    ContaBancaria?      @relation("RecebivelContaRecebimento", fields: [contaRecebimentoId], references: [id])
-  contaRepasse        ContaBancaria?      @relation("RecebivelContaRepasse", fields: [contaRepasseId], references: [id])
+  processo         Processo          @relation(fields: [processoId], references: [id])
+  cliente          Cliente           @relation(fields: [clienteId], references: [id])
+  parceiro         AdvogadoParceiro? @relation(fields: [parceiroId], references: [id])
+  contaRecebimento ContaBancaria?    @relation("RecebivelContaRecebimento", fields: [contaRecebimentoId], references: [id])
+  contaRepasse     ContaBancaria?    @relation("RecebivelContaRepasse", fields: [contaRepasseId], references: [id])
 
-  lancamentos         Lancamento[]
-  ressarcimentos      Ressarcimento[]
+  lancamentos    Lancamento[]
+  ressarcimentos Ressarcimento[]
+  distribuicao   Distribuicao?
 
   @@index([status, dataPrevista])
   @@index([clienteId, processoId])
   @@index([processoId])
   @@map("recebivel")
+}
+
+// =====================================================================
+// DISTRIBUIÇÃO JURÍDICA (3ª camada — espec docs/arquitetura-financeira.md)
+// =====================================================================
+
+enum TipoBeneficiario {
+  CLIENTE
+  ESCRITORIO_CONTRATUAL
+  ESCRITORIO_SUCUMBENCIA
+  PARCEIRO
+  PERITO
+  FGTS
+  RESSARCIMENTO
+  CUSTAS
+  OUTRO
+}
+
+enum StatusDistribuicao {
+  RASCUNHO
+  CONFIRMADA
+  REVERTIDA
+}
+
+enum StatusItemDistribuicao {
+  PENDENTE_REPASSE
+  REPASSADO
+  RETIDO_CUSTODIA
+}
+
+model Distribuicao {
+  id                 String             @id @default(cuid())
+  recebivelId        String             @unique
+  valorBrutoRecebido Decimal            @db.Decimal(14, 2)
+  dataRecebimento    DateTime           @db.Date
+  observacoes        String?
+  status             StatusDistribuicao @default(RASCUNHO)
+  criadoPorId        String?
+  criadoEm           DateTime           @default(now())
+  atualizadoEm       DateTime           @updatedAt
+
+  recebivel Recebivel          @relation(fields: [recebivelId], references: [id])
+  criadoPor Usuario?           @relation("DistribuicaoCriadoPor", fields: [criadoPorId], references: [id])
+  itens     ItemDistribuicao[]
+
+  @@index([status])
+  @@map("distribuicao")
+}
+
+model ItemDistribuicao {
+  id             String                 @id @default(cuid())
+  distribuicaoId String
+  beneficiario   TipoBeneficiario
+  descricao      String?
+  valor          Decimal                @db.Decimal(14, 2)
+  status         StatusItemDistribuicao @default(PENDENTE_REPASSE)
+
+  // FKs polimórficos opcionais — preenchidos conforme beneficiario
+  clienteId    String?
+  parceiroId   String?
+  lancamentoId String?
+
+  observacoes  String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  distribuicao Distribuicao      @relation(fields: [distribuicaoId], references: [id], onDelete: Cascade)
+  cliente      Cliente?          @relation(fields: [clienteId], references: [id])
+  parceiro     AdvogadoParceiro? @relation(fields: [parceiroId], references: [id])
+  lancamento   Lancamento?       @relation(fields: [lancamentoId], references: [id])
+
+  @@index([distribuicaoId])
+  @@index([beneficiario, status])
+  @@map("item_distribuicao")
 }
 
 // =====================================================================
@@ -248,35 +326,36 @@ enum TipoLancamento {
 }
 
 model Lancamento {
-  id                   String           @id @default(cuid())
-  data                 DateTime         @db.Date
-  descricao            String
-  contaId              String
-  tipo                 TipoLancamento
-  valor                Decimal          @db.Decimal(14, 2)
-  categoriaId          String
+  id          String         @id @default(cuid())
+  data        DateTime       @db.Date
+  descricao   String
+  contaId     String
+  tipo        TipoLancamento
+  valor       Decimal        @db.Decimal(14, 2)
+  categoriaId String
 
-  clienteId            String?
-  processoId           String?
-  recebivelId          String?
-  ressarcimentoId      String?
-  transferenciaParId   String?
+  clienteId          String?
+  processoId         String?
+  recebivelId        String?
+  ressarcimentoId    String?
+  transferenciaParId String?
 
-  comprovanteUrl       String?
-  observacoes          String?
-  criadoPorId          String?
-  criadoEm             DateTime         @default(now())
-  atualizadoEm         DateTime         @updatedAt
+  comprovanteUrl String?
+  observacoes    String?
+  criadoPorId    String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
 
-  conta               ContaBancaria    @relation("LancamentoConta", fields: [contaId], references: [id])
-  categoria           Categoria        @relation(fields: [categoriaId], references: [id])
-  cliente             Cliente?         @relation(fields: [clienteId], references: [id])
-  processo            Processo?        @relation(fields: [processoId], references: [id])
-  recebivel           Recebivel?       @relation(fields: [recebivelId], references: [id])
-  ressarcimento       Ressarcimento?   @relation(fields: [ressarcimentoId], references: [id])
-  transferenciaPar    Lancamento?      @relation("LancamentoTransferencia", fields: [transferenciaParId], references: [id])
-  parDe               Lancamento[]     @relation("LancamentoTransferencia")
-  criadoPor           Usuario?         @relation("LancamentoCriadoPor", fields: [criadoPorId], references: [id])
+  conta             ContaBancaria      @relation("LancamentoConta", fields: [contaId], references: [id])
+  categoria         Categoria          @relation(fields: [categoriaId], references: [id])
+  cliente           Cliente?           @relation(fields: [clienteId], references: [id])
+  processo          Processo?          @relation(fields: [processoId], references: [id])
+  recebivel         Recebivel?         @relation(fields: [recebivelId], references: [id])
+  ressarcimento     Ressarcimento?     @relation(fields: [ressarcimentoId], references: [id])
+  transferenciaPar  Lancamento?        @relation("LancamentoTransferencia", fields: [transferenciaParId], references: [id])
+  parDe             Lancamento[]       @relation("LancamentoTransferencia")
+  criadoPor         Usuario?           @relation("LancamentoCriadoPor", fields: [criadoPorId], references: [id])
+  itensDistribuicao ItemDistribuicao[]
 
   @@index([data, contaId])
   @@index([categoriaId, data])
@@ -295,22 +374,22 @@ enum StatusRessarcimento {
 }
 
 model Ressarcimento {
-  id                  String                @id @default(cuid())
-  clienteId           String
-  processoId          String
-  data                DateTime              @db.Date
-  descricao           String
-  valor               Decimal               @db.Decimal(14, 2)
-  status              StatusRessarcimento   @default(PAGO_PELO_ESCRITORIO)
-  dataReembolso       DateTime?             @db.Date
-  recebivelId         String?
-  criadoEm            DateTime              @default(now())
-  atualizadoEm        DateTime              @updatedAt
+  id            String              @id @default(cuid())
+  clienteId     String
+  processoId    String
+  data          DateTime            @db.Date
+  descricao     String
+  valor         Decimal             @db.Decimal(14, 2)
+  status        StatusRessarcimento @default(PAGO_PELO_ESCRITORIO)
+  dataReembolso DateTime?           @db.Date
+  recebivelId   String?
+  criadoEm      DateTime            @default(now())
+  atualizadoEm  DateTime            @updatedAt
 
-  cliente       Cliente      @relation(fields: [clienteId], references: [id])
-  processo      Processo     @relation(fields: [processoId], references: [id])
-  recebivel     Recebivel?   @relation(fields: [recebivelId], references: [id])
-  lancamentos   Lancamento[]
+  cliente     Cliente      @relation(fields: [clienteId], references: [id])
+  processo    Processo     @relation(fields: [processoId], references: [id])
+  recebivel   Recebivel?   @relation(fields: [recebivelId], references: [id])
+  lancamentos Lancamento[]
 
   @@index([clienteId, processoId])
   @@index([status])
@@ -322,24 +401,24 @@ model Ressarcimento {
 // =====================================================================
 
 model ParceriaPaga {
-  id                  String      @id @default(cuid())
-  parceiroId          String
-  clienteId           String
-  processoId          String
-  dataAcordo          DateTime    @db.Date
-  valorTotal          Decimal     @db.Decimal(14, 2)
-  valorRecebido       Decimal     @default(0) @db.Decimal(14, 2)
-  percHonorarios      Decimal     @db.Decimal(5, 4)
-  ressarcimentos      Decimal     @default(0) @db.Decimal(14, 2)
-  percParceiro        Decimal     @db.Decimal(5, 4)
-  dataPgto            DateTime?   @db.Date
-  observacoes         String?
-  criadoEm            DateTime    @default(now())
-  atualizadoEm        DateTime    @updatedAt
+  id             String    @id @default(cuid())
+  parceiroId     String
+  clienteId      String
+  processoId     String
+  dataAcordo     DateTime  @db.Date
+  valorTotal     Decimal   @db.Decimal(14, 2)
+  valorRecebido  Decimal   @default(0) @db.Decimal(14, 2)
+  percHonorarios Decimal   @db.Decimal(5, 4)
+  ressarcimentos Decimal   @default(0) @db.Decimal(14, 2)
+  percParceiro   Decimal   @db.Decimal(5, 4)
+  dataPgto       DateTime? @db.Date
+  observacoes    String?
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
 
-  parceiro    AdvogadoParceiro    @relation(fields: [parceiroId], references: [id])
-  cliente     Cliente             @relation(fields: [clienteId], references: [id])
-  processo    Processo            @relation(fields: [processoId], references: [id])
+  parceiro AdvogadoParceiro @relation(fields: [parceiroId], references: [id])
+  cliente  Cliente          @relation(fields: [clienteId], references: [id])
+  processo Processo         @relation(fields: [processoId], references: [id])
 
   @@index([parceiroId])
   @@index([clienteId, processoId])
@@ -351,29 +430,29 @@ model ParceriaPaga {
 // =====================================================================
 
 model Sucumbencia {
-  id                          String      @id @default(cuid())
-  clienteId                   String
-  processoId                  String
-  valorTotal                  Decimal     @db.Decimal(14, 2)
-  dataRecebimento             DateTime    @db.Date
+  id              String   @id @default(cuid())
+  clienteId       String
+  processoId      String
+  valorTotal      Decimal  @db.Decimal(14, 2)
+  dataRecebimento DateTime @db.Date
 
-  parceiroExternoId           String?
-  percParceiroExterno         Decimal?    @db.Decimal(5, 4)
+  parceiroExternoId   String?
+  percParceiroExterno Decimal? @db.Decimal(5, 4)
 
-  percEscritorio              Decimal     @default(0.34) @db.Decimal(5, 4)
-  percClarissa                Decimal     @default(0.33) @db.Decimal(5, 4)
-  percVivian                  Decimal     @default(0.33) @db.Decimal(5, 4)
+  percEscritorio Decimal @default(0.34) @db.Decimal(5, 4)
+  percClarissa   Decimal @default(0.33) @db.Decimal(5, 4)
+  percVivian     Decimal @default(0.33) @db.Decimal(5, 4)
 
-  dataRepasseClarissa         DateTime?   @db.Date
-  dataRepasseVivian           DateTime?   @db.Date
+  dataRepasseClarissa DateTime? @db.Date
+  dataRepasseVivian   DateTime? @db.Date
 
-  observacoes                 String?
-  criadoEm                    DateTime    @default(now())
-  atualizadoEm                DateTime    @updatedAt
+  observacoes  String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  cliente           Cliente             @relation(fields: [clienteId], references: [id])
-  processo          Processo            @relation(fields: [processoId], references: [id])
-  parceiroExterno   AdvogadoParceiro?   @relation(fields: [parceiroExternoId], references: [id])
+  cliente         Cliente           @relation(fields: [clienteId], references: [id])
+  processo        Processo          @relation(fields: [processoId], references: [id])
+  parceiroExterno AdvogadoParceiro? @relation(fields: [parceiroExternoId], references: [id])
 
   @@index([dataRecebimento])
   @@index([clienteId, processoId])
@@ -391,16 +470,16 @@ enum AcaoAuditoria {
 }
 
 model Auditoria {
-  id          String          @id @default(cuid())
-  entidade    String          // ex: "lancamento", "recebivel"
+  id          String        @id @default(cuid())
+  entidade    String // ex: "lancamento", "recebivel"
   entidadeId  String
   acao        AcaoAuditoria
   dadosAntes  Json?
   dadosDepois Json?
   usuarioId   String?
-  criadoEm    DateTime        @default(now())
+  criadoEm    DateTime      @default(now())
 
-  usuario     Usuario?        @relation(fields: [usuarioId], references: [id])
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
 
   @@index([entidade, entidadeId])
   @@index([criadoEm])
