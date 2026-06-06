@@ -13,14 +13,20 @@ import { toBRL } from "@/lib/money";
 import { formatDataBR } from "@/lib/datas";
 
 import { TIPO_BENEFICIARIO_LABELS } from "../schema";
-import type { DistribuicaoCompleta } from "../queries";
+import { RepasseAcoes } from "./repasse-acoes";
+import type { CategoriaDespesaOpcao, ContaOpcao, DistribuicaoCompleta } from "../queries";
 
-type Props = { distribuicao: DistribuicaoCompleta };
+type Props = {
+  distribuicao: DistribuicaoCompleta;
+  contas: ContaOpcao[];
+  categoriasDespesa: CategoriaDespesaOpcao[];
+};
 
-export function DistribuicaoReadonly({ distribuicao }: Props) {
+export function DistribuicaoReadonly({ distribuicao, contas, categoriasDespesa }: Props) {
   const total = distribuicao.itens.reduce((acc, i) => acc + Number(i.valor), 0);
   const repassados = distribuicao.itens.filter((i) => i.status === "REPASSADO").length;
   const pendentes = distribuicao.itens.filter((i) => i.status === "PENDENTE_REPASSE").length;
+  const custodia = distribuicao.itens.filter((i) => i.status === "RETIDO_CUSTODIA").length;
 
   return (
     <div className="space-y-4">
@@ -41,7 +47,8 @@ export function DistribuicaoReadonly({ distribuicao }: Props) {
           </dd>
           <dt className="text-muted-foreground">Itens</dt>
           <dd className="sm:col-span-2">
-            {distribuicao.itens.length} ({repassados} repassados, {pendentes} pendentes)
+            {distribuicao.itens.length} ({repassados} repassados, {custodia} em custódia,{" "}
+            {pendentes} pendentes)
           </dd>
           {distribuicao.observacoes && (
             <>
@@ -61,32 +68,43 @@ export function DistribuicaoReadonly({ distribuicao }: Props) {
               <TableHead>Vínculo</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {distribuicao.itens.map((i) => (
-              <TableRow key={i.id}>
-                <TableCell>
-                  <Badge variant="outline">{TIPO_BENEFICIARIO_LABELS[i.beneficiario]}</Badge>
-                </TableCell>
-                <TableCell className="text-sm">{i.descricao ?? "—"}</TableCell>
-                <TableCell className="text-sm">
-                  {i.cliente?.nome ?? i.parceiro?.nome ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={i.status === "REPASSADO" ? "success" : "muted"}>
-                    {i.status === "REPASSADO"
-                      ? "Repassado"
-                      : i.status === "PENDENTE_REPASSE"
-                        ? "Pendente"
-                        : "Em custódia"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
-                  {toBRL(Number(i.valor))}
-                </TableCell>
-              </TableRow>
-            ))}
+            {distribuicao.itens.map((i) => {
+              const descricaoSugerida = montarDescricaoRepasse(i);
+              return (
+                <TableRow key={i.id}>
+                  <TableCell>
+                    <Badge variant="outline">{TIPO_BENEFICIARIO_LABELS[i.beneficiario]}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">{i.descricao ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {i.cliente?.nome ?? i.parceiro?.nome ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={i.status} />
+                  </TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {toBRL(Number(i.valor))}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1">
+                      <RepasseAcoes
+                        itemId={i.id}
+                        status={i.status}
+                        beneficiario={i.beneficiario}
+                        valor={Number(i.valor)}
+                        descricaoSugerida={descricaoSugerida}
+                        contas={contas}
+                        categoriasDespesa={categoriasDespesa}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             <TableRow>
               <TableCell colSpan={4} className="text-right text-sm font-medium">
                 Total
@@ -94,10 +112,31 @@ export function DistribuicaoReadonly({ distribuicao }: Props) {
               <TableCell className="text-right font-mono font-semibold tabular-nums">
                 {toBRL(total)}
               </TableCell>
+              <TableCell />
             </TableRow>
           </TableBody>
         </Table>
       </div>
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: DistribuicaoCompleta["itens"][number]["status"] }) {
+  switch (status) {
+    case "REPASSADO":
+      return <Badge variant="success">Repassado</Badge>;
+    case "RETIDO_CUSTODIA":
+      return <Badge variant="secondary">Em custódia</Badge>;
+    case "PENDENTE_REPASSE":
+    default:
+      return <Badge variant="muted">Pendente</Badge>;
+  }
+}
+
+function montarDescricaoRepasse(item: DistribuicaoCompleta["itens"][number]): string {
+  const partes: string[] = ["Repasse"];
+  if (item.cliente?.nome) partes.push(`cliente ${item.cliente.nome}`);
+  else if (item.parceiro?.nome) partes.push(`parceiro ${item.parceiro.nome}`);
+  if (item.descricao) partes.push(`· ${item.descricao}`);
+  return partes.join(" ");
 }

@@ -71,6 +71,16 @@ export async function listOpcoesCategoriasReceita(): Promise<CategoriaReceitaOpc
   });
 }
 
+export type CategoriaDespesaOpcao = Pick<Categoria, "id" | "nome" | "isPessoal">;
+
+export async function listOpcoesCategoriasDespesa(): Promise<CategoriaDespesaOpcao[]> {
+  return prisma.categoria.findMany({
+    where: { ativo: true, tipo: "DESPESA" },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true, isPessoal: true },
+  });
+}
+
 export async function listOpcoesParceiros(): Promise<ParceiroOpcao[]> {
   return prisma.advogadoParceiro.findMany({
     where: { ativo: true },

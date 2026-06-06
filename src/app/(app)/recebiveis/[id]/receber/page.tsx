@@ -7,6 +7,7 @@ import {
   categoriaReceitaSugerida,
   getDistribuicaoCompleta,
   getRecebivelParaReceber,
+  listOpcoesCategoriasDespesa,
   listOpcoesCategoriasReceita,
   listOpcoesContas,
   listOpcoesParceiros,
@@ -27,14 +28,21 @@ export default async function ReceberRecebivelPage({ params }: { params: Params 
   const recebivel = await getRecebivelParaReceber(id);
   if (!recebivel) notFound();
 
-  const [contas, categoriasReceita, parceiros, defaultCategoriaId, distribuicao] =
-    await Promise.all([
-      listOpcoesContas(),
-      listOpcoesCategoriasReceita(),
-      listOpcoesParceiros(),
-      categoriaReceitaSugerida(),
-      getDistribuicaoCompleta(id),
-    ]);
+  const [
+    contas,
+    categoriasReceita,
+    categoriasDespesa,
+    parceiros,
+    defaultCategoriaId,
+    distribuicao,
+  ] = await Promise.all([
+    listOpcoesContas(),
+    listOpcoesCategoriasReceita(),
+    listOpcoesCategoriasDespesa(),
+    listOpcoesParceiros(),
+    categoriaReceitaSugerida(),
+    getDistribuicaoCompleta(id),
+  ]);
 
   const podeReceber = recebivel.status === StatusRecebivel.PREVISTA;
   const jaRecebido =
@@ -97,7 +105,11 @@ export default async function ReceberRecebivelPage({ params }: { params: Params 
 
       {jaRecebido && distribuicao && (
         <>
-          <DistribuicaoReadonly distribuicao={distribuicao} />
+          <DistribuicaoReadonly
+            distribuicao={distribuicao}
+            contas={contas}
+            categoriasDespesa={categoriasDespesa}
+          />
           <div className="flex justify-end pt-2">
             <ReverterButton recebivelId={recebivel.id} />
           </div>
