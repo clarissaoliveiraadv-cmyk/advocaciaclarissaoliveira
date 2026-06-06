@@ -83,12 +83,8 @@ describe("recebivelCreateSchema", () => {
   });
 
   it("numeroParcela rejeita decimal ou negativo", () => {
-    expect(
-      recebivelCreateSchema.safeParse({ ...base, numeroParcela: "1.5" }).success,
-    ).toBe(false);
-    expect(
-      recebivelCreateSchema.safeParse({ ...base, numeroParcela: "-2" }).success,
-    ).toBe(false);
+    expect(recebivelCreateSchema.safeParse({ ...base, numeroParcela: "1.5" }).success).toBe(false);
+    expect(recebivelCreateSchema.safeParse({ ...base, numeroParcela: "-2" }).success).toBe(false);
   });
 });
 

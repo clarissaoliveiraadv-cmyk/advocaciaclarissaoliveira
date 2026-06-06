@@ -16,6 +16,7 @@ import { formatCnj } from "@/lib/format";
 import { RecebivelFormDialog } from "./recebivel-form-dialog";
 import { RecebivelDeleteDialog } from "./recebivel-delete-dialog";
 import { RecebivelCancelToggle } from "./recebivel-row-actions";
+import { ReceberTriggerLink } from "@/modules/distribuicao/components/receber-trigger-link";
 import { STATUS_RECEBIVEL_LABELS, TIPO_PARCELA_LABELS } from "../schema";
 import type { ParceiroOpcao, ProcessoOpcao, RecebivelComRelacoes } from "../queries";
 
@@ -112,6 +113,7 @@ export function RecebiveisTable({ recebiveis, processos, parceiros }: Props) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
+                    <ReceberTriggerLink recebivelId={r.id} status={r.status} />
                     {podeEditar && (
                       <RecebivelFormDialog
                         modo="editar"
