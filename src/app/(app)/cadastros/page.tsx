@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Landmark, ListTree, UserCog } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Landmark,
+  ListTree,
+  Receipt,
+  UserCog,
+} from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,9 +26,16 @@ const CADASTROS = [
     disponivel: true,
   },
   {
+    href: "/cadastros/despesas-fixas",
+    title: "Despesas Fixas",
+    descricao: "Contas que se repetem mensalmente: luz, condomínio, internet, limpeza.",
+    icon: Receipt,
+    disponivel: true,
+  },
+  {
     href: "/cadastros/parceiros",
     title: "Parceiros / Advogados",
-    descricao: "Sócia, parceiros externos e funcionários para sucumbência e repasses.",
+    descricao: "Parceiros externos e funcionários para sucumbência e repasses.",
     icon: UserCog,
     disponivel: true,
   },
