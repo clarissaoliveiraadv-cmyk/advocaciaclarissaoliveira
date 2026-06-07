@@ -16,30 +16,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-import { marcarRepasse, reverterRepasse } from "../actions";
+import { marcarRepasseParceiro, reverterRepasseParceiro } from "../actions";
 
-const NOMES = { clarissa: "Clarissa", vivian: "Vivian" } as const;
-
-export function MarcarRepasseDialog({
-  id,
-  socia,
-}: {
-  id: string;
-  socia: "clarissa" | "vivian";
-}) {
+export function MarcarRepasseParceiroDialog({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [pending, startTransition] = useTransition();
-  const nome = NOMES[socia];
 
   function onConfirm() {
     startTransition(async () => {
-      const result = await marcarRepasse({ id, socia, data });
+      const result = await marcarRepasseParceiro({ id, data });
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success(`Repasse para ${nome} registrado`);
+      toast.success("Repasse ao parceiro registrado");
       setOpen(false);
     });
   }
@@ -47,17 +38,17 @@ export function MarcarRepasseDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-          <CheckCircle2 className="mr-1 h-3 w-3" />
-          {nome}
+        <Button variant="ghost" size="sm">
+          <CheckCircle2 className="mr-1 h-4 w-4" />
+          Marcar repasse
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Registrar repasse para {nome}</DialogTitle>
+          <DialogTitle>Registrar repasse ao parceiro externo</DialogTitle>
           <DialogDescription>
-            Informe a data em que o valor foi efetivamente repassado. Lembre-se de registrar o
-            lançamento de saída no Movimento de Caixa.
+            Informe a data em que você pagou o parceiro. Lembre-se de criar também o lançamento
+            de SAÍDA correspondente no Movimento de Caixa.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -77,29 +68,22 @@ export function MarcarRepasseDialog({
   );
 }
 
-export function ReverterRepasseButton({
-  id,
-  socia,
-}: {
-  id: string;
-  socia: "clarissa" | "vivian";
-}) {
+export function ReverterRepasseParceiroButton({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
-  const nome = NOMES[socia];
   function onClick() {
     startTransition(async () => {
-      const result = await reverterRepasse(id, socia);
+      const result = await reverterRepasseParceiro(id);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success(`Repasse para ${nome} revertido`);
+      toast.success("Repasse revertido");
     });
   }
   return (
-    <Button variant="ghost" size="sm" onClick={onClick} disabled={pending} className="h-7 px-2 text-xs">
-      <RotateCcw className="mr-1 h-3 w-3" />
-      {nome}
+    <Button variant="ghost" size="sm" onClick={onClick} disabled={pending}>
+      <RotateCcw className="mr-1 h-4 w-4" />
+      Reverter repasse
     </Button>
   );
 }

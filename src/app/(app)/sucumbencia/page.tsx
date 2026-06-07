@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { sucumbenciaFiltrosSchema } from "@/modules/sucumbencia/schema";
 import {
+  listOpcoesCategoriasReceita,
   listOpcoesClientes,
+  listOpcoesContas,
   listOpcoesParceiros,
   listOpcoesProcessos,
   listSucumbencias,
@@ -31,16 +33,34 @@ export default async function SucumbenciaPage({ searchParams }: { searchParams: 
     fim: filtrosRaw.fim || formatDataISO(fimDoMesAtual()),
   };
 
-  const [{ items, total, page, pageSize }, stats, processos, parceiros, clientes] =
-    await Promise.all([
-      listSucumbencias(filtros),
-      statsSucumbencia(filtros),
-      listOpcoesProcessos(),
-      listOpcoesParceiros(),
-      listOpcoesClientes(),
-    ]);
+  const [
+    { items, total, page, pageSize },
+    stats,
+    processos,
+    parceiros,
+    contas,
+    categoriasReceita,
+    clientes,
+  ] = await Promise.all([
+    listSucumbencias(filtros),
+    statsSucumbencia(filtros),
+    listOpcoesProcessos(),
+    listOpcoesParceiros(),
+    listOpcoesContas(),
+    listOpcoesCategoriasReceita(),
+    listOpcoesClientes(),
+  ]);
 
   const semProcessos = processos.length === 0;
+  const semContas = contas.length === 0;
+  const semCategorias = categoriasReceita.length === 0;
+  const bloqueado = semProcessos || semContas || semCategorias;
+
+  const linkBloqueio = semProcessos
+    ? { href: "/processos", label: "Cadastre um processo primeiro" }
+    : semContas
+      ? { href: "/cadastros/contas", label: "Cadastre uma conta primeiro" }
+      : { href: "/cadastros/categorias", label: "Cadastre uma categoria de receita" };
 
   return (
     <div className="space-y-6">
@@ -48,17 +68,23 @@ export default async function SucumbenciaPage({ searchParams }: { searchParams: 
         <div>
           <h1 className="text-2xl font-semibold">Sucumbência</h1>
           <p className="text-sm text-muted-foreground">
-            Honorários de sucumbência arbitrados em sentença, com rateio padrão 34/33/33 entre
-            escritório, Clarissa e Vivian. Se houver parceiro externo, o percentual dele sai do
-            bruto antes do rateio.
+            Honorários de sucumbência arbitrados em sentença. O valor bruto entra no caixa
+            automaticamente. Se você dividir com parceiro externo, a fatia dele vira obrigação
+            pendente até ser paga.
           </p>
         </div>
-        {semProcessos ? (
+        {bloqueado ? (
           <Button asChild variant="outline">
-            <Link href="/processos">Cadastre um processo primeiro</Link>
+            <Link href={linkBloqueio.href}>{linkBloqueio.label}</Link>
           </Button>
         ) : (
-          <SucumbenciaFormDialog modo="criar" processos={processos} parceiros={parceiros} />
+          <SucumbenciaFormDialog
+            modo="criar"
+            processos={processos}
+            parceiros={parceiros}
+            contas={contas}
+            categoriasReceita={categoriasReceita}
+          />
         )}
       </header>
 
@@ -68,7 +94,13 @@ export default async function SucumbenciaPage({ searchParams }: { searchParams: 
         <SucumbenciasSearch clientes={clientes} />
       </Suspense>
 
-      <SucumbenciasTable sucumbencias={items} processos={processos} parceiros={parceiros} />
+      <SucumbenciasTable
+        sucumbencias={items}
+        processos={processos}
+        parceiros={parceiros}
+        contas={contas}
+        categoriasReceita={categoriasReceita}
+      />
 
       <Suspense fallback={null}>
         <SucumbenciasPagination page={page} pageSize={pageSize} total={total} />

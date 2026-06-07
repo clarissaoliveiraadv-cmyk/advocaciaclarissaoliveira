@@ -11,18 +11,6 @@ const dataObrigatoria = z
   .min(1, "Data obrigatória")
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato yyyy-MM-dd");
 
-const percentualObrigatorio = z
-  .string()
-  .trim()
-  .min(1, "Percentual obrigatório")
-  .refine(
-    (v) => {
-      const n = Number(v);
-      return !Number.isNaN(n) && n >= 0 && n <= 100;
-    },
-    { message: "Percentual deve estar entre 0 e 100" },
-  );
-
 const percentualOpcional = z
   .string()
   .trim()
@@ -38,85 +26,47 @@ const percentualOpcional = z
 
 const textoOpcional = (max: number) => z.string().trim().max(max).optional();
 
-export const sucumbenciaCreateSchema = z
-  .object({
-    processoId: z.string().min(1, "Selecione um processo"),
-    valorTotal: valorPositivo,
-    dataRecebimento: dataObrigatoria,
-    parceiroExternoId: textoOpcional(40),
-    percParceiroExterno: percentualOpcional,
-    percEscritorio: percentualObrigatorio,
-    percClarissa: percentualObrigatorio,
-    percVivian: percentualObrigatorio,
-    observacoes: textoOpcional(2000),
-  })
-  .refine(
-    (v) => {
-      const total =
-        Number(v.percEscritorio) + Number(v.percClarissa) + Number(v.percVivian);
-      // Aceita pequenas variações de arredondamento
-      return Math.abs(total - 100) < 0.01;
-    },
-    {
-      message: "% Escritório + % Clarissa + % Vivian deve somar 100",
-      path: ["percEscritorio"],
-    },
-  )
-  .refine(
-    (v) => {
-      const id = v.parceiroExternoId?.trim();
-      const perc = v.percParceiroExterno?.trim();
-      // Se um foi informado, o outro também deve estar
-      if (id && !perc) return false;
-      if (!id && perc) return false;
-      return true;
-    },
-    {
-      message: "Informe parceiro externo e percentual juntos.",
-      path: ["percParceiroExterno"],
-    },
-  );
+const baseShape = {
+  processoId: z.string().min(1, "Selecione um processo"),
+  valorTotal: valorPositivo,
+  dataRecebimento: dataObrigatoria,
+  contaRecebimentoId: z.string().min(1, "Selecione a conta de recebimento"),
+  categoriaLancamentoId: z.string().min(1, "Selecione a categoria do lançamento"),
+  descricaoLancamento: z
+    .string()
+    .trim()
+    .min(1, "Descrição do lançamento obrigatória")
+    .max(200),
+  parceiroExternoId: textoOpcional(40),
+  percParceiroExterno: percentualOpcional,
+  observacoes: textoOpcional(2000),
+};
+
+const parceiroConsistente = (v: {
+  parceiroExternoId?: string;
+  percParceiroExterno?: string;
+}) => {
+  const id = v.parceiroExternoId?.trim();
+  const perc = v.percParceiroExterno?.trim();
+  if (id && !perc) return false;
+  if (!id && perc) return false;
+  return true;
+};
+
+export const sucumbenciaCreateSchema = z.object(baseShape).refine(parceiroConsistente, {
+  message: "Informe parceiro externo e percentual juntos.",
+  path: ["percParceiroExterno"],
+});
 
 export const sucumbenciaUpdateSchema = z
-  .object({
-    id: z.string().min(1),
-    processoId: z.string().min(1, "Selecione um processo"),
-    valorTotal: valorPositivo,
-    dataRecebimento: dataObrigatoria,
-    parceiroExternoId: textoOpcional(40),
-    percParceiroExterno: percentualOpcional,
-    percEscritorio: percentualObrigatorio,
-    percClarissa: percentualObrigatorio,
-    percVivian: percentualObrigatorio,
-    observacoes: textoOpcional(2000),
-  })
-  .refine(
-    (v) =>
-      Math.abs(
-        Number(v.percEscritorio) + Number(v.percClarissa) + Number(v.percVivian) - 100,
-      ) < 0.01,
-    {
-      message: "% Escritório + % Clarissa + % Vivian deve somar 100",
-      path: ["percEscritorio"],
-    },
-  )
-  .refine(
-    (v) => {
-      const id = v.parceiroExternoId?.trim();
-      const perc = v.percParceiroExterno?.trim();
-      if (id && !perc) return false;
-      if (!id && perc) return false;
-      return true;
-    },
-    {
-      message: "Informe parceiro externo e percentual juntos.",
-      path: ["percParceiroExterno"],
-    },
-  );
+  .object({ id: z.string().min(1), ...baseShape })
+  .refine(parceiroConsistente, {
+    message: "Informe parceiro externo e percentual juntos.",
+    path: ["percParceiroExterno"],
+  });
 
-export const marcarRepasseSchema = z.object({
+export const marcarRepasseParceiroSchema = z.object({
   id: z.string().min(1),
-  socia: z.enum(["clarissa", "vivian"]),
   data: dataObrigatoria,
 });
 
@@ -127,9 +77,9 @@ export const sucumbenciaFiltrosSchema = z.object({
   processoId: z.string().trim().optional(),
   status: z
     .union([
-      z.literal("pendente_clarissa"),
-      z.literal("pendente_vivian"),
-      z.literal("ambas_pagas"),
+      z.literal("sem_parceiro"),
+      z.literal("parceiro_pendente"),
+      z.literal("parceiro_pago"),
       z.literal("todos"),
     ])
     .default("todos"),
@@ -140,27 +90,19 @@ export const sucumbenciaFiltrosSchema = z.object({
 
 export type SucumbenciaCreateInput = z.infer<typeof sucumbenciaCreateSchema>;
 export type SucumbenciaUpdateInput = z.infer<typeof sucumbenciaUpdateSchema>;
-export type MarcarRepasseInput = z.infer<typeof marcarRepasseSchema>;
+export type MarcarRepasseParceiroInput = z.infer<typeof marcarRepasseParceiroSchema>;
 export type SucumbenciaFiltros = z.infer<typeof sucumbenciaFiltrosSchema>;
 
 /**
- * Calcula a distribuição da sucumbência:
- *   - Se houver parceiro externo, sai primeiro a fatia dele do bruto.
- *   - O restante é dividido entre escritório, Clarissa e Vivian conforme percentuais.
+ * Distribuição da sucumbência:
+ *   - Se houver parceiro externo, sai a fatia dele (percParceiroExterno × bruto).
+ *   - O restante é integralmente do escritório.
  */
 export function calcularDistribuicaoSucumbencia(args: {
   valorTotal: number;
   percParceiroExterno: number; // fração 0..1
-  percEscritorio: number; // fração 0..1
-  percClarissa: number; // fração 0..1
-  percVivian: number; // fração 0..1
 }) {
   const parceiroValor = args.valorTotal * args.percParceiroExterno;
-  const base = args.valorTotal - parceiroValor;
-  return {
-    parceiroExterno: parceiroValor,
-    escritorio: base * args.percEscritorio,
-    clarissa: base * args.percClarissa,
-    vivian: base * args.percVivian,
-  };
+  const escritorio = args.valorTotal - parceiroValor;
+  return { parceiroExterno: parceiroValor, escritorio };
 }

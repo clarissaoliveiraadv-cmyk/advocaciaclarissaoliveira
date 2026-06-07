@@ -14,19 +14,33 @@ import { formatCnj } from "@/lib/format";
 import { SucumbenciaFormDialog } from "./sucumbencia-form-dialog";
 import { SucumbenciaDeleteDialog } from "./sucumbencia-delete-dialog";
 import {
-  MarcarRepasseDialog,
-  ReverterRepasseButton,
+  MarcarRepasseParceiroDialog,
+  ReverterRepasseParceiroButton,
 } from "./sucumbencia-row-actions";
 import { calcularDistribuicaoSucumbencia } from "../schema";
-import type { ParceiroOpcao, ProcessoOpcao, SucumbenciaComRelacoes } from "../queries";
+import type {
+  CategoriaReceitaOpcao,
+  ContaOpcao,
+  ParceiroOpcao,
+  ProcessoOpcao,
+  SucumbenciaComRelacoes,
+} from "../queries";
 
 type Props = {
   sucumbencias: SucumbenciaComRelacoes[];
   processos: ProcessoOpcao[];
   parceiros: ParceiroOpcao[];
+  contas: ContaOpcao[];
+  categoriasReceita: CategoriaReceitaOpcao[];
 };
 
-export function SucumbenciasTable({ sucumbencias, processos, parceiros }: Props) {
+export function SucumbenciasTable({
+  sucumbencias,
+  processos,
+  parceiros,
+  contas,
+  categoriasReceita,
+}: Props) {
   if (sucumbencias.length === 0) {
     return (
       <div className="rounded-md border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
@@ -42,10 +56,10 @@ export function SucumbenciasTable({ sucumbencias, processos, parceiros }: Props)
           <TableRow>
             <TableHead className="w-[100px]">Recebim.</TableHead>
             <TableHead>Cliente / Processo</TableHead>
+            <TableHead>Conta</TableHead>
             <TableHead className="text-right">Bruto</TableHead>
             <TableHead className="text-right">Escritório</TableHead>
-            <TableHead className="text-right">Clarissa</TableHead>
-            <TableHead className="text-right">Vivian</TableHead>
+            <TableHead>Parceiro externo</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -54,10 +68,10 @@ export function SucumbenciasTable({ sucumbencias, processos, parceiros }: Props)
             const dist = calcularDistribuicaoSucumbencia({
               valorTotal: Number(s.valorTotal),
               percParceiroExterno: s.percParceiroExterno ? Number(s.percParceiroExterno) : 0,
-              percEscritorio: Number(s.percEscritorio),
-              percClarissa: Number(s.percClarissa),
-              percVivian: Number(s.percVivian),
             });
+            const temParceiro = !!s.parceiroExternoId;
+            const ehParceiroPago = !!s.dataRepasseParceiroExterno;
+
             return (
               <TableRow key={s.id}>
                 <TableCell className="font-mono text-xs">
@@ -68,52 +82,64 @@ export function SucumbenciasTable({ sucumbencias, processos, parceiros }: Props)
                   <div className="font-mono text-xs text-muted-foreground">
                     {s.processo.numeroCnj ? formatCnj(s.processo.numeroCnj) : "— sem CNJ —"}
                   </div>
-                  {s.parceiroExterno && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Parceiro externo: {s.parceiroExterno.nome} ({toBRL(dist.parceiroExterno)})
-                    </div>
-                  )}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {s.contaRecebimento.nome}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
                   {toBRL(Number(s.valorTotal))}
                 </TableCell>
-                <TableCell className="text-right font-mono tabular-nums text-emerald-700">
+                <TableCell className="text-right font-mono font-semibold tabular-nums text-emerald-700">
                   {toBRL(dist.escritorio)}
                 </TableCell>
-                <TableCell className="text-right">
-                  <SociaRepasseCelula
-                    id={s.id}
-                    socia="clarissa"
-                    valor={dist.clarissa}
-                    dataRepasse={s.dataRepasseClarissa}
-                  />
-                </TableCell>
-                <TableCell className="text-right">
-                  <SociaRepasseCelula
-                    id={s.id}
-                    socia="vivian"
-                    valor={dist.vivian}
-                    dataRepasse={s.dataRepasseVivian}
-                  />
+                <TableCell className="text-sm">
+                  {temParceiro && s.parceiroExterno ? (
+                    <div className="space-y-0.5">
+                      <div>{s.parceiroExterno.nome}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {toBRL(dist.parceiroExterno)}
+                      </div>
+                      {ehParceiroPago ? (
+                        <Badge variant="success" className="text-[10px]">
+                          Pago em {formatDataBR(s.dataRepasseParceiroExterno!)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          Pendente
+                        </Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
+                    {temParceiro &&
+                      (ehParceiroPago ? (
+                        <ReverterRepasseParceiroButton id={s.id} />
+                      ) : (
+                        <MarcarRepasseParceiroDialog id={s.id} />
+                      ))}
                     <SucumbenciaFormDialog
                       modo="editar"
                       sucumbenciaId={s.id}
                       processos={processos}
                       parceiros={parceiros}
+                      contas={contas}
+                      categoriasReceita={categoriasReceita}
                       initialValues={{
                         processoId: s.processoId,
                         valorTotal: Number(s.valorTotal),
                         dataRecebimento: s.dataRecebimento.toISOString().slice(0, 10),
+                        contaRecebimentoId: s.contaRecebimentoId,
+                        categoriaLancamentoId: s.categoriaLancamentoId,
+                        descricaoLancamento:
+                          s.lancamentoEntrada?.descricao ?? `Sucumbência — ${s.cliente.nome}`,
                         parceiroExternoId: s.parceiroExternoId ?? undefined,
                         percParceiroExterno: s.percParceiroExterno
                           ? s.percParceiroExterno.mul(100).toString()
                           : undefined,
-                        percEscritorio: s.percEscritorio.mul(100).toString(),
-                        percClarissa: s.percClarissa.mul(100).toString(),
-                        percVivian: s.percVivian.mul(100).toString(),
                         observacoes: s.observacoes ?? undefined,
                       }}
                     />
@@ -128,34 +154,6 @@ export function SucumbenciasTable({ sucumbencias, processos, parceiros }: Props)
           })}
         </TableBody>
       </Table>
-    </div>
-  );
-}
-
-function SociaRepasseCelula({
-  id,
-  socia,
-  valor,
-  dataRepasse,
-}: {
-  id: string;
-  socia: "clarissa" | "vivian";
-  valor: number;
-  dataRepasse: Date | null;
-}) {
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <span className="font-mono tabular-nums">{toBRL(valor)}</span>
-      {dataRepasse ? (
-        <div className="flex items-center gap-1">
-          <Badge variant="success" className="px-1 py-0 text-[10px]">
-            {formatDataBR(dataRepasse)}
-          </Badge>
-          <ReverterRepasseButton id={id} socia={socia} />
-        </div>
-      ) : (
-        <MarcarRepasseDialog id={id} socia={socia} />
-      )}
     </div>
   );
 }

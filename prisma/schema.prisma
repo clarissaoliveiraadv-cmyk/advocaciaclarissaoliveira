@@ -151,9 +151,10 @@ model ContaBancaria {
   criadoEm     DateTime  @default(now())
   atualizadoEm DateTime  @updatedAt
 
-  lancamentosConta  Lancamento[] @relation("LancamentoConta")
-  recebimentosConta Recebivel[]  @relation("RecebivelContaRecebimento")
-  repassesConta     Recebivel[]  @relation("RecebivelContaRepasse")
+  lancamentosConta  Lancamento[]  @relation("LancamentoConta")
+  recebimentosConta Recebivel[]   @relation("RecebivelContaRecebimento")
+  repassesConta     Recebivel[]   @relation("RecebivelContaRepasse")
+  sucumbencias      Sucumbencia[] @relation("SucumbenciaContaRecebimento")
 
   @@map("conta_bancaria")
 }
@@ -173,9 +174,10 @@ model Categoria {
   criadoEm       DateTime      @default(now())
   atualizadoEm   DateTime      @updatedAt
 
-  categoriaPai Categoria?   @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
-  filhas       Categoria[]  @relation("CategoriaHierarquia")
+  categoriaPai Categoria?    @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
+  filhas       Categoria[]   @relation("CategoriaHierarquia")
   lancamentos  Lancamento[]
+  sucumbencias Sucumbencia[]
 
   @@unique([nome, categoriaPaiId])
   @@map("categoria")
@@ -356,6 +358,7 @@ model Lancamento {
   parDe             Lancamento[]       @relation("LancamentoTransferencia")
   criadoPor         Usuario?           @relation("LancamentoCriadoPor", fields: [criadoPorId], references: [id])
   itensDistribuicao ItemDistribuicao[]
+  sucumbencia       Sucumbencia?       @relation("SucumbenciaLancamentoEntrada")
 
   @@index([data, contaId])
   @@index([categoriaId, data])
@@ -426,7 +429,12 @@ model ParceriaPaga {
 }
 
 // =====================================================================
-// SUCUMBÊNCIA (distribuição padrão 34/33/33 + saldo fundo)
+// SUCUMBÊNCIA
+//
+// Honorários arbitrados em sentença. Pertencem ao escritório por padrão.
+// Se houver parceiro externo, uma fatia (percParceiroExterno do bruto)
+// é devida a ele e fica como obrigação pendente até dataRepasseParceiroExterno.
+// O valor bruto é registrado como ENTRADA no caixa no momento do cadastro.
 // =====================================================================
 
 model Sucumbencia {
@@ -436,23 +444,30 @@ model Sucumbencia {
   valorTotal      Decimal  @db.Decimal(14, 2)
   dataRecebimento DateTime @db.Date
 
-  parceiroExternoId   String?
-  percParceiroExterno Decimal? @db.Decimal(5, 4)
+  // Conta onde o dinheiro caiu e categoria do lançamento criado
+  contaRecebimentoId    String
+  categoriaLancamentoId String
 
-  percEscritorio Decimal @default(0.34) @db.Decimal(5, 4)
-  percClarissa   Decimal @default(0.33) @db.Decimal(5, 4)
-  percVivian     Decimal @default(0.33) @db.Decimal(5, 4)
+  // Parceiro externo (opcional). Se preenchido, percParceiroExterno e
+  // dataRepasseParceiroExterno fazem sentido.
+  parceiroExternoId          String?
+  percParceiroExterno        Decimal?  @db.Decimal(5, 4)
+  dataRepasseParceiroExterno DateTime? @db.Date
 
-  dataRepasseClarissa DateTime? @db.Date
-  dataRepasseVivian   DateTime? @db.Date
+  // Lançamento de ENTRADA criado automaticamente. Quando a sucumbência
+  // é excluída ou alterada, o lançamento acompanha.
+  lancamentoEntradaId String? @unique
 
   observacoes  String?
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  cliente         Cliente           @relation(fields: [clienteId], references: [id])
-  processo        Processo          @relation(fields: [processoId], references: [id])
-  parceiroExterno AdvogadoParceiro? @relation(fields: [parceiroExternoId], references: [id])
+  cliente             Cliente           @relation(fields: [clienteId], references: [id])
+  processo            Processo          @relation(fields: [processoId], references: [id])
+  parceiroExterno     AdvogadoParceiro? @relation(fields: [parceiroExternoId], references: [id])
+  contaRecebimento    ContaBancaria     @relation("SucumbenciaContaRecebimento", fields: [contaRecebimentoId], references: [id])
+  categoriaLancamento Categoria         @relation(fields: [categoriaLancamentoId], references: [id])
+  lancamentoEntrada   Lancamento?       @relation("SucumbenciaLancamentoEntrada", fields: [lancamentoEntradaId], references: [id])
 
   @@index([dataRecebimento])
   @@index([clienteId, processoId])

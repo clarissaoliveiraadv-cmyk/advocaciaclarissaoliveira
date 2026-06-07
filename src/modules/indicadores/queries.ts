@@ -32,8 +32,9 @@ export type IndicadoresFinanceiros = {
   saldoBancario: number;
   /**
    * Dinheiro que está nas contas mas pertence a terceiros e ainda não foi
-   * repassado (itens de distribuição PENDENTE_REPASSE com beneficiário
-   * cliente/parceiro/perito/FGTS/custas/outro).
+   * repassado. Inclui:
+   *  - itens de distribuição PENDENTE_REPASSE (cliente/parceiro/perito/FGTS/custas/outro)
+   *  - fatia de parceiro externo em Sucumbência ainda não repassada
    */
   emCustodia: number;
   /** O que é do escritório de verdade. Pode ser negativo em caso de descompasso. */
@@ -54,7 +55,15 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
   const inicioMes = inicioDoMesAtual();
   const fimMes = fimDoMesAtual();
 
-  const [contas, agregadosLanc, itensPendentes, itensMes, recebiveisMes] = await Promise.all([
+  const [
+    contas,
+    agregadosLanc,
+    itensPendentes,
+    itensMes,
+    recebiveisMes,
+    sucumbenciaParceiroPendente,
+    sucumbenciaMes,
+  ] = await Promise.all([
     prisma.contaBancaria.findMany({ select: { saldoInicial: true } }),
     prisma.lancamento.groupBy({
       by: ["tipo"],
@@ -81,6 +90,17 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
       },
       select: { valorParcela: true },
     }),
+    prisma.sucumbencia.findMany({
+      where: {
+        parceiroExternoId: { not: null },
+        dataRepasseParceiroExterno: null,
+      },
+      select: { valorTotal: true, percParceiroExterno: true },
+    }),
+    prisma.sucumbencia.findMany({
+      where: { dataRecebimento: { gte: inicioMes, lte: fimMes } },
+      select: { valorTotal: true, percParceiroExterno: true },
+    }),
   ]);
 
   // Saldo bancário = saldosIniciais + entradas - saídas
@@ -102,6 +122,18 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
       if (v > 0) custodiaPorBeneficiario.push({ beneficiario: i.beneficiario, valor: v });
     }
   }
+  // Sucumbência: fatia de parceiro externo ainda não repassada é obrigação pendente
+  let custodiaSucumbencia = 0;
+  for (const s of sucumbenciaParceiroPendente) {
+    custodiaSucumbencia += Number(s.valorTotal) * Number(s.percParceiroExterno ?? 0);
+  }
+  if (custodiaSucumbencia > 0) {
+    emCustodia += custodiaSucumbencia;
+    custodiaPorBeneficiario.push({
+      beneficiario: TipoBeneficiario.PARCEIRO,
+      valor: custodiaSucumbencia,
+    });
+  }
   custodiaPorBeneficiario.sort((a, b) => b.valor - a.valor);
 
   // Faturamento e ressarcimento do mês
@@ -117,6 +149,12 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
     } else if (i.beneficiario === TipoBeneficiario.RESSARCIMENTO) {
       ressarcimentoMes += v;
     }
+  }
+  // Sucumbência do mês entra no faturamento de honorários (parte líquida do escritório)
+  for (const s of sucumbenciaMes) {
+    const bruto = Number(s.valorTotal);
+    const percParc = Number(s.percParceiroExterno ?? 0);
+    faturamentoHonorariosMes += bruto * (1 - percParc);
   }
 
   // Recebíveis previstos no mês

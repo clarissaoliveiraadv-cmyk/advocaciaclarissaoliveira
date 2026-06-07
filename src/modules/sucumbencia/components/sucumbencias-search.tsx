@@ -18,9 +18,9 @@ import type { ClienteOpcao } from "../queries";
 type Props = { clientes: ClienteOpcao[] };
 
 const STATUS_LABELS: Record<string, string> = {
-  pendente_clarissa: "Pendente Clarissa",
-  pendente_vivian: "Pendente Vivian",
-  ambas_pagas: "Ambas pagas",
+  sem_parceiro: "Sem parceiro externo",
+  parceiro_pendente: "Parceiro pendente",
+  parceiro_pago: "Parceiro pago",
 };
 
 export function SucumbenciasSearch({ clientes }: Props) {
