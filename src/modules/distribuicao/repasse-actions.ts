@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import {
   AcaoAuditoria,
   Prisma,
@@ -16,7 +16,6 @@ import type { ActionResult } from "@/modules/_shared/types";
 import { registrarRepasseSchema, type RegistrarRepasseInput } from "./repasse-schema";
 
 const RESOURCE_ITEM = "item_distribuicao";
-const ROUTE_REC = "/recebiveis";
 
 const BENEFICIARIOS_ESCRITORIO: ReadonlyArray<TipoBeneficiario> = [
   TipoBeneficiario.ESCRITORIO_CONTRATUAL,
@@ -116,8 +115,7 @@ export async function registrarRepasse(input: RegistrarRepasseInput): Promise<Ac
       }),
     ]);
 
-    revalidatePath(ROUTE_REC);
-    revalidatePath("/movimento");
+    revalidarCaixa();
     return { ok: true, data: undefined };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -173,8 +171,7 @@ export async function reverterRepasse(itemId: string): Promise<ActionResult> {
     },
   });
 
-  revalidatePath(ROUTE_REC);
-  revalidatePath("/movimento");
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -211,7 +208,7 @@ export async function marcarEmCustodia(itemId: string): Promise<ActionResult> {
     dadosDepois: { status: StatusItemDistribuicao.RETIDO_CUSTODIA },
   });
 
-  revalidatePath(ROUTE_REC);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -244,7 +241,7 @@ export async function liberarCustodia(itemId: string): Promise<ActionResult> {
     dadosDepois: { status: StatusItemDistribuicao.PENDENTE_REPASSE },
   });
 
-  revalidatePath(ROUTE_REC);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

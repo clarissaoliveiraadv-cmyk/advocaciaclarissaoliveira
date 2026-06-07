@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma, TipoLancamento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -17,7 +17,6 @@ import {
 } from "./schema";
 
 const RESOURCE = "sucumbencia";
-const ROUTE = "/sucumbencia";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
@@ -107,8 +106,7 @@ export async function criarSucumbencia(
       },
     });
 
-    revalidatePath(ROUTE);
-    revalidatePath("/movimento");
+    revalidarCaixa();
     return {
       ok: true,
       data: { id: result.sucumbencia.id, lancamentoId: result.lancamento.id },
@@ -203,8 +201,7 @@ export async function atualizarSucumbencia(input: SucumbenciaUpdateInput): Promi
     },
   });
 
-  revalidatePath(ROUTE);
-  revalidatePath("/movimento");
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -244,7 +241,7 @@ export async function marcarRepasseParceiro(
     dadosDepois: { dataRepasseParceiroExterno: dataRepasse.toISOString() },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -270,7 +267,7 @@ export async function reverterRepasseParceiro(id: string): Promise<ActionResult>
     dadosDepois: { dataRepasseParceiroExterno: null },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -300,8 +297,7 @@ export async function excluirSucumbencia(id: string): Promise<ActionResult> {
     },
   });
 
-  revalidatePath(ROUTE);
-  revalidatePath("/movimento");
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

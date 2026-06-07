@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma, StatusRecebivel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -16,7 +16,6 @@ import {
 import { recebivelTemDistribuicao, recebivelTemLancamentos } from "./queries";
 
 const RESOURCE = "recebivel";
-const ROUTE = "/recebiveis";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
@@ -52,7 +51,7 @@ export async function criarRecebivel(
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: { id: recebivel.id } };
 }
 
@@ -98,7 +97,7 @@ export async function atualizarRecebivel(input: RecebivelUpdateInput): Promise<A
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -131,7 +130,7 @@ export async function cancelarRecebivel(id: string): Promise<ActionResult> {
     dadosDepois: { status: StatusRecebivel.CANCELADA },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -158,7 +157,7 @@ export async function reabrirRecebivel(id: string): Promise<ActionResult> {
     dadosDepois: { status: StatusRecebivel.PREVISTA },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -190,7 +189,7 @@ export async function excluirRecebivel(id: string): Promise<ActionResult> {
     dadosAntes: serializarAudit(snapshotRecebivel(antes)),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

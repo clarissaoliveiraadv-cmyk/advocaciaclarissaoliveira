@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma, TipoLancamento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -20,8 +20,6 @@ import {
 } from "./schema";
 
 const RESOURCE = "despesa_fixa";
-const ROUTE_CADASTRO = "/cadastros/despesas-fixas";
-const ROUTE_PAGAR = "/contas-a-pagar";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
@@ -66,7 +64,7 @@ export async function criarDespesaFixa(
     },
   });
 
-  revalidatePath(ROUTE_CADASTRO);
+  revalidarCaixa();
   return { ok: true, data: { id: despesa.id } };
 }
 
@@ -109,8 +107,7 @@ export async function atualizarDespesaFixa(input: DespesaFixaUpdateInput): Promi
     dadosDepois: { nome: d.nome, valorEstimado: String(d.valorEstimado) },
   });
 
-  revalidatePath(ROUTE_CADASTRO);
-  revalidatePath(ROUTE_PAGAR);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -141,8 +138,7 @@ export async function excluirDespesaFixa(id: string): Promise<ActionResult> {
     dadosAntes: { nome: antes.nome },
   });
 
-  revalidatePath(ROUTE_CADASTRO);
-  revalidatePath(ROUTE_PAGAR);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -206,7 +202,7 @@ export async function gerarPrevisoes(
     });
   }
 
-  revalidatePath(ROUTE_PAGAR);
+  revalidarCaixa();
   return { ok: true, data: { criadas, jaExistiam } };
 }
 
@@ -272,8 +268,7 @@ export async function marcarPrevisaoPaga(
       },
     });
 
-    revalidatePath(ROUTE_PAGAR);
-    revalidatePath("/movimento");
+    revalidarCaixa();
     return { ok: true, data: { lancamentoId: result.lancamento.id } };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
@@ -312,8 +307,7 @@ export async function reverterPagamento(id: string): Promise<ActionResult> {
     dadosDepois: { lancamentoId: null },
   });
 
-  revalidatePath(ROUTE_PAGAR);
-  revalidatePath("/movimento");
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -342,7 +336,7 @@ export async function excluirPrevisao(id: string): Promise<ActionResult> {
     dadosAntes: { despesaFixaId: previsao.despesaFixaId },
   });
 
-  revalidatePath(ROUTE_PAGAR);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
