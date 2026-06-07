@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import {
   AcaoAuditoria,
   Prisma,
@@ -18,7 +18,6 @@ import { confirmarDistribuicaoSchema, type ConfirmarDistribuicaoInput } from "./
 
 const RESOURCE_DIST = "distribuicao";
 const RESOURCE_REC = "recebivel";
-const ROUTE_REC = "/recebiveis";
 
 /**
  * Beneficiários cujo dinheiro pertence ao escritório — não precisam de repasse.
@@ -160,8 +159,7 @@ export async function confirmarDistribuicao(
       }),
     ]);
 
-    revalidatePath(ROUTE_REC);
-    revalidatePath("/movimento");
+    revalidarCaixa();
     return {
       ok: true,
       data: { distribuicaoId: result.distribuicao.id, lancamentoId: result.lancamento.id },
@@ -251,8 +249,7 @@ export async function reverterDistribuicao(recebivelId: string): Promise<ActionR
     }),
   ]);
 
-  revalidatePath(ROUTE_REC);
-  revalidatePath("/movimento");
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

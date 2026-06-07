@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -15,7 +15,6 @@ import {
 import { contaTemDependencias } from "./queries";
 
 const RESOURCE = "conta_bancaria";
-const ROUTE = "/cadastros/contas";
 
 export async function criarConta(input: ContaCreateInput): Promise<ActionResult<{ id: string }>> {
   const session = await requirePerfil(PERFIS_ESCRITA);
@@ -38,7 +37,7 @@ export async function criarConta(input: ContaCreateInput): Promise<ActionResult<
       usuarioId: session.user.id,
       dadosDepois: serializarAudit(data),
     });
-    revalidatePath(ROUTE);
+    revalidarCaixa();
     return { ok: true, data: { id: conta.id } };
   } catch (error) {
     return tratarErro(error);
@@ -79,7 +78,7 @@ export async function atualizarConta(input: ContaUpdateInput): Promise<ActionRes
       }),
       dadosDepois: serializarAudit(data),
     });
-    revalidatePath(ROUTE);
+    revalidarCaixa();
     return { ok: true, data: undefined };
   } catch (error) {
     return tratarErro(error);
@@ -100,7 +99,7 @@ export async function alternarAtivoConta(id: string): Promise<ActionResult> {
     dadosAntes: { ativo: antes.ativo },
     dadosDepois: { ativo: !antes.ativo },
   });
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -132,7 +131,7 @@ export async function excluirConta(id: string): Promise<ActionResult> {
       saldoInicial: antes.saldoInicial,
     }),
   });
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

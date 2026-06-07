@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { AcaoAuditoria, Prisma, TipoLancamento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
+import { revalidarCaixa } from "@/lib/cache";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
   lancamentoCreateSchema,
@@ -18,7 +18,6 @@ import {
 } from "./schema";
 
 const RESOURCE = "lancamento";
-const ROUTE = "/movimento";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
@@ -58,7 +57,7 @@ export async function criarLancamento(
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: { id: lanc.id } };
 }
 
@@ -73,7 +72,10 @@ export async function atualizarLancamento(input: LancamentoUpdateInput): Promise
     };
 
   const { id } = parsed.data;
-  const antes = await prisma.lancamento.findUnique({ where: { id } });
+  const antes = await prisma.lancamento.findUnique({
+    where: { id },
+    include: { sucumbencia: { select: { id: true } }, despesaFixaPrevisao: { select: { id: true } } },
+  });
   if (!antes) return { ok: false, error: "Lançamento não encontrado" };
 
   const bloqueio = bloqueioPorOrigem(antes);
@@ -107,13 +109,16 @@ export async function atualizarLancamento(input: LancamentoUpdateInput): Promise
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
 export async function excluirLancamento(id: string): Promise<ActionResult> {
   const session = await requirePerfil(PERFIS_ESCRITA);
-  const antes = await prisma.lancamento.findUnique({ where: { id } });
+  const antes = await prisma.lancamento.findUnique({
+    where: { id },
+    include: { sucumbencia: { select: { id: true } }, despesaFixaPrevisao: { select: { id: true } } },
+  });
   if (!antes) return { ok: false, error: "Lançamento não encontrado" };
 
   const bloqueio = bloqueioPorOrigem(antes);
@@ -132,7 +137,7 @@ export async function excluirLancamento(id: string): Promise<ActionResult> {
     dadosAntes: serializarAudit(snapshotLancamento(antes)),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -197,7 +202,7 @@ export async function criarTransferencia(
     }),
   ]);
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: { saidaId: result.saida.id, entradaId: result.entrada.id } };
 }
 
@@ -266,7 +271,7 @@ export async function atualizarTransferencia(
     }),
   ]);
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -306,7 +311,7 @@ export async function excluirTransferencia(id: string): Promise<ActionResult> {
     }),
   ]);
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -317,6 +322,8 @@ export async function excluirTransferencia(id: string): Promise<ActionResult> {
 function bloqueioPorOrigem(l: {
   recebivelId: string | null;
   ressarcimentoId: string | null;
+  sucumbencia?: { id: string } | null;
+  despesaFixaPrevisao?: { id: string } | null;
 }): ActionError | null {
   if (l.recebivelId) {
     return {
@@ -328,6 +335,19 @@ function bloqueioPorOrigem(l: {
     return {
       ok: false,
       error: "Este lançamento foi gerado pelo módulo Ressarcimento. Edite/exclua por lá.",
+    };
+  }
+  if (l.sucumbencia) {
+    return {
+      ok: false,
+      error: "Este lançamento foi gerado pelo módulo Sucumbência. Edite/exclua por lá.",
+    };
+  }
+  if (l.despesaFixaPrevisao) {
+    return {
+      ok: false,
+      error:
+        "Este lançamento corresponde ao pagamento de uma despesa fixa. Reverta em Contas a Pagar.",
     };
   }
   return null;

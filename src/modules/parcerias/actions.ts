@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -17,7 +17,6 @@ import {
 } from "./schema";
 
 const RESOURCE = "parceria_paga";
-const ROUTE = "/parcerias";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
@@ -53,7 +52,7 @@ export async function criarParceria(
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: { id: parceria.id } };
 }
 
@@ -92,7 +91,7 @@ export async function atualizarParceria(input: ParceriaUpdateInput): Promise<Act
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -129,7 +128,7 @@ export async function marcarParceriaPaga(
     dadosDepois: { dataPgto: dataPgto.toISOString() },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -152,7 +151,7 @@ export async function reverterParceriaPaga(id: string): Promise<ActionResult> {
     dadosDepois: { dataPgto: null },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -171,7 +170,7 @@ export async function excluirParceria(id: string): Promise<ActionResult> {
     dadosAntes: serializarAudit(snapshot(antes)),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma, StatusRessarcimento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
@@ -16,7 +16,6 @@ import {
 } from "./schema";
 
 const RESOURCE = "ressarcimento";
-const ROUTE = "/ressarcimentos";
 
 export async function criarRessarcimento(
   input: RessarcimentoCreateInput,
@@ -47,7 +46,7 @@ export async function criarRessarcimento(
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: { id: ressarc.id } };
 }
 
@@ -92,7 +91,7 @@ export async function atualizarRessarcimento(
     dadosDepois: serializarAudit(data),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -133,7 +132,7 @@ export async function marcarRessarcimentoReembolsado(
     },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -163,7 +162,7 @@ export async function reverterReembolso(id: string): Promise<ActionResult> {
     dadosDepois: { status: StatusRessarcimento.PAGO_PELO_ESCRITORIO, dataReembolso: null },
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
@@ -192,7 +191,7 @@ export async function excluirRessarcimento(id: string): Promise<ActionResult> {
     dadosAntes: serializarAudit(snapshotRessarcimento(antes)),
   });
 
-  revalidatePath(ROUTE);
+  revalidarCaixa();
   return { ok: true, data: undefined };
 }
 
