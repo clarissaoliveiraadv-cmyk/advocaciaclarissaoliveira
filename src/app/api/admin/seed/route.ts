@@ -48,7 +48,12 @@ export async function POST(request: Request) {
 
   // 2. Contas bancárias
   const contas = [
-    { codigo: "INTER_PJ", nome: "Banco Inter PJ", tipo: TipoConta.CONTA_CORRENTE, banco: "Banco Inter" },
+    {
+      codigo: "INTER_PJ",
+      nome: "Banco Inter PJ",
+      tipo: TipoConta.CONTA_CORRENTE,
+      banco: "Banco Inter",
+    },
     {
       codigo: "INTER_PF",
       nome: "Inter PF / Cora",

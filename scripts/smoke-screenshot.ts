@@ -1,7 +1,9 @@
 import { chromium, type Page } from "playwright";
 
 async function shot(name: string, url: string, after?: (page: Page) => Promise<void>) {
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+  const browser = await chromium.launch({
+    executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   await page.goto(url, { waitUntil: "networkidle" });
   if (after) await after(page);
@@ -24,7 +26,9 @@ async function main() {
   });
 
   const cookies = await (async () => {
-    const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+    const b = await chromium.launch({
+      executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    });
     const p = await b.newPage();
     await p.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
     await p.locator('input[name="email"]').fill("clarissaoliveira.adv@gmail.com");
@@ -46,7 +50,9 @@ async function main() {
     ["09-movimento", "http://localhost:3000/movimento"],
     ["10-recebiveis", "http://localhost:3000/recebiveis"],
   ] as const) {
-    const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+    const browser = await chromium.launch({
+      executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    });
     const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     await context.addCookies(cookies);
     const page = await context.newPage();

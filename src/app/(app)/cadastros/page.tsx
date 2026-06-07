@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Landmark, ListTree, UserCog } from "lucide-react";
+import { ArrowRight, Building2, Landmark, ListTree, UserCog } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -23,6 +23,13 @@ const CADASTROS = [
     title: "Parceiros / Advogados",
     descricao: "Sócia, parceiros externos e funcionários para sucumbência e repasses.",
     icon: UserCog,
+    disponivel: true,
+  },
+  {
+    href: "/cadastros/escritorio",
+    title: "Dados do Escritório",
+    descricao: "Nome, OAB, endereço — aparecem na prestação de contas entregue ao cliente.",
+    icon: Building2,
     disponivel: true,
   },
 ] as const;

@@ -4,6 +4,7 @@ const NAV = [
   { href: "/dashboard", label: "Painel" },
   { href: "/movimento", label: "Movimento de Caixa" },
   { href: "/recebiveis", label: "Recebíveis" },
+  { href: "/prestacao-contas", label: "Prestação de Contas" },
   { href: "/ressarcimentos", label: "Ressarcimentos" },
   { href: "/parcerias", label: "Parcerias" },
   { href: "/sucumbencia", label: "Sucumbência" },
@@ -15,7 +16,7 @@ const NAV = [
 
 export function Sidebar() {
   return (
-    <aside className="w-64 shrink-0 bg-primary text-primary-foreground">
+    <aside className="w-64 shrink-0 bg-primary text-primary-foreground print:hidden">
       <div className="border-b border-white/10 p-6">
         <p className="text-xs uppercase tracking-wide text-white/60">Escritório</p>
         <h2 className="text-base font-semibold leading-tight">Clarissa Oliveira</h2>

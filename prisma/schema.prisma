@@ -485,3 +485,25 @@ model Auditoria {
   @@index([criadoEm])
   @@map("auditoria")
 }
+
+// =====================================================================
+// CONFIGURAÇÃO DO ESCRITÓRIO (singleton — usado na prestação de contas)
+// =====================================================================
+
+model Escritorio {
+  id           String   @id @default("default")
+  nome         String
+  oab          String?
+  cnpj         String?
+  endereco     String?
+  cidade       String?
+  uf           String?  @db.VarChar(2)
+  cep          String?
+  telefone     String?
+  email        String?
+  observacoes  String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@map("escritorio")
+}
