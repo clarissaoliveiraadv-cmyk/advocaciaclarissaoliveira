@@ -1,7 +1,9 @@
 import "server-only";
 import type {
   AdvogadoParceiro,
+  Categoria,
   Cliente,
+  ContaBancaria,
   Prisma,
   Processo,
   Sucumbencia,
@@ -14,6 +16,9 @@ export type SucumbenciaComRelacoes = Sucumbencia & {
   processo: Pick<Processo, "id" | "numeroCnj" | "natureza">;
   cliente: Pick<Cliente, "id" | "nome">;
   parceiroExterno: Pick<AdvogadoParceiro, "id" | "nome"> | null;
+  contaRecebimento: Pick<ContaBancaria, "id" | "nome">;
+  categoriaLancamento: Pick<Categoria, "id" | "nome">;
+  lancamentoEntrada: { descricao: string } | null;
 };
 
 export type ProcessoOpcao = Pick<Processo, "id" | "numeroCnj" | "clienteId"> & {
@@ -21,11 +26,16 @@ export type ProcessoOpcao = Pick<Processo, "id" | "numeroCnj" | "clienteId"> & {
 };
 export type ClienteOpcao = Pick<Cliente, "id" | "nome">;
 export type ParceiroOpcao = Pick<AdvogadoParceiro, "id" | "nome" | "tipo">;
+export type ContaOpcao = Pick<ContaBancaria, "id" | "nome" | "codigo">;
+export type CategoriaReceitaOpcao = Pick<Categoria, "id" | "nome">;
 
 const INCLUDE_RELACOES = {
   processo: { select: { id: true, numeroCnj: true, natureza: true } },
   cliente: { select: { id: true, nome: true } },
   parceiroExterno: { select: { id: true, nome: true } },
+  contaRecebimento: { select: { id: true, nome: true } },
+  categoriaLancamento: { select: { id: true, nome: true } },
+  lancamentoEntrada: { select: { descricao: true } },
 } satisfies Prisma.SucumbenciaInclude;
 
 export async function listSucumbencias(
@@ -51,11 +61,9 @@ export async function listSucumbencias(
 export async function statsSucumbencia(filtros: SucumbenciaFiltros): Promise<{
   totalBruto: number;
   totalEscritorio: number;
-  totalClarissa: number;
-  totalVivian: number;
   totalParceiro: number;
-  saldoClarissa: number;
-  saldoVivian: number;
+  saldoAPagarParceiro: number;
+  count: number;
 }> {
   const where = buildWhere(filtros);
   const itens = await prisma.sucumbencia.findMany({
@@ -63,47 +71,34 @@ export async function statsSucumbencia(filtros: SucumbenciaFiltros): Promise<{
     select: {
       valorTotal: true,
       percParceiroExterno: true,
-      percEscritorio: true,
-      percClarissa: true,
-      percVivian: true,
-      dataRepasseClarissa: true,
-      dataRepasseVivian: true,
+      dataRepasseParceiroExterno: true,
     },
   });
 
   let totalBruto = 0;
   let totalEscritorio = 0;
-  let totalClarissa = 0;
-  let totalVivian = 0;
   let totalParceiro = 0;
-  let saldoClarissa = 0;
-  let saldoVivian = 0;
+  let saldoAPagarParceiro = 0;
 
   for (const i of itens) {
     const dist = calcularDistribuicaoSucumbencia({
       valorTotal: Number(i.valorTotal),
       percParceiroExterno: i.percParceiroExterno ? Number(i.percParceiroExterno) : 0,
-      percEscritorio: Number(i.percEscritorio),
-      percClarissa: Number(i.percClarissa),
-      percVivian: Number(i.percVivian),
     });
     totalBruto += Number(i.valorTotal);
     totalEscritorio += dist.escritorio;
-    totalClarissa += dist.clarissa;
-    totalVivian += dist.vivian;
     totalParceiro += dist.parceiroExterno;
-    if (!i.dataRepasseClarissa) saldoClarissa += dist.clarissa;
-    if (!i.dataRepasseVivian) saldoVivian += dist.vivian;
+    if (i.percParceiroExterno && !i.dataRepasseParceiroExterno) {
+      saldoAPagarParceiro += dist.parceiroExterno;
+    }
   }
 
   return {
     totalBruto,
     totalEscritorio,
-    totalClarissa,
-    totalVivian,
     totalParceiro,
-    saldoClarissa,
-    saldoVivian,
+    saldoAPagarParceiro,
+    count: itens.length,
   };
 }
 
@@ -139,6 +134,22 @@ export async function listOpcoesParceiros(): Promise<ParceiroOpcao[]> {
   });
 }
 
+export async function listOpcoesContas(): Promise<ContaOpcao[]> {
+  return prisma.contaBancaria.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true, codigo: true },
+  });
+}
+
+export async function listOpcoesCategoriasReceita(): Promise<CategoriaReceitaOpcao[]> {
+  return prisma.categoria.findMany({
+    where: { ativo: true, tipo: "RECEITA" },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+}
+
 function buildWhere(filtros: SucumbenciaFiltros): Prisma.SucumbenciaWhereInput {
   const where: Prisma.SucumbenciaWhereInput = {};
 
@@ -151,11 +162,14 @@ function buildWhere(filtros: SucumbenciaFiltros): Prisma.SucumbenciaWhereInput {
   if (filtros.clienteId) where.clienteId = filtros.clienteId;
   if (filtros.processoId) where.processoId = filtros.processoId;
 
-  if (filtros.status === "pendente_clarissa") where.dataRepasseClarissa = null;
-  if (filtros.status === "pendente_vivian") where.dataRepasseVivian = null;
-  if (filtros.status === "ambas_pagas") {
-    where.dataRepasseClarissa = { not: null };
-    where.dataRepasseVivian = { not: null };
+  if (filtros.status === "sem_parceiro") where.parceiroExternoId = null;
+  if (filtros.status === "parceiro_pendente") {
+    where.parceiroExternoId = { not: null };
+    where.dataRepasseParceiroExterno = null;
+  }
+  if (filtros.status === "parceiro_pago") {
+    where.parceiroExternoId = { not: null };
+    where.dataRepasseParceiroExterno = { not: null };
   }
 
   const search = filtros.search?.trim();

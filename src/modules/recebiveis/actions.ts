@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AcaoAuditoria, Prisma, StatusRecebivel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import { fromPercent } from "@/lib/money";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
@@ -15,7 +15,6 @@ import {
 } from "./schema";
 import { recebivelTemDistribuicao, recebivelTemLancamentos } from "./queries";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE = "recebivel";
 const ROUTE = "/recebiveis";
 

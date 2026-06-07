@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AcaoAuditoria, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import { onlyDigits } from "@/lib/format";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
@@ -15,7 +15,6 @@ import {
 } from "./schema";
 import { processoTemDependencias } from "./queries";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE = "processo";
 
 export async function criarProcesso(

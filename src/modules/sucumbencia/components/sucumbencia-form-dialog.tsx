@@ -14,12 +14,19 @@ import {
 } from "@/components/ui/dialog";
 
 import { SucumbenciaForm } from "./sucumbencia-form";
-import type { ParceiroOpcao, ProcessoOpcao } from "../queries";
+import type {
+  CategoriaReceitaOpcao,
+  ContaOpcao,
+  ParceiroOpcao,
+  ProcessoOpcao,
+} from "../queries";
 import type { SucumbenciaCreateInput } from "../schema";
 
 type Props = {
   processos: ProcessoOpcao[];
   parceiros: ParceiroOpcao[];
+  contas: ContaOpcao[];
+  categoriasReceita: CategoriaReceitaOpcao[];
 } & (
   | { modo: "criar" }
   | {
@@ -57,8 +64,9 @@ export function SucumbenciaFormDialog(props: Props) {
             {props.modo === "criar" ? "Nova sucumbência" : "Editar sucumbência"}
           </DialogTitle>
           <DialogDescription>
-            Honorários de sucumbência arbitrados em sentença, separados dos contratuais. Rateio
-            padrão 34/33/33 entre escritório/Clarissa/Vivian.
+            Honorários de sucumbência arbitrados em sentença. O valor bruto entra no caixa
+            automaticamente como lançamento de ENTRADA. Se houver parceiro externo, a fatia dele
+            fica como obrigação pendente até ser paga.
           </DialogDescription>
         </DialogHeader>
         <SucumbenciaForm
@@ -66,6 +74,8 @@ export function SucumbenciaFormDialog(props: Props) {
           sucumbenciaId={props.modo === "editar" ? props.sucumbenciaId : undefined}
           processos={props.processos}
           parceiros={props.parceiros}
+          contas={props.contas}
+          categoriasReceita={props.categoriasReceita}
           initialValues={props.modo === "editar" ? props.initialValues : undefined}
           onSucesso={() => setOpen(false)}
         />

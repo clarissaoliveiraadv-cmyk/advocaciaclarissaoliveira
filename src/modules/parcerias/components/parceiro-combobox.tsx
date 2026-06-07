@@ -23,7 +23,6 @@ type Props = {
 };
 
 const LABEL_TIPO: Record<ParceiroOpcao["tipo"], string> = {
-  SOCIA: "Sócia",
   PARCEIRO_EXTERNO: "Externo",
   FUNCIONARIO: "Funcionário",
 };

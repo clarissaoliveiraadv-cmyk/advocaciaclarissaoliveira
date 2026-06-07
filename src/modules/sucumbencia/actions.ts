@@ -1,30 +1,38 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AcaoAuditoria, Prisma } from "@prisma/client";
+import { AcaoAuditoria, Prisma, TipoLancamento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import { fromPercent } from "@/lib/money";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
-  marcarRepasseSchema,
+  marcarRepasseParceiroSchema,
   sucumbenciaCreateSchema,
   sucumbenciaUpdateSchema,
-  type MarcarRepasseInput,
+  type MarcarRepasseParceiroInput,
   type SucumbenciaCreateInput,
   type SucumbenciaUpdateInput,
 } from "./schema";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE = "sucumbencia";
 const ROUTE = "/sucumbencia";
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
+/**
+ * Cria uma sucumbência. Em uma transação atômica:
+ *   - cria o Lançamento de ENTRADA pelo valor bruto na conta indicada
+ *   - cria a Sucumbencia ligada a esse lançamento
+ *
+ * Se houver parceiro externo, a fatia dele fica como obrigação pendente
+ * (dataRepasseParceiroExterno = null) — o pagamento real é feito depois
+ * por meio de um lançamento manual de SAÍDA quando ela quitar.
+ */
 export async function criarSucumbencia(
   input: SucumbenciaCreateInput,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; lancamentoId: string }>> {
   const session = await requirePerfil(PERFIS_ESCRITA);
   const parsed = sucumbenciaCreateSchema.safeParse(input);
   if (!parsed.success)
@@ -40,24 +48,83 @@ export async function criarSucumbencia(
   });
   if (!proc) return { ok: false, error: "Processo não encontrado" };
 
+  const erroCategoria = await validarCategoriaReceita(parsed.data.categoriaLancamentoId);
+  if (erroCategoria) return erroCategoria;
+
   const erroParceiro = await validarParceiro(parsed.data.parceiroExternoId);
   if (erroParceiro) return erroParceiro;
 
-  const data = toDbData(parsed.data, proc.clienteId);
-  const suc = await prisma.sucumbencia.create({ data });
+  const d = parsed.data;
+  const dataRecebimento = new Date(`${d.dataRecebimento}T00:00:00.000Z`);
+  const parceiroId = d.parceiroExternoId?.trim() || null;
+  const percParc = parceiroId && d.percParceiroExterno ? d.percParceiroExterno.trim() : null;
 
-  await registrarAuditoria({
-    entidade: RESOURCE,
-    entidadeId: suc.id,
-    acao: AcaoAuditoria.CRIAR,
-    usuarioId: session.user.id,
-    dadosDepois: serializarAudit(data),
-  });
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const lancamento = await tx.lancamento.create({
+        data: {
+          data: dataRecebimento,
+          descricao: d.descricaoLancamento.trim(),
+          tipo: TipoLancamento.ENTRADA,
+          contaId: d.contaRecebimentoId,
+          categoriaId: d.categoriaLancamentoId,
+          valor: new Prisma.Decimal(d.valorTotal),
+          clienteId: proc.clienteId,
+          processoId: proc.id,
+          criadoPorId: session.user.id,
+        },
+      });
 
-  revalidatePath(ROUTE);
-  return { ok: true, data: { id: suc.id } };
+      const sucumbencia = await tx.sucumbencia.create({
+        data: {
+          processoId: proc.id,
+          clienteId: proc.clienteId,
+          valorTotal: new Prisma.Decimal(d.valorTotal),
+          dataRecebimento,
+          contaRecebimentoId: d.contaRecebimentoId,
+          categoriaLancamentoId: d.categoriaLancamentoId,
+          parceiroExternoId: parceiroId,
+          percParceiroExterno: percParc ? fromPercent(percParc) : null,
+          lancamentoEntradaId: lancamento.id,
+          observacoes: d.observacoes?.trim() || null,
+        },
+      });
+
+      return { sucumbencia, lancamento };
+    });
+
+    await registrarAuditoria({
+      entidade: RESOURCE,
+      entidadeId: result.sucumbencia.id,
+      acao: AcaoAuditoria.CRIAR,
+      usuarioId: session.user.id,
+      dadosDepois: {
+        valorTotal: String(d.valorTotal),
+        contaRecebimentoId: d.contaRecebimentoId,
+        categoriaLancamentoId: d.categoriaLancamentoId,
+        parceiroExternoId: parceiroId,
+        lancamentoId: result.lancamento.id,
+      },
+    });
+
+    revalidatePath(ROUTE);
+    revalidatePath("/movimento");
+    return {
+      ok: true,
+      data: { id: result.sucumbencia.id, lancamentoId: result.lancamento.id },
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { ok: false, error: "Conta ou categoria referenciada não existe." };
+    }
+    throw error;
+  }
 }
 
+/**
+ * Atualiza uma sucumbência junto com o lançamento de entrada vinculado
+ * (em transação atômica).
+ */
 export async function atualizarSucumbencia(input: SucumbenciaUpdateInput): Promise<ActionResult> {
   const session = await requirePerfil(PERFIS_ESCRITA);
   const parsed = sucumbenciaUpdateSchema.safeParse(input);
@@ -68,38 +135,84 @@ export async function atualizarSucumbencia(input: SucumbenciaUpdateInput): Promi
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
 
-  const { id, ...rest } = parsed.data;
+  const { id, ...d } = parsed.data;
   const antes = await prisma.sucumbencia.findUnique({ where: { id } });
   if (!antes) return { ok: false, error: "Sucumbência não encontrada" };
 
   const proc = await prisma.processo.findUnique({
-    where: { id: rest.processoId },
+    where: { id: d.processoId },
     select: { clienteId: true },
   });
   if (!proc) return { ok: false, error: "Processo não encontrado" };
 
-  const erroParceiro = await validarParceiro(rest.parceiroExternoId);
+  const erroCategoria = await validarCategoriaReceita(d.categoriaLancamentoId);
+  if (erroCategoria) return erroCategoria;
+
+  const erroParceiro = await validarParceiro(d.parceiroExternoId);
   if (erroParceiro) return erroParceiro;
 
-  const data = toDbData(rest, proc.clienteId);
-  await prisma.sucumbencia.update({ where: { id }, data });
+  const dataRecebimento = new Date(`${d.dataRecebimento}T00:00:00.000Z`);
+  const parceiroId = d.parceiroExternoId?.trim() || null;
+  const percParc = parceiroId && d.percParceiroExterno ? d.percParceiroExterno.trim() : null;
+
+  await prisma.$transaction(async (tx) => {
+    if (antes.lancamentoEntradaId) {
+      await tx.lancamento.update({
+        where: { id: antes.lancamentoEntradaId },
+        data: {
+          data: dataRecebimento,
+          descricao: d.descricaoLancamento.trim(),
+          contaId: d.contaRecebimentoId,
+          categoriaId: d.categoriaLancamentoId,
+          valor: new Prisma.Decimal(d.valorTotal),
+          clienteId: proc.clienteId,
+          processoId: d.processoId,
+        },
+      });
+    }
+    await tx.sucumbencia.update({
+      where: { id },
+      data: {
+        processoId: d.processoId,
+        clienteId: proc.clienteId,
+        valorTotal: new Prisma.Decimal(d.valorTotal),
+        dataRecebimento,
+        contaRecebimentoId: d.contaRecebimentoId,
+        categoriaLancamentoId: d.categoriaLancamentoId,
+        parceiroExternoId: parceiroId,
+        percParceiroExterno: percParc ? fromPercent(percParc) : null,
+        // se trocou de "com parceiro" para "sem parceiro", limpa a data de repasse
+        dataRepasseParceiroExterno: parceiroId ? antes.dataRepasseParceiroExterno : null,
+        observacoes: d.observacoes?.trim() || null,
+      },
+    });
+  });
 
   await registrarAuditoria({
     entidade: RESOURCE,
     entidadeId: id,
     acao: AcaoAuditoria.ATUALIZAR,
     usuarioId: session.user.id,
-    dadosAntes: serializarAudit(snapshot(antes)),
-    dadosDepois: serializarAudit(data),
+    dadosAntes: {
+      valorTotal: antes.valorTotal.toString(),
+      parceiroExternoId: antes.parceiroExternoId,
+    },
+    dadosDepois: {
+      valorTotal: String(d.valorTotal),
+      parceiroExternoId: parceiroId,
+    },
   });
 
   revalidatePath(ROUTE);
+  revalidatePath("/movimento");
   return { ok: true, data: undefined };
 }
 
-export async function marcarRepasse(input: MarcarRepasseInput): Promise<ActionResult> {
+export async function marcarRepasseParceiro(
+  input: MarcarRepasseParceiroInput,
+): Promise<ActionResult> {
   const session = await requirePerfil(PERFIS_ESCRITA);
-  const parsed = marcarRepasseSchema.safeParse(input);
+  const parsed = marcarRepasseParceiroSchema.safeParse(input);
   if (!parsed.success)
     return {
       ok: false,
@@ -109,16 +222,17 @@ export async function marcarRepasse(input: MarcarRepasseInput): Promise<ActionRe
 
   const antes = await prisma.sucumbencia.findUnique({ where: { id: parsed.data.id } });
   if (!antes) return { ok: false, error: "Sucumbência não encontrada" };
-
-  const campo = parsed.data.socia === "clarissa" ? "dataRepasseClarissa" : "dataRepasseVivian";
-  if (antes[campo]) {
-    return { ok: false, error: `Repasse para ${parsed.data.socia} já registrado.` };
+  if (!antes.parceiroExternoId) {
+    return { ok: false, error: "Esta sucumbência não tem parceiro externo." };
+  }
+  if (antes.dataRepasseParceiroExterno) {
+    return { ok: false, error: "Repasse ao parceiro externo já registrado." };
   }
 
   const dataRepasse = new Date(`${parsed.data.data}T00:00:00.000Z`);
   await prisma.sucumbencia.update({
     where: { id: parsed.data.id },
-    data: { [campo]: dataRepasse },
+    data: { dataRepasseParceiroExterno: dataRepasse },
   });
 
   await registrarAuditoria({
@@ -126,62 +240,101 @@ export async function marcarRepasse(input: MarcarRepasseInput): Promise<ActionRe
     entidadeId: parsed.data.id,
     acao: AcaoAuditoria.ATUALIZAR,
     usuarioId: session.user.id,
-    dadosAntes: { [campo]: null },
-    dadosDepois: { [campo]: dataRepasse.toISOString() },
+    dadosAntes: { dataRepasseParceiroExterno: null },
+    dadosDepois: { dataRepasseParceiroExterno: dataRepasse.toISOString() },
   });
 
   revalidatePath(ROUTE);
   return { ok: true, data: undefined };
 }
 
-export async function reverterRepasse(
-  id: string,
-  socia: "clarissa" | "vivian",
-): Promise<ActionResult> {
+export async function reverterRepasseParceiro(id: string): Promise<ActionResult> {
   const session = await requirePerfil(PERFIS_ESCRITA);
   const antes = await prisma.sucumbencia.findUnique({ where: { id } });
   if (!antes) return { ok: false, error: "Sucumbência não encontrada" };
-
-  const campo = socia === "clarissa" ? "dataRepasseClarissa" : "dataRepasseVivian";
-  if (!antes[campo]) {
-    return { ok: false, error: `Repasse para ${socia} ainda não foi feito.` };
+  if (!antes.dataRepasseParceiroExterno) {
+    return { ok: false, error: "Não há repasse ao parceiro para reverter." };
   }
 
-  await prisma.sucumbencia.update({ where: { id }, data: { [campo]: null } });
+  await prisma.sucumbencia.update({
+    where: { id },
+    data: { dataRepasseParceiroExterno: null },
+  });
 
   await registrarAuditoria({
     entidade: RESOURCE,
     entidadeId: id,
     acao: AcaoAuditoria.ATUALIZAR,
     usuarioId: session.user.id,
-    dadosAntes: { [campo]: antes[campo]?.toISOString() ?? null },
-    dadosDepois: { [campo]: null },
+    dadosAntes: { dataRepasseParceiroExterno: antes.dataRepasseParceiroExterno.toISOString() },
+    dadosDepois: { dataRepasseParceiroExterno: null },
   });
 
   revalidatePath(ROUTE);
   return { ok: true, data: undefined };
 }
 
+/**
+ * Exclui a sucumbência e o lançamento de entrada vinculado em transação atômica.
+ */
 export async function excluirSucumbencia(id: string): Promise<ActionResult> {
   const session = await requirePerfil(PERFIS_ESCRITA);
   const antes = await prisma.sucumbencia.findUnique({ where: { id } });
   if (!antes) return { ok: false, error: "Sucumbência não encontrada" };
 
-  await prisma.sucumbencia.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.sucumbencia.delete({ where: { id } });
+    if (antes.lancamentoEntradaId) {
+      await tx.lancamento.delete({ where: { id: antes.lancamentoEntradaId } });
+    }
+  });
 
   await registrarAuditoria({
     entidade: RESOURCE,
     entidadeId: id,
     acao: AcaoAuditoria.EXCLUIR,
     usuarioId: session.user.id,
-    dadosAntes: serializarAudit(snapshot(antes)),
+    dadosAntes: {
+      valorTotal: antes.valorTotal.toString(),
+      lancamentoExcluidoId: antes.lancamentoEntradaId,
+    },
   });
 
   revalidatePath(ROUTE);
+  revalidatePath("/movimento");
   return { ok: true, data: undefined };
 }
 
 // ----- helpers -----
+
+async function validarCategoriaReceita(categoriaId: string): Promise<ActionError | null> {
+  const cat = await prisma.categoria.findUnique({
+    where: { id: categoriaId },
+    select: { tipo: true, ativo: true },
+  });
+  if (!cat) {
+    return {
+      ok: false,
+      error: "Categoria não encontrada",
+      fieldErrors: { categoriaLancamentoId: ["Categoria inexistente"] },
+    };
+  }
+  if (!cat.ativo) {
+    return {
+      ok: false,
+      error: "Categoria inativa",
+      fieldErrors: { categoriaLancamentoId: ["Categoria inativa"] },
+    };
+  }
+  if (cat.tipo !== "RECEITA") {
+    return {
+      ok: false,
+      error: "Categoria escolhida deve ser de RECEITA.",
+      fieldErrors: { categoriaLancamentoId: ["Tipo deve ser RECEITA"] },
+    };
+  }
+  return null;
+}
 
 async function validarParceiro(parceiroId: string | undefined): Promise<ActionError | null> {
   const id = parceiroId?.trim();
@@ -205,59 +358,4 @@ async function validarParceiro(parceiroId: string | undefined): Promise<ActionEr
     };
   }
   return null;
-}
-
-function toDbData(
-  input: Omit<SucumbenciaCreateInput, never>,
-  clienteId: string,
-) {
-  const text = (v: string | undefined) => {
-    const t = v?.trim();
-    return t ? t : null;
-  };
-  const parcId = input.parceiroExternoId?.trim() || null;
-  const percParc = input.percParceiroExterno?.trim();
-  return {
-    processoId: input.processoId,
-    clienteId,
-    valorTotal: new Prisma.Decimal(input.valorTotal),
-    dataRecebimento: new Date(`${input.dataRecebimento}T00:00:00.000Z`),
-    parceiroExternoId: parcId,
-    percParceiroExterno: parcId && percParc ? fromPercent(percParc) : null,
-    percEscritorio: fromPercent(input.percEscritorio),
-    percClarissa: fromPercent(input.percClarissa),
-    percVivian: fromPercent(input.percVivian),
-    observacoes: text(input.observacoes),
-  };
-}
-
-function snapshot(s: {
-  processoId: string;
-  clienteId: string;
-  valorTotal: Prisma.Decimal;
-  dataRecebimento: Date;
-  parceiroExternoId: string | null;
-  percParceiroExterno: Prisma.Decimal | null;
-  percEscritorio: Prisma.Decimal;
-  percClarissa: Prisma.Decimal;
-  percVivian: Prisma.Decimal;
-  dataRepasseClarissa: Date | null;
-  dataRepasseVivian: Date | null;
-  observacoes: string | null;
-}) {
-  return { ...s };
-}
-
-type AuditSerialized = Record<string, string | number | boolean | null>;
-
-function serializarAudit(data: Record<string, unknown>): AuditSerialized {
-  const out: AuditSerialized = {};
-  for (const [k, v] of Object.entries(data)) {
-    if (v instanceof Prisma.Decimal) out[k] = v.toString();
-    else if (v instanceof Date) out[k] = v.toISOString();
-    else if (v === undefined || v === null) out[k] = null;
-    else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k] = v;
-    else out[k] = String(v);
-  }
-  return out;
 }

@@ -33,13 +33,20 @@ import {
   type SucumbenciaCreateInput,
 } from "../schema";
 import { atualizarSucumbencia, criarSucumbencia } from "../actions";
-import type { ParceiroOpcao, ProcessoOpcao } from "../queries";
+import type {
+  CategoriaReceitaOpcao,
+  ContaOpcao,
+  ParceiroOpcao,
+  ProcessoOpcao,
+} from "../queries";
 
 type Props = {
   modo: "criar" | "editar";
   sucumbenciaId?: string;
   processos: ProcessoOpcao[];
   parceiros: ParceiroOpcao[];
+  contas: ContaOpcao[];
+  categoriasReceita: CategoriaReceitaOpcao[];
   initialValues?: Partial<SucumbenciaCreateInput>;
   onSucesso: () => void;
 };
@@ -48,11 +55,11 @@ const VALORES_VAZIOS: SucumbenciaCreateInput = {
   processoId: "",
   valorTotal: 0,
   dataRecebimento: new Date().toISOString().slice(0, 10),
+  contaRecebimentoId: "",
+  categoriaLancamentoId: "",
+  descricaoLancamento: "",
   parceiroExternoId: undefined,
   percParceiroExterno: undefined,
-  percEscritorio: "34",
-  percClarissa: "33",
-  percVivian: "33",
   observacoes: undefined,
 };
 
@@ -61,6 +68,8 @@ export function SucumbenciaForm({
   sucumbenciaId,
   processos,
   parceiros,
+  contas,
+  categoriasReceita,
   initialValues,
   onSucesso,
 }: Props) {
@@ -74,22 +83,15 @@ export function SucumbenciaForm({
   const valorTotal = form.watch("valorTotal");
   const parceiroId = form.watch("parceiroExternoId");
   const percParc = form.watch("percParceiroExterno");
-  const percEsc = form.watch("percEscritorio");
-  const percCla = form.watch("percClarissa");
-  const percViv = form.watch("percVivian");
 
-  const calc = useMemo(() => {
-    return calcularDistribuicaoSucumbencia({
-      valorTotal: Number(valorTotal) || 0,
-      percParceiroExterno: parceiroId && percParc ? (Number(percParc) || 0) / 100 : 0,
-      percEscritorio: (Number(percEsc) || 0) / 100,
-      percClarissa: (Number(percCla) || 0) / 100,
-      percVivian: (Number(percViv) || 0) / 100,
-    });
-  }, [valorTotal, parceiroId, percParc, percEsc, percCla, percViv]);
-
-  const somaSocios =
-    (Number(percEsc) || 0) + (Number(percCla) || 0) + (Number(percViv) || 0);
+  const calc = useMemo(
+    () =>
+      calcularDistribuicaoSucumbencia({
+        valorTotal: Number(valorTotal) || 0,
+        percParceiroExterno: parceiroId && percParc ? (Number(percParc) || 0) / 100 : 0,
+      }),
+    [valorTotal, parceiroId, percParc],
+  );
 
   function onSubmit(values: SucumbenciaCreateInput) {
     startTransition(async () => {
@@ -171,9 +173,77 @@ export function SucumbenciaForm({
           />
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="contaRecebimentoId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Conta de recebimento *</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {contas.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome} ({c.codigo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="categoriaLancamentoId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Categoria do lançamento *</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma RECEITA..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {categoriasReceita.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="descricaoLancamento"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Descrição do lançamento *</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="ex.: Honorários sucumbenciais — Pasta 981"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="rounded-md border bg-card/50 p-3">
           <div className="mb-2 text-xs font-medium text-muted-foreground">
-            Parceiro externo (opcional — sai por cima do bruto)
+            Parceiro externo (opcional — só se dividir com outro advogado)
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
@@ -224,7 +294,7 @@ export function SucumbenciaForm({
               name="percParceiroExterno"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>% Parceiro externo</FormLabel>
+                  <FormLabel>% do parceiro</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -245,97 +315,25 @@ export function SucumbenciaForm({
           </div>
         </div>
 
-        <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">
-            Rateio entre sócias (deve somar 100%)
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FormField
-              control={form.control}
-              name="percEscritorio"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>% Escritório</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="percClarissa"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>% Clarissa</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="percVivian"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>% Vivian</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          {Math.abs(somaSocios - 100) > 0.01 && (
-            <p className="mt-1 text-xs text-destructive">
-              Soma atual: {somaSocios.toFixed(2)}% — deve ser exatamente 100%.
-            </p>
-          )}
-        </div>
-
         <div className="rounded-md border bg-muted/30 p-3 text-sm">
-          <div className="mb-1 text-xs font-medium text-muted-foreground">Preview do rateio</div>
+          <div className="mb-1 text-xs font-medium text-muted-foreground">
+            Preview — como entra no caixa
+          </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+            <span className="text-muted-foreground">Bruto recebido</span>
+            <span className="font-mono tabular-nums">{toBRL(Number(valorTotal) || 0)}</span>
             {parceiroId && (
               <>
-                <span className="text-muted-foreground">Parceiro externo</span>
-                <span className="font-mono tabular-nums">{toBRL(calc.parceiroExterno)}</span>
+                <span className="text-muted-foreground">Devido ao parceiro</span>
+                <span className="font-mono tabular-nums text-amber-700">
+                  {toBRL(calc.parceiroExterno)}
+                </span>
               </>
             )}
-            <span className="text-muted-foreground">Escritório</span>
-            <span className="font-mono tabular-nums text-emerald-700">{toBRL(calc.escritorio)}</span>
-            <span className="text-muted-foreground">Clarissa</span>
-            <span className="font-mono tabular-nums">{toBRL(calc.clarissa)}</span>
-            <span className="text-muted-foreground">Vivian</span>
-            <span className="font-mono tabular-nums">{toBRL(calc.vivian)}</span>
+            <span className="text-muted-foreground">Fica com o escritório</span>
+            <span className="font-mono font-semibold tabular-nums text-emerald-700">
+              {toBRL(calc.escritorio)}
+            </span>
           </div>
         </div>
 

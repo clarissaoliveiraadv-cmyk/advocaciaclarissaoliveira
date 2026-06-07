@@ -12,11 +12,10 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import type { ActionResult } from "@/modules/_shared/types";
 import { confirmarDistribuicaoSchema, type ConfirmarDistribuicaoInput } from "./schema";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE_DIST = "distribuicao";
 const RESOURCE_REC = "recebivel";
 const ROUTE_REC = "/recebiveis";

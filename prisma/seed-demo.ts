@@ -52,7 +52,7 @@ async function main() {
   console.warn("Criando parceiro de demonstração...");
   const parceiro = await prisma.advogadoParceiro.create({
     data: {
-      nome: "Dra. Vivian Lamounier (Demo)",
+      nome: "Dr. Pedro Almeida (Demo)",
       tipo: TipoParceiro.PARCEIRO_EXTERNO,
       oab: "123456/MG",
       percentualPadraoSucumbencia: 0.4,
@@ -252,7 +252,7 @@ async function main() {
 
   console.warn("\n✓ Dados de demo criados:");
   console.warn("  • 3 clientes (Maria, João, Construtora Alfa)");
-  console.warn("  • 1 parceiro (Vivian Demo)");
+  console.warn("  • 1 parceiro (Pedro Demo)");
   console.warn("  • 3 processos (1 trabalhista, 1 previdenciário, 1 cível extrajudicial)");
   console.warn("  • 3 recebíveis PREVISTOS");
   console.warn("  • 1 recebível RECEBIDO com distribuição CONFIRMADA (pronto para repasses)");
