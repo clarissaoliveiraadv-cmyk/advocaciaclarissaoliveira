@@ -82,7 +82,7 @@ export function ParceiroForm({ modo, parceiroId, initialValues, onSucesso }: Pro
             <FormItem>
               <FormLabel>Nome *</FormLabel>
               <FormControl>
-                <Input placeholder="Dra. Vivian Lamounier" autoComplete="off" {...field} />
+                <Input placeholder="Dr. Pedro Almeida" autoComplete="off" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

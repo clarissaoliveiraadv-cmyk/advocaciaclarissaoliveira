@@ -35,6 +35,10 @@ export type IndicadoresFinanceiros = {
    * repassado. Inclui:
    *  - itens de distribuição PENDENTE_REPASSE (cliente/parceiro/perito/FGTS/custas/outro)
    *  - fatia de parceiro externo em Sucumbência ainda não repassada
+   *  - fatia devida em ParceriaPaga (valorRecebido × %honor − ressarc) × %parceiro,
+   *    quando dataPgto = null
+   *  - recebíveis RECEBIDOS sem Distribuição confirmada (estimativa da parte do
+   *    cliente, postura conservadora)
    */
   emCustodia: number;
   /** O que é do escritório de verdade. Pode ser negativo em caso de descompasso. */
@@ -63,6 +67,8 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
     recebiveisMes,
     sucumbenciaParceiroPendente,
     sucumbenciaMes,
+    recebidasSemDistribuicao,
+    parceriasPendentes,
   ] = await Promise.all([
     prisma.contaBancaria.findMany({ select: { saldoInicial: true } }),
     prisma.lancamento.groupBy({
@@ -101,6 +107,32 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
       where: { dataRecebimento: { gte: inicioMes, lte: fimMes } },
       select: { valorTotal: true, percParceiroExterno: true },
     }),
+    // Crítico #1: recebíveis marcados como RECEBIDA mas SEM distribuição confirmada.
+    // O dinheiro entrou no caixa (compõe saldoBancario), mas nenhum item de custódia
+    // foi criado. Sem isso, saldoLiquido fica inflado.
+    prisma.recebivel.findMany({
+      where: {
+        status: "RECEBIDA",
+        OR: [{ distribuicao: { is: null } }, { distribuicao: { status: { not: "CONFIRMADA" } } }],
+      },
+      select: {
+        valorParcela: true,
+        ressarcimentoEmbutido: true,
+        percHonorarios: true,
+        percParceiro: true,
+      },
+    }),
+    // Crítico #2: parcerias com valorRecebido > 0 e ainda não pagas. A fatia do
+    // parceiro já está no caixa do escritório mas é obrigação pendente.
+    prisma.parceriaPaga.findMany({
+      where: { dataPgto: null, valorRecebido: { gt: 0 } },
+      select: {
+        valorRecebido: true,
+        percHonorarios: true,
+        ressarcimentos: true,
+        percParceiro: true,
+      },
+    }),
   ]);
 
   // Saldo bancário = saldosIniciais + entradas - saídas
@@ -123,15 +155,40 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
     }
   }
   // Sucumbência: fatia de parceiro externo ainda não repassada é obrigação pendente
-  let custodiaSucumbencia = 0;
+  let custodiaParceiros = 0;
   for (const s of sucumbenciaParceiroPendente) {
-    custodiaSucumbencia += Number(s.valorTotal) * Number(s.percParceiroExterno ?? 0);
+    custodiaParceiros += Number(s.valorTotal) * Number(s.percParceiroExterno ?? 0);
   }
-  if (custodiaSucumbencia > 0) {
-    emCustodia += custodiaSucumbencia;
+  // Parcerias: fatia devida a parceiros já recebida mas ainda não paga
+  for (const p of parceriasPendentes) {
+    const baseHonor = Number(p.valorRecebido) * Number(p.percHonorarios);
+    const honorLiquido = Math.max(0, baseHonor - Number(p.ressarcimentos));
+    const devido = Math.max(0, honorLiquido * Number(p.percParceiro));
+    custodiaParceiros += devido;
+  }
+  if (custodiaParceiros > 0) {
+    emCustodia += custodiaParceiros;
     custodiaPorBeneficiario.push({
       beneficiario: TipoBeneficiario.PARCEIRO,
-      valor: custodiaSucumbencia,
+      valor: custodiaParceiros,
+    });
+  }
+  // Recebíveis RECEBIDOS sem distribuição confirmada: estimamos a parte do
+  // cliente + ressarcimento embutido como "ainda do cliente" até a usuária
+  // confirmar a distribuição (postura conservadora — não inflar o saldo).
+  let custodiaSemDist = 0;
+  for (const r of recebidasSemDistribuicao) {
+    const v = Number(r.valorParcela);
+    const ressarc = Number(r.ressarcimentoEmbutido);
+    const honor = v * Number(r.percHonorarios);
+    const valorCliente = Math.max(0, v - ressarc - honor);
+    custodiaSemDist += valorCliente;
+  }
+  if (custodiaSemDist > 0) {
+    emCustodia += custodiaSemDist;
+    custodiaPorBeneficiario.push({
+      beneficiario: TipoBeneficiario.CLIENTE,
+      valor: custodiaSemDist,
     });
   }
   custodiaPorBeneficiario.sort((a, b) => b.valor - a.valor);

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AcaoAuditoria, Prisma, StatusRessarcimento } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
   marcarReembolsadoSchema,
@@ -15,7 +15,6 @@ import {
   type RessarcimentoUpdateInput,
 } from "./schema";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE = "ressarcimento";
 const ROUTE = "/ressarcimentos";
 

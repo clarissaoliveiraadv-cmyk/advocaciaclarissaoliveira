@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TipoParceiro } from "@prisma/client";
 import { parceiroCreateSchema, parceiroFiltrosSchema } from "./schema";
 
-const base = { nome: "Dra. Vivian Lamounier", tipo: TipoParceiro.PARCEIRO_EXTERNO };
+const base = { nome: "Dr. Pedro Almeida", tipo: TipoParceiro.PARCEIRO_EXTERNO };
 
 describe("parceiroCreateSchema", () => {
   it("aceita parceiro mínimo (nome + tipo)", () => {
@@ -16,9 +16,9 @@ describe("parceiroCreateSchema", () => {
 
   it("exige tipo válido", () => {
     expect(parceiroCreateSchema.safeParse({ ...base, tipo: "OUTRO" }).success).toBe(false);
-    expect(parceiroCreateSchema.safeParse({ ...base, tipo: TipoParceiro.SOCIA }).success).toBe(
-      true,
-    );
+    expect(
+      parceiroCreateSchema.safeParse({ ...base, tipo: TipoParceiro.PARCEIRO_EXTERNO }).success,
+    ).toBe(true);
     expect(
       parceiroCreateSchema.safeParse({ ...base, tipo: TipoParceiro.FUNCIONARIO }).success,
     ).toBe(true);
@@ -72,8 +72,8 @@ describe("parceiroFiltrosSchema", () => {
   });
 
   it("aceita tipo específico", () => {
-    const r = parceiroFiltrosSchema.parse({ tipo: TipoParceiro.SOCIA });
-    expect(r.tipo).toBe(TipoParceiro.SOCIA);
+    const r = parceiroFiltrosSchema.parse({ tipo: TipoParceiro.FUNCIONARIO });
+    expect(r.tipo).toBe(TipoParceiro.FUNCIONARIO);
   });
 
   it("rejeita ativo desconhecido", () => {

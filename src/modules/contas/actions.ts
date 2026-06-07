@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AcaoAuditoria, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
   contaCreateSchema,
@@ -14,7 +14,6 @@ import {
 } from "./schema";
 import { contaTemDependencias } from "./queries";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA", "SECRETARIA"] as const;
 const RESOURCE = "conta_bancaria";
 const ROUTE = "/cadastros/contas";
 

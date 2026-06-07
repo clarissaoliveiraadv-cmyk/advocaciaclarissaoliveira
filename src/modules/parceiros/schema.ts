@@ -47,7 +47,6 @@ export type ParceiroUpdateInput = z.infer<typeof parceiroUpdateSchema>;
 export type ParceiroFiltros = z.infer<typeof parceiroFiltrosSchema>;
 
 export const TIPO_PARCEIRO_LABELS: Record<TipoParceiro, string> = {
-  SOCIA: "Sócia",
   PARCEIRO_EXTERNO: "Parceiro externo",
   FUNCIONARIO: "Funcionário",
 };

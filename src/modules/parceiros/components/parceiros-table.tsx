@@ -112,8 +112,6 @@ export async function ParceirosTable({ parceiros }: Props) {
 
 function badgeTipo(tipo: AdvogadoParceiro["tipo"]) {
   switch (tipo) {
-    case "SOCIA":
-      return "default" as const;
     case "PARCEIRO_EXTERNO":
       return "secondary" as const;
     case "FUNCIONARIO":

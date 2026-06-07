@@ -9,7 +9,7 @@ Baseado na **Especificação Funcional** (documento `ESPECI1.DOC`).
 - **Next.js 15** (App Router) + **React 19** + **TypeScript** strict
 - **Tailwind CSS** + **shadcn/ui** (Radix UI primitives)
 - **Prisma** ORM + **PostgreSQL**
-- **Auth.js v5** (NextAuth) — login por credenciais, perfis (`ADMIN`, `SOCIA`, `SECRETARIA`, `PARCEIRO_LEITURA`)
+- **Auth.js v5** (NextAuth) — login por credenciais, perfis (`ADMIN`, `SECRETARIA`, `PARCEIRO_LEITURA`)
 - **React Hook Form + Zod** — validação única para form e Server Actions
 - **Vitest** (unit) — Playwright entra na Slice 2
 - **ESLint + Prettier + Husky + lint-staged** — pre-commit obrigatório
@@ -107,10 +107,9 @@ Demonstrativo por processo: valor recebido, honorários, sucumbência, perito, p
 Saldos por conta calculados de `Lancamento`, faturamento líquido do mês, gráficos.
 
 ### Fase 2 — Parcerias e Sucumbência
-- [ ] Parceria Pagável
-- [ ] Parceria Cível (Vivian)
-- [ ] Sucumbência 34/33/33 + Saldo Fundo (VIEW cumulativa)
-- [ ] Relatórios de repasses devidos
+- [x] Parceria Pagável
+- [x] Sucumbência integrada ao saldo (com parceiro externo opcional)
+- [x] Relatórios de repasses devidos
 
 ### Fase 3 — Inteligência
 - [ ] Importação OFX/CSV de extrato
@@ -128,7 +127,7 @@ Entidades principais (ver `prisma/schema.prisma`):
 - `Recebivel` 1—N `Lancamento` (entrada do recebimento + saída do repasse)
 - `ContaBancaria` 1—N `Lancamento`
 - `Categoria` 1—N `Lancamento` (hierárquica via `categoriaPaiId`)
-- `Usuario` com `Perfil` (ADMIN, SOCIA, SECRETARIA, PARCEIRO_LEITURA)
+- `Usuario` com `Perfil` (ADMIN, SECRETARIA, PARCEIRO_LEITURA)
 - `Auditoria` registra alterações em todas as tabelas financeiras
 
 ## Legado

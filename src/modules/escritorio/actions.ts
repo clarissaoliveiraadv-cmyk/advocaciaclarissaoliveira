@@ -4,16 +4,15 @@ import { revalidatePath } from "next/cache";
 import { AcaoAuditoria } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ADMIN, requirePerfil } from "@/lib/auth/guards";
 import type { ActionResult } from "@/modules/_shared/types";
 import { escritorioUpdateSchema, type EscritorioUpdateInput } from "./schema";
 
-const PERFIS_ESCRITA = ["ADMIN", "SOCIA"] as const;
 const RESOURCE = "escritorio";
 const ID_PADRAO = "default";
 
 export async function atualizarEscritorio(input: EscritorioUpdateInput): Promise<ActionResult> {
-  const session = await requirePerfil(PERFIS_ESCRITA);
+  const session = await requirePerfil(PERFIS_ADMIN);
   const parsed = escritorioUpdateSchema.safeParse(input);
   if (!parsed.success)
     return {
