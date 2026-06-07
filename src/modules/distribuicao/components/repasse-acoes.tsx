@@ -21,9 +21,14 @@ type Props = {
   categoriasDespesa: CategoriaDespesaOpcao[];
 };
 
-const ESCRITORIO: ReadonlyArray<TipoBeneficiario> = [
+/**
+ * Beneficiários cujo dinheiro pertence ao escritório — não precisam de ação.
+ * Honorários e ressarcimento já estão na conta; o item é apenas informativo.
+ */
+const NO_CAIXA_DO_ESCRITORIO: ReadonlyArray<TipoBeneficiario> = [
   TipoBeneficiario.ESCRITORIO_CONTRATUAL,
   TipoBeneficiario.ESCRITORIO_SUCUMBENCIA,
+  TipoBeneficiario.RESSARCIMENTO,
 ];
 
 export function RepasseAcoes({
@@ -35,6 +40,13 @@ export function RepasseAcoes({
   contas,
   categoriasDespesa,
 }: Props) {
+  const ehEscritorio = NO_CAIXA_DO_ESCRITORIO.includes(beneficiario);
+
+  // Itens do escritório não têm ações — o dinheiro já está no caixa.
+  if (ehEscritorio) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
   if (status === StatusItemDistribuicao.REPASSADO) {
     return <ReverterRepasseDialog itemId={itemId} />;
   }
@@ -43,19 +55,16 @@ export function RepasseAcoes({
     return <LiberarCustodiaButton itemId={itemId} />;
   }
 
-  // PENDENTE_REPASSE
-  const ehEscritorio = ESCRITORIO.includes(beneficiario);
+  // PENDENTE_REPASSE (apenas obrigações reais: cliente, parceiro, perito, etc.)
   return (
     <div className="flex items-center justify-end gap-1">
-      {!ehEscritorio && (
-        <RepasseFormDialog
-          itemId={itemId}
-          valorItem={valor}
-          descricaoSugerida={descricaoSugerida}
-          contas={contas}
-          categoriasDespesa={categoriasDespesa}
-        />
-      )}
+      <RepasseFormDialog
+        itemId={itemId}
+        valorItem={valor}
+        descricaoSugerida={descricaoSugerida}
+        contas={contas}
+        categoriasDespesa={categoriasDespesa}
+      />
       <MarcarCustodiaButton itemId={itemId} />
     </div>
   );

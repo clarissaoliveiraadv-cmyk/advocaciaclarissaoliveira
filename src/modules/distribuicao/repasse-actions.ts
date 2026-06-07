@@ -22,6 +22,7 @@ const ROUTE_REC = "/recebiveis";
 const BENEFICIARIOS_ESCRITORIO: ReadonlyArray<TipoBeneficiario> = [
   TipoBeneficiario.ESCRITORIO_CONTRATUAL,
   TipoBeneficiario.ESCRITORIO_SUCUMBENCIA,
+  TipoBeneficiario.RESSARCIMENTO,
 ];
 
 type ActionError = { ok: false; error: string; fieldErrors?: Record<string, string[]> };

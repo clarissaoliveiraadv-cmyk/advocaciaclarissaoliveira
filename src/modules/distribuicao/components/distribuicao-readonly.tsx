@@ -84,7 +84,7 @@ export function DistribuicaoReadonly({ distribuicao, contas, categoriasDespesa }
                     {i.cliente?.nome ?? i.parceiro?.nome ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={i.status} />
+                    <StatusBadge status={i.status} beneficiario={i.beneficiario} />
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {toBRL(Number(i.valor))}
@@ -121,7 +121,23 @@ export function DistribuicaoReadonly({ distribuicao, contas, categoriasDespesa }
   );
 }
 
-function StatusBadge({ status }: { status: DistribuicaoCompleta["itens"][number]["status"] }) {
+const NO_CAIXA_DO_ESCRITORIO = [
+  "ESCRITORIO_CONTRATUAL",
+  "ESCRITORIO_SUCUMBENCIA",
+  "RESSARCIMENTO",
+] as const;
+
+function StatusBadge({
+  status,
+  beneficiario,
+}: {
+  status: DistribuicaoCompleta["itens"][number]["status"];
+  beneficiario: DistribuicaoCompleta["itens"][number]["beneficiario"];
+}) {
+  const ehEscritorio = (NO_CAIXA_DO_ESCRITORIO as ReadonlyArray<string>).includes(beneficiario);
+  if (ehEscritorio) {
+    return <Badge variant="success">No caixa</Badge>;
+  }
   switch (status) {
     case "REPASSADO":
       return <Badge variant="success">Repassado</Badge>;

@@ -22,6 +22,16 @@ const RESOURCE_REC = "recebivel";
 const ROUTE_REC = "/recebiveis";
 
 /**
+ * Beneficiários cujo dinheiro pertence ao escritório — não precisam de repasse.
+ * Ao confirmar a distribuição, esses itens entram direto como RETIDO_CUSTODIA.
+ */
+const BENEFICIARIOS_NO_CAIXA: ReadonlyArray<TipoBeneficiario> = [
+  TipoBeneficiario.ESCRITORIO_CONTRATUAL,
+  TipoBeneficiario.ESCRITORIO_SUCUMBENCIA,
+  TipoBeneficiario.RESSARCIMENTO,
+];
+
+/**
  * Confirma a distribuição de um recebível em estado PREVISTA:
  *   - cria a Distribuicao + todos os itens
  *   - cria um Lançamento de ENTRADA na conta de recebimento (valor bruto)
@@ -98,7 +108,11 @@ export async function confirmarDistribuicao(
               beneficiario: i.beneficiario,
               descricao: i.descricao?.trim() || null,
               valor: new Prisma.Decimal(i.valor),
-              status: StatusItemDistribuicao.PENDENTE_REPASSE,
+              // Itens do escritório (honorários e ressarcimento) já entram resolvidos
+              // — o dinheiro está no caixa, não há nada a "repassar".
+              status: BENEFICIARIOS_NO_CAIXA.includes(i.beneficiario)
+                ? StatusItemDistribuicao.RETIDO_CUSTODIA
+                : StatusItemDistribuicao.PENDENTE_REPASSE,
               clienteId: i.beneficiario === TipoBeneficiario.CLIENTE ? i.clienteId || null : null,
               parceiroId:
                 i.beneficiario === TipoBeneficiario.PARCEIRO ? i.parceiroId || null : null,
