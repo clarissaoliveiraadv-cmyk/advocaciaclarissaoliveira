@@ -5,6 +5,7 @@ import {
   Landmark,
   ListTree,
   Receipt,
+  Upload,
   UserCog,
 } from "lucide-react";
 
@@ -16,6 +17,13 @@ const CADASTROS = [
     title: "Contas Bancárias",
     descricao: "Contas e caixas usados nos lançamentos financeiros.",
     icon: Landmark,
+    disponivel: true,
+  },
+  {
+    href: "/cadastros/saldo-abertura",
+    title: "Saldo de Abertura",
+    descricao: "Informe o saldo real das contas numa data de corte para iniciar o sistema sem precisar importar histórico.",
+    icon: Upload,
     disponivel: true,
   },
   {

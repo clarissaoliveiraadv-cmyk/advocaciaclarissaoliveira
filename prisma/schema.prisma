@@ -137,17 +137,21 @@ enum TipoConta {
 }
 
 model ContaBancaria {
-  id           String    @id @default(cuid())
-  codigo       String    @unique // ex: DIN, INTER, CEF
-  nome         String
-  tipo         TipoConta @default(CONTA_CORRENTE)
-  banco        String?
-  agencia      String?
-  conta        String?
-  saldoInicial Decimal   @default(0) @db.Decimal(14, 2)
-  ativo        Boolean   @default(true)
-  criadoEm     DateTime  @default(now())
-  atualizadoEm DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  codigo            String    @unique // ex: DIN, INTER, CEF
+  nome              String
+  tipo              TipoConta @default(CONTA_CORRENTE)
+  banco             String?
+  agencia           String?
+  conta             String?
+  saldoInicial      Decimal   @default(0) @db.Decimal(14, 2)
+  // Data de abertura do saldo. Quando preenchida, apenas lançamentos com
+  // data >= saldoAberturaData entram no cálculo do saldo. Permite começar o
+  // sistema "do zero" a partir de uma data, ignorando histórico anterior.
+  saldoAberturaData DateTime? @db.Date
+  ativo             Boolean   @default(true)
+  criadoEm          DateTime  @default(now())
+  atualizadoEm      DateTime  @updatedAt
 
   lancamentosConta  Lancamento[]  @relation("LancamentoConta")
   recebimentosConta Recebivel[]   @relation("RecebivelContaRecebimento")

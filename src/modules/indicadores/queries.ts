@@ -1,5 +1,6 @@
 import "server-only";
 import { TipoBeneficiario } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fimDoMesAtual, inicioDoMesAtual } from "@/lib/datas";
 
@@ -61,7 +62,6 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
 
   const [
     contas,
-    agregadosLanc,
     itensPendentes,
     itensMes,
     recebiveisMes,
@@ -70,10 +70,8 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
     recebidasSemDistribuicao,
     parceriasPendentes,
   ] = await Promise.all([
-    prisma.contaBancaria.findMany({ select: { saldoInicial: true } }),
-    prisma.lancamento.groupBy({
-      by: ["tipo"],
-      _sum: { valor: true },
+    prisma.contaBancaria.findMany({
+      select: { id: true, saldoInicial: true, saldoAberturaData: true },
     }),
     prisma.itemDistribuicao.groupBy({
       by: ["beneficiario"],
@@ -135,14 +133,29 @@ export async function getIndicadoresFinanceiros(): Promise<IndicadoresFinanceiro
     }),
   ]);
 
-  // Saldo bancário = saldosIniciais + entradas - saídas
+  // Saldo bancário = Σ (saldoInicial + entradas - saídas), por conta,
+  // respeitando a data de abertura de cada uma.
+  const totaisPorConta = await Promise.all(
+    contas.map(async (c) => {
+      const where: Prisma.LancamentoWhereInput = { contaId: c.id };
+      if (c.saldoAberturaData) where.data = { gte: c.saldoAberturaData };
+      const agg = await prisma.lancamento.groupBy({
+        by: ["tipo"],
+        where,
+        _sum: { valor: true },
+      });
+      let entradas = 0;
+      let saidas = 0;
+      for (const a of agg) {
+        const v = Number(a._sum.valor ?? 0);
+        if (a.tipo === "ENTRADA") entradas += v;
+        else if (a.tipo === "SAIDA") saidas += v;
+      }
+      return Number(c.saldoInicial) + entradas - saidas;
+    }),
+  );
   let saldoBancario = 0;
-  for (const c of contas) saldoBancario += Number(c.saldoInicial);
-  for (const a of agregadosLanc) {
-    const v = Number(a._sum.valor ?? 0);
-    if (a.tipo === "ENTRADA") saldoBancario += v;
-    else if (a.tipo === "SAIDA") saldoBancario -= v;
-  }
+  for (const s of totaisPorConta) saldoBancario += s;
 
   // Em custódia = pendentes de beneficiários não-escritório
   let emCustodia = 0;
