@@ -3,6 +3,7 @@ import Link from "next/link";
 const NAV = [
   { href: "/dashboard", label: "Painel" },
   { href: "/movimento", label: "Movimento de Caixa" },
+  { href: "/contas-a-pagar", label: "Contas a Pagar" },
   { href: "/recebiveis", label: "Recebíveis" },
   { href: "/prestacao-contas", label: "Prestação de Contas" },
   { href: "/ressarcimentos", label: "Ressarcimentos" },

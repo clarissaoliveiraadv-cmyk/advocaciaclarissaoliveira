@@ -153,6 +153,7 @@ model ContaBancaria {
   recebimentosConta Recebivel[]   @relation("RecebivelContaRecebimento")
   repassesConta     Recebivel[]   @relation("RecebivelContaRepasse")
   sucumbencias      Sucumbencia[] @relation("SucumbenciaContaRecebimento")
+  despesasFixas     DespesaFixa[]
 
   @@map("conta_bancaria")
 }
@@ -172,10 +173,11 @@ model Categoria {
   criadoEm       DateTime      @default(now())
   atualizadoEm   DateTime      @updatedAt
 
-  categoriaPai Categoria?    @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
-  filhas       Categoria[]   @relation("CategoriaHierarquia")
-  lancamentos  Lancamento[]
-  sucumbencias Sucumbencia[]
+  categoriaPai  Categoria?    @relation("CategoriaHierarquia", fields: [categoriaPaiId], references: [id])
+  filhas        Categoria[]   @relation("CategoriaHierarquia")
+  lancamentos   Lancamento[]
+  sucumbencias  Sucumbencia[]
+  despesasFixas DespesaFixa[]
 
   @@unique([nome, categoriaPaiId])
   @@map("categoria")
@@ -346,17 +348,18 @@ model Lancamento {
   criadoEm       DateTime @default(now())
   atualizadoEm   DateTime @updatedAt
 
-  conta             ContaBancaria      @relation("LancamentoConta", fields: [contaId], references: [id])
-  categoria         Categoria          @relation(fields: [categoriaId], references: [id])
-  cliente           Cliente?           @relation(fields: [clienteId], references: [id])
-  processo          Processo?          @relation(fields: [processoId], references: [id])
-  recebivel         Recebivel?         @relation(fields: [recebivelId], references: [id])
-  ressarcimento     Ressarcimento?     @relation(fields: [ressarcimentoId], references: [id])
-  transferenciaPar  Lancamento?        @relation("LancamentoTransferencia", fields: [transferenciaParId], references: [id])
-  parDe             Lancamento[]       @relation("LancamentoTransferencia")
-  criadoPor         Usuario?           @relation("LancamentoCriadoPor", fields: [criadoPorId], references: [id])
-  itensDistribuicao ItemDistribuicao[]
-  sucumbencia       Sucumbencia?       @relation("SucumbenciaLancamentoEntrada")
+  conta               ContaBancaria        @relation("LancamentoConta", fields: [contaId], references: [id])
+  categoria           Categoria            @relation(fields: [categoriaId], references: [id])
+  cliente             Cliente?             @relation(fields: [clienteId], references: [id])
+  processo            Processo?            @relation(fields: [processoId], references: [id])
+  recebivel           Recebivel?           @relation(fields: [recebivelId], references: [id])
+  ressarcimento       Ressarcimento?       @relation(fields: [ressarcimentoId], references: [id])
+  transferenciaPar    Lancamento?          @relation("LancamentoTransferencia", fields: [transferenciaParId], references: [id])
+  parDe               Lancamento[]         @relation("LancamentoTransferencia")
+  criadoPor           Usuario?             @relation("LancamentoCriadoPor", fields: [criadoPorId], references: [id])
+  itensDistribuicao   ItemDistribuicao[]
+  sucumbencia         Sucumbencia?         @relation("SucumbenciaLancamentoEntrada")
+  despesaFixaPrevisao DespesaFixaPrevisao? @relation("DespesaFixaPrevisaoLancamento")
 
   @@index([data, contaId])
   @@index([categoriaId, data])
@@ -519,4 +522,58 @@ model Escritorio {
   atualizadoEm DateTime @updatedAt
 
   @@map("escritorio")
+}
+
+// =====================================================================
+// DESPESAS FIXAS RECORRENTES (luz, condomínio, internet, etc.)
+//
+// DespesaFixa é o "template" cadastrado pelo usuário (nome, valor estimado,
+// dia de vencimento, conta e categoria padrão). DespesaFixaPrevisao é a
+// instância mensal — gerada sob demanda — que vira "conta a pagar do mês".
+// Quando o usuário marca a previsão como paga, um Lancamento de SAÍDA real
+// é criado e vinculado.
+// =====================================================================
+
+model DespesaFixa {
+  id            String  @id @default(cuid())
+  nome          String
+  categoriaId   String
+  contaId       String
+  valorEstimado Decimal @db.Decimal(14, 2)
+  diaVencimento Int     @db.SmallInt // 1..31 (clampado pelo último dia do mês)
+  ativo         Boolean @default(true)
+  observacoes   String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  categoria Categoria             @relation(fields: [categoriaId], references: [id])
+  conta     ContaBancaria         @relation(fields: [contaId], references: [id])
+  previsoes DespesaFixaPrevisao[]
+
+  @@index([ativo])
+  @@map("despesa_fixa")
+}
+
+model DespesaFixaPrevisao {
+  id             String   @id @default(cuid())
+  despesaFixaId  String
+  competencia    DateTime @db.Date // 1º dia do mês de referência (ex: 2026-07-01)
+  dataVencimento DateTime @db.Date
+  valorPrevisto  Decimal  @db.Decimal(14, 2)
+
+  // Quando o usuário marca como paga, um Lancamento real é criado.
+  lancamentoId  String?   @unique
+  dataPagamento DateTime? @db.Date
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  despesaFixa DespesaFixa @relation(fields: [despesaFixaId], references: [id], onDelete: Cascade)
+  lancamento  Lancamento? @relation("DespesaFixaPrevisaoLancamento", fields: [lancamentoId], references: [id])
+
+  @@unique([despesaFixaId, competencia])
+  @@index([competencia])
+  @@index([dataVencimento])
+  @@map("despesa_fixa_previsao")
 }
