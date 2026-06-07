@@ -57,7 +57,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     authorized: async ({ auth, request }) => {
       const isLoggedIn = !!auth?.user;
       const path = request.nextUrl.pathname;
-      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth");
+      const isPublic =
+        path.startsWith("/login") ||
+        path.startsWith("/api/auth") ||
+        path.startsWith("/api/admin/seed");
       if (isPublic) return true;
       return isLoggedIn;
     },
