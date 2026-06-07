@@ -15,6 +15,8 @@ import { LancamentosPagination } from "@/modules/movimento/components/lancamento
 import { LancamentoFormDialog } from "@/modules/movimento/components/lancamento-form-dialog";
 import { TransferenciaFormDialog } from "@/modules/movimento/components/transferencia-form-dialog";
 import { SaldoCards } from "@/modules/movimento/components/saldo-cards";
+import { getIndicadoresFinanceiros } from "@/modules/indicadores/queries";
+import { CardsFinanceiros } from "@/modules/indicadores/components/cards-financeiros";
 import { fimDoMesAtual, formatDataISO, inicioDoMesAtual } from "@/lib/datas";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +34,23 @@ export default async function MovimentoPage({ searchParams }: { searchParams: Se
     fim: filtrosRaw.fim || formatDataISO(fimDoMesAtual()),
   };
 
-  const [{ items, total, page, pageSize }, saldos, contas, categorias, clientes, processos] =
-    await Promise.all([
-      listLancamentos(filtros),
-      saldoPorConta(),
-      listOpcoesContas(),
-      listOpcoesCategorias(),
-      listOpcoesClientes(),
-      listOpcoesProcessos(),
-    ]);
+  const [
+    { items, total, page, pageSize },
+    saldos,
+    contas,
+    categorias,
+    clientes,
+    processos,
+    indicadores,
+  ] = await Promise.all([
+    listLancamentos(filtros),
+    saldoPorConta(),
+    listOpcoesContas(),
+    listOpcoesCategorias(),
+    listOpcoesClientes(),
+    listOpcoesProcessos(),
+    getIndicadoresFinanceiros(),
+  ]);
 
   const semContas = contas.length === 0;
   const semCategorias = categorias.length === 0;
@@ -84,6 +94,8 @@ export default async function MovimentoPage({ searchParams }: { searchParams: Se
           )}
         </div>
       )}
+
+      <CardsFinanceiros indicadores={indicadores} variant="compact" />
 
       <SaldoCards saldos={saldos} />
 
