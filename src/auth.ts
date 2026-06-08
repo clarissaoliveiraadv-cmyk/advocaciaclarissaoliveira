@@ -60,7 +60,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const isPublic =
         path.startsWith("/login") ||
         path.startsWith("/api/auth") ||
-        path.startsWith("/api/admin/seed");
+        path.startsWith("/api/admin/seed") ||
+        path.startsWith("/api/admin/reset-senha");
       if (isPublic) return true;
       return isLoggedIn;
     },
