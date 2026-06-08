@@ -7,11 +7,19 @@ import {
   Receipt,
   Upload,
   UserCog,
+  Users,
 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const CADASTROS = [
+  {
+    href: "/cadastros/usuarios",
+    title: "Usuários",
+    descricao: "Quem pode acessar o sistema (financeiro, secretária, parceiro). Define perfil e senha inicial.",
+    icon: Users,
+    disponivel: true,
+  },
   {
     href: "/cadastros/contas",
     title: "Contas Bancárias",
