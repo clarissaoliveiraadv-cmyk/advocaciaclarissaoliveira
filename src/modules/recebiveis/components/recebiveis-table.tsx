@@ -16,6 +16,7 @@ import { formatCnj } from "@/lib/format";
 import { RecebivelFormDialog } from "./recebivel-form-dialog";
 import { RecebivelDeleteDialog } from "./recebivel-delete-dialog";
 import { RecebivelCancelToggle } from "./recebivel-row-actions";
+import { ApagarRecebivelCompletoDialog } from "./apagar-recebivel-completo-dialog";
 import { ReceberTriggerLink } from "@/modules/distribuicao/components/receber-trigger-link";
 import { STATUS_RECEBIVEL_LABELS, TIPO_PARCELA_LABELS } from "../schema";
 import type { ParceiroOpcao, ProcessoOpcao, RecebivelComRelacoes } from "../queries";
@@ -150,6 +151,10 @@ export function RecebiveisTable({ recebiveis, processos, parceiros }: Props) {
                         podeExcluir
                       />
                     )}
+                    <ApagarRecebivelCompletoDialog
+                      recebivelId={r.id}
+                      rotulo={`${r.cliente.nome} · ${toBRL(valorParcela)}`}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

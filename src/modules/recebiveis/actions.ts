@@ -4,7 +4,7 @@ import { revalidarCaixa } from "@/lib/cache";
 import { AcaoAuditoria, Prisma, StatusRecebivel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
-import { PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
+import { PERFIS_ADMIN, PERFIS_ESCRITA, requirePerfil } from "@/lib/auth/guards";
 import { fromPercent } from "@/lib/money";
 import type { ActionResult } from "@/modules/_shared/types";
 import {
@@ -187,6 +187,77 @@ export async function excluirRecebivel(id: string): Promise<ActionResult> {
     acao: AcaoAuditoria.EXCLUIR,
     usuarioId: session.user.id,
     dadosAntes: serializarAudit(snapshotRecebivel(antes)),
+  });
+
+  revalidarCaixa();
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Atalho destrutivo para CASOS DE TESTE: apaga o recebível com tudo que
+ * estiver vinculado a ele — distribuição, itens, lançamento de entrada,
+ * lançamentos de repasse já feitos — em uma única transação.
+ *
+ * Restrito a perfil ADMIN. Ressarcimentos que apontam para esse recebível
+ * têm o vínculo zerado (recebivelId = null) — eles continuam existindo.
+ *
+ * Use o fluxo normal (reverter distribuição → cancelar/excluir) sempre que
+ * possível; esta action existe para limpar dados de teste rapidamente.
+ */
+export async function apagarRecebivelCompleto(id: string): Promise<ActionResult> {
+  const session = await requirePerfil(PERFIS_ADMIN);
+
+  const antes = await prisma.recebivel.findUnique({
+    where: { id },
+    include: {
+      distribuicao: {
+        include: { itens: { select: { id: true, lancamentoId: true } } },
+      },
+    },
+  });
+  if (!antes) return { ok: false, error: "Recebível não encontrado" };
+
+  const lancamentosRepasseIds = (antes.distribuicao?.itens ?? [])
+    .map((i) => i.lancamentoId)
+    .filter((v): v is string => !!v);
+
+  await prisma.$transaction(async (tx) => {
+    // 1) Apaga lançamentos de REPASSE (SAIDAs vinculadas a itens).
+    //    O FK item.lancamentoId é ON DELETE SET NULL — não trava o cascade.
+    if (lancamentosRepasseIds.length > 0) {
+      await tx.lancamento.deleteMany({ where: { id: { in: lancamentosRepasseIds } } });
+    }
+
+    // 2) Desvincula ressarcimentos que apontam para este recebível
+    //    (não os apaga — podem estar com lançamento próprio).
+    await tx.ressarcimento.updateMany({
+      where: { recebivelId: id },
+      data: { recebivelId: null },
+    });
+
+    // 3) Apaga a ENTRADA (e quaisquer outros lançamentos com recebivelId).
+    await tx.lancamento.deleteMany({ where: { recebivelId: id } });
+
+    // 4) Apaga a distribuição (cascade exclui os itens restantes).
+    if (antes.distribuicao) {
+      await tx.distribuicao.delete({ where: { id: antes.distribuicao.id } });
+    }
+
+    // 5) Apaga o recebível.
+    await tx.recebivel.delete({ where: { id } });
+  });
+
+  await registrarAuditoria({
+    entidade: RESOURCE,
+    entidadeId: id,
+    acao: AcaoAuditoria.EXCLUIR,
+    usuarioId: session.user.id,
+    dadosAntes: {
+      ...serializarAudit(snapshotRecebivel(antes)),
+      origem: "apagar_completo",
+      distribuicaoApagada: !!antes.distribuicao,
+      lancamentosRepasseApagados: lancamentosRepasseIds.length,
+    },
   });
 
   revalidarCaixa();
