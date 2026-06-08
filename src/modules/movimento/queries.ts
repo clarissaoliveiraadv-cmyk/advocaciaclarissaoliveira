@@ -84,30 +84,40 @@ export function getLancamentoById(id: string): Promise<LancamentoComRelacoes | n
 
 /**
  * Retorna saldo de todas as contas (ativas e inativas com movimento).
- * Saldo atual = saldoInicial + Σ ENTRADA - Σ SAIDA (todas datas).
+ *
+ * Saldo atual = saldoInicial + Σ ENTRADA - Σ SAIDA, considerando apenas
+ * lançamentos com data >= conta.saldoAberturaData (quando preenchida).
+ * Sem data de abertura, conta tudo desde sempre.
  */
 export async function saldoPorConta(): Promise<SaldoConta[]> {
-  const [contas, agregados] = await Promise.all([
-    prisma.contaBancaria.findMany({
-      orderBy: [{ ativo: "desc" }, { codigo: "asc" }],
-    }),
-    prisma.lancamento.groupBy({
-      by: ["contaId", "tipo"],
-      _sum: { valor: true },
-    }),
-  ]);
+  const contas = await prisma.contaBancaria.findMany({
+    orderBy: [{ ativo: "desc" }, { codigo: "asc" }],
+  });
 
-  const totais = new Map<string, { entradas: number; saidas: number }>();
-  for (const a of agregados) {
-    const cur = totais.get(a.contaId) ?? { entradas: 0, saidas: 0 };
-    const v = Number(a._sum.valor ?? 0);
-    if (a.tipo === "ENTRADA") cur.entradas += v;
-    else if (a.tipo === "SAIDA") cur.saidas += v;
-    totais.set(a.contaId, cur);
-  }
+  const totais = await Promise.all(
+    contas.map(async (c) => {
+      const where: Prisma.LancamentoWhereInput = { contaId: c.id };
+      if (c.saldoAberturaData) where.data = { gte: c.saldoAberturaData };
+      const agregados = await prisma.lancamento.groupBy({
+        by: ["tipo"],
+        where,
+        _sum: { valor: true },
+      });
+      let entradas = 0;
+      let saidas = 0;
+      for (const a of agregados) {
+        const v = Number(a._sum.valor ?? 0);
+        if (a.tipo === "ENTRADA") entradas += v;
+        else if (a.tipo === "SAIDA") saidas += v;
+      }
+      return { contaId: c.id, entradas, saidas };
+    }),
+  );
+
+  const totaisMap = new Map(totais.map((t) => [t.contaId, t]));
 
   return contas.map((c) => {
-    const t = totais.get(c.id) ?? { entradas: 0, saidas: 0 };
+    const t = totaisMap.get(c.id) ?? { entradas: 0, saidas: 0 };
     const inicial = Number(c.saldoInicial);
     return {
       contaId: c.id,
